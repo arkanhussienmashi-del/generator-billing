@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   StatusBar,
   Platform,
   Modal,
@@ -13,6 +14,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import NetInfo from '@react-native-community/netinfo';
 
 const DATA_DIR = FileSystem.documentDirectory + 'appdata/';
 
@@ -51,11 +55,15 @@ async function deleteFile(filename) {
 }
 
 async function saveUserData(phone, key, data) {
-  await saveToFile(phone + '_' + key, data);
+  const allData = await loadFromFile(phone + '_data') || {};
+  allData[key] = data;
+  await saveToFile(phone + '_data', allData);
 }
 
 async function loadUserData(phone, key) {
-  return await loadFromFile(phone + '_' + key);
+  const allData = await loadFromFile(phone + '_data');
+  if (!allData) return null;
+  return allData[key] !== undefined ? allData[key] : null;
 }
 
 function getAmperForMonth(subscriber, month, year) {
@@ -87,7 +95,84 @@ function isDeletedForReport(subscriber, month, year) {
   return false;
 }
 
-const WelcomeScreen = ({ onLogin, onRegister }) => {
+function getAmperPrice(amperPrices, monthKey) {
+  if (amperPrices && amperPrices[monthKey] !== undefined) {
+    return parseFloat(amperPrices[monthKey]) || 0;
+  }
+  return 0;
+}
+
+function generateWorkerCode(ownerPhone) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const ownerSuffix = ownerPhone.slice(-4);
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+  code += ownerSuffix;
+  return code;
+}
+
+function generateWorkerPin() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let pin = '';
+  for (let i = 0; i < 8; i++) pin += chars.charAt(Math.floor(Math.random() * chars.length));
+  return pin;
+}
+
+function onlyDigits(text) {
+  return text.replace(/[^0-9]/g, '');
+}
+
+function validateName(name) {
+  if (!name || name.trim().length < 2) return 'الاسم يجب أن يكون حرفين على الأقل';
+  return null;
+}
+
+function validateAmper(val) {
+  const num = parseInt(val);
+  if (!val || isNaN(num) || num < 1 || num > 100) return 'الأمبير يجب أن يكون بين 1 و 100';
+  return null;
+}
+
+function validatePhone(phone) {
+  const clean = onlyDigits(phone);
+  if (clean.length !== 11) return 'رقم الهاتف يجب أن يكون 11 رقم';
+  if (!clean.startsWith('07')) return 'رقم الهاتف يجب أن يبدأ بـ 07';
+  return null;
+}
+
+async function exportUserData(phone) {
+  const allData = await loadFromFile(phone + '_data');
+  if (!allData || Object.keys(allData).length === 0) {
+    return null;
+  }
+  const exportObj = {
+    appVersion: '1.0.0',
+    exportDate: new Date().toISOString(),
+    phone: phone,
+    data: allData,
+  };
+  const json = JSON.stringify(exportObj, null, 2);
+  const fileName = `backup_${phone}_${Date.now()}.json`;
+  const filePath = FileSystem.documentDirectory + fileName;
+  await FileSystem.writeAsStringAsync(filePath, json);
+  return filePath;
+}
+
+async function importUserData(filePath) {
+  try {
+    const content = await FileSystem.readAsStringAsync(filePath);
+    const importObj = JSON.parse(content);
+    if (!importObj.phone || !importObj.data) {
+      return { success: false, error: 'ملف غير صالح' };
+    }
+    await saveToFile(importObj.phone + '_data', importObj.data);
+    return { success: true, phone: importObj.phone };
+  } catch (e) {
+    return { success: false, error: 'خطأ في قراءة الملف' };
+  }
+}
+
+const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
   return (
     <View style={styles.welcomeContainer}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
@@ -105,6 +190,11 @@ const WelcomeScreen = ({ onLogin, onRegister }) => {
         <TouchableOpacity style={styles.welcomeRegisterBtn} onPress={onRegister}>
           <Text style={styles.welcomeRegisterText}>إنشاء حساب جديد</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.welcomeRegisterBtn, { backgroundColor: '#FF9800', marginTop: 15 }]} onPress={onWorkerLogin}>
+          <Ionicons name="person-outline" size={20} color="white" style={{ marginLeft: 8 }} />
+          <Text style={styles.welcomeRegisterText}>دخول العامل</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -117,8 +207,9 @@ const RegisterScreen = ({ onBack, onRegister }) => {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleRegister = async () => {
-    if (!phone.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال رقم الهاتف أو الإيميل');
+    const phoneError = validatePhone(phone);
+    if (phoneError) {
+      Alert.alert('تنبيه', phoneError);
       return;
     }
     if (!password.trim()) {
@@ -147,7 +238,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
     await saveToFile('registered_users', list);
 
     await saveUserData(phone.trim(), 'generatorName', '');
-    await saveUserData(phone.trim(), 'amperPrice', '0');
+    await saveUserData(phone.trim(), 'amperPrices', {});
     await saveUserData(phone.trim(), 'subscribers', []);
     await saveUserData(phone.trim(), 'expenses', { gas: '0', oil: '0', repairs: '0', salaries: '0' });
 
@@ -174,11 +265,12 @@ const RegisterScreen = ({ onBack, onRegister }) => {
             <Ionicons name="call-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="رقم الهاتف أو الإيميل"
+              placeholder="رقم الهاتف (07xxxxxxxxx)"
               placeholderTextColor="#999"
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={(t) => setPhone(onlyDigits(t))}
               keyboardType="phone-pad"
+              maxLength={11}
             />
           </View>
 
@@ -228,8 +320,13 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
-    if (!phone.trim() || !password.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال جميع البيانات');
+    const phoneError = validatePhone(phone);
+    if (phoneError) {
+      Alert.alert('تنبيه', phoneError);
+      return;
+    }
+    if (!password.trim()) {
+      Alert.alert('تنبيه', 'يرجى إدخال كلمة المرور');
       return;
     }
 
@@ -264,11 +361,12 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
             <Ionicons name="call-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="رقم الهاتف أو الإيميل"
+              placeholder="رقم الهاتف (07xxxxxxxxx)"
               placeholderTextColor="#999"
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={(t) => setPhone(onlyDigits(t))}
               keyboardType="phone-pad"
+              maxLength={11}
             />
           </View>
 
@@ -300,14 +398,87 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName }) => {
+const WorkerLoginScreen = ({ onBack, onLogin }) => {
+  const [code, setCode] = useState('');
+  const [pin, setPin] = useState('');
+
+  const handleLogin = async () => {
+    if (!code.trim() || !pin.trim()) {
+      Alert.alert('تنبيه', 'يرجى إدخال الكود والرمز السري');
+      return;
+    }
+    const result = await onLogin(code.trim(), pin.trim());
+    if (!result.success) {
+      Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
+    }
+  };
+
+  return (
+    <View style={styles.loginContainer}>
+      <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <View style={styles.loginContent}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+          <Ionicons name="arrow-forward" size={24} color="white" />
+        </TouchableOpacity>
+
+        <View style={styles.logoContainer}>
+          <Ionicons name="person" size={50} color="#FFD700" />
+          <Text style={styles.appTitle}>دخول العامل</Text>
+        </View>
+
+        <View style={styles.loginCard}>
+          <View style={styles.inputContainer}>
+            <Ionicons name="key-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="كود العامل"
+              placeholderTextColor="#999"
+              value={code}
+              onChangeText={(t) => setCode(t.toUpperCase())}
+              autoCapitalize="characters"
+              maxLength={8}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="الرمز السري"
+              placeholderTextColor="#999"
+              value={pin}
+              onChangeText={(t) => setPin(t.toUpperCase())}
+              autoCapitalize="characters"
+              maxLength={8}
+            />
+          </View>
+
+          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+            <Text style={styles.loginButtonText}>دخول</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
 
-  const handleSave = () => {
-    onSaveGeneratorName(name);
-    onSaveOwnerName(owner);
-    onClose();
+  useEffect(() => {
+    setName(generatorName);
+    setOwner(ownerName);
+  }, [generatorName, ownerName, visible]);
+
+  const handleSaveName = (val) => {
+    setName(val);
+    onSaveGeneratorName(val);
+  };
+
+  const handleSaveOwner = (val) => {
+    setOwner(val);
+    onSaveOwnerName(val);
   };
 
   return (
@@ -319,8 +490,8 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <Ionicons name="close" size={28} color="#333" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>الإعدادات</Text>
-            <TouchableOpacity onPress={handleSave}>
-              <Text style={styles.saveButtonText}>حفظ</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.saveButtonText}>تم</Text>
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -329,7 +500,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <TextInput
                 style={styles.settingsInput}
                 value={name}
-                onChangeText={setName}
+                onChangeText={handleSaveName}
                 placeholder="أدخل اسم المولد"
                 placeholderTextColor="#999"
                 textAlign="right"
@@ -342,12 +513,37 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <TextInput
                 style={styles.settingsInput}
                 value={owner}
-                onChangeText={setOwner}
+                onChangeText={handleSaveOwner}
                 placeholder="أدخل اسم صاحب المولد"
                 placeholderTextColor="#999"
                 textAlign="right"
               />
               <Text style={styles.settingsHint}>سيتم عرض هذا الاسم عند كل عملية دفع أو إلغاء دفع</Text>
+
+              <View style={styles.settingsDivider} />
+
+              <Text style={styles.settingsLabel}>النسخ الاحتياطي</Text>
+              <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onExport}>
+                  <Ionicons name="cloud-upload-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تصدير</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onImport}>
+                  <Ionicons name="cloud-download-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>استيراد</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.settingsHint}>تصدير: حفظ نسخة احتياطية ومشاركتها عبر واتساب أو إيميل</Text>
+              <Text style={styles.settingsHint}>استيراد: استعادة بيانات من نسخة احتياطية سابقة</Text>
+
+              <View style={styles.settingsDivider} />
+
+              <Text style={styles.settingsLabel}>إدارة العمال</Text>
+              <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#FF9800', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onCreateWorker}>
+                <Ionicons name="person-add-outline" size={20} color="white" />
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>إضافة عامل</Text>
+              </TouchableOpacity>
+              <Text style={styles.settingsHint}>إنشاء كود ورمز سري جديد للعامل</Text>
             </View>
           </ScrollView>
         </View>
@@ -428,12 +624,14 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
   const [visaNumber, setVisaNumber] = useState('');
 
   const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم المشترك');
+    const nameError = validateName(name);
+    if (nameError) {
+      Alert.alert('تنبيه', nameError);
       return;
     }
-    if (!amper.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال عدد الأمبيرات');
+    const amperError = validateAmper(amper);
+    if (amperError) {
+      Alert.alert('تنبيه', amperError);
       return;
     }
 
@@ -484,15 +682,15 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
-            <TextInput style={styles.formInput} value={amper} onChangeText={setAmper} placeholder="أدخل عدد الأمبيرات" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            <TextInput style={styles.formInput} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholder="أدخل عدد الأمبيرات" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>رقم المشترك</Text>
-            <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={setSubscriberNumber} placeholder="أدخل رقم المشترك" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={(t) => setSubscriberNumber(onlyDigits(t))} placeholder="أدخل رقم المشترك" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>رقم الجوزة</Text>
-            <TextInput style={styles.formInput} value={meterNumber} onChangeText={setMeterNumber} placeholder="أدخل رقم الجوزة" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholder="أدخل رقم الجوزة" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>رقم الفيز</Text>
@@ -526,12 +724,14 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   }, [subscriber]);
 
   const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم المشترك');
+    const nameError = validateName(name);
+    if (nameError) {
+      Alert.alert('تنبيه', nameError);
       return;
     }
-    if (!amper.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال عدد الأمبيرات');
+    const amperError = validateAmper(amper);
+    if (amperError) {
+      Alert.alert('تنبيه', amperError);
       return;
     }
     const amperVal = parseInt(amper) || 0;
@@ -576,15 +776,15 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
-            <TextInput style={styles.formInput} value={amper} onChangeText={setAmper} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            <TextInput style={styles.formInput} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>رقم المشترك</Text>
-            <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={setSubscriberNumber} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={(t) => setSubscriberNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>رقم الجوزة</Text>
-            <TextInput style={styles.formInput} value={meterNumber} onChangeText={setMeterNumber} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
           </View>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>رقم الفيز</Text>
@@ -600,11 +800,11 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   );
 };
 
-const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrice, monthKey, onConfirm }) => {
+const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, monthKey, onConfirm }) => {
   const [amount, setAmount] = useState('');
-  const price = parseFloat(amperPrice) || 0;
   const pmMonth = monthKey ? monthKey.split('_')[0] : '1';
   const pmYear = monthKey ? monthKey.split('_')[1] : '2026';
+  const price = getAmperPrice(amperPrices, monthKey);
   const totalDue = (subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0) * price;
   const existingPayments = (subscriber && subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
   const totalPaid = existingPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -668,8 +868,7 @@ const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrice, monthKe
             <TextInput
               style={styles.partialInput}
               value={amount}
-              onChangeText={setAmount}
-              placeholder="0"
+              onChangeText={(t) => setAmount(onlyDigits(t))}              placeholder="0"
               placeholderTextColor="#999"
               keyboardType="numeric"
               textAlign="center"
@@ -730,15 +929,27 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
             <Text style={styles.partialSubscriberName}>{subscriber ? subscriber.name : ''}</Text>
           </View>
 
-          <View style={styles.reportsSelectors}>
-            <TouchableOpacity style={styles.reportsDropdown} onPress={() => setYearPickerVisible(true)}>
-              <Text style={styles.reportsDropdownText}>{changeYear}</Text>
+          <View style={styles.dateSelectors}>
+            <TouchableOpacity style={styles.dateDropdown} onPress={() => setMonthPickerVisible(true)}>
+              <Text style={styles.dateDropdownText}>{selectedMonth}</Text>
               <Ionicons name="calendar" size={20} color="#2196F3" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.reportsDropdown} onPress={() => setMonthPickerVisible(true)}>
-              <Text style={styles.reportsDropdownText}>{changeMonth}</Text>
+            <TouchableOpacity style={styles.dateDropdown} onPress={() => setYearPickerVisible(true)}>
+              <Text style={styles.dateDropdownText}>{selectedYear}</Text>
               <Ionicons name="calendar" size={20} color="#2196F3" />
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.dateSelectors}>
+            <TextInput
+              style={[styles.dateDropdown, { borderWidth: 1, borderColor: '#2196F3', textAlign: 'center' }]}
+              value={String(amperPrices[`${selectedMonth}_${selectedYear}`] || '0')}
+              onChangeText={(val) => onSaveAmperPrice(`${selectedMonth}_${selectedYear}`, onlyDigits(val))}
+              keyboardType="numeric"
+              placeholder="سعر الأميبر"
+              placeholderTextColor="#999"
+            />
+            <Text style={{ color: '#2196F3', fontWeight: 'bold', alignSelf: 'center' }}>سعر الأميبر</Text>
           </View>
 
           <View style={styles.partialInputGroup}>
@@ -746,7 +957,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
             <TextInput
               style={styles.partialInput}
               value={newAmper}
-              onChangeText={setNewAmper}
+              onChangeText={(t) => setNewAmper(onlyDigits(t))}
               placeholder="0"
               placeholderTextColor="#999"
               keyboardType="numeric"
@@ -766,7 +977,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
   );
 };
 
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrice, currentUser, ownerName, onChangeAmper }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, currentUser, ownerName, onChangeAmper, onSaveAmperPrice }) => {
   const [selectedMonth, setSelectedMonth] = useState('6');
   const [selectedYear, setSelectedYear] = useState('2026');
   const [searchText, setSearchText] = useState('');
@@ -781,6 +992,11 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [expandedCard, setExpandedCard] = useState(null);
+  const [displayCount, setDisplayCount] = useState(15);
+
+  const PAGE_SIZE = 15;
+
+  useEffect(() => { setDisplayCount(PAGE_SIZE); }, [selectedMonth, selectedYear, searchText, activeFilter, visible]);
 
   const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -820,10 +1036,15 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
     return isDeletedForMonth(sub, parseInt(selectedMonth), parseInt(selectedYear));
   });
 
+  const hasPartialPayments = (sub) => {
+    const pp = sub.partialPayments && sub.partialPayments[monthKey];
+    return pp && pp.length > 0;
+  };
+
   const visibleCount = visibleSubscribers.length;
   const paidCount = visibleSubscribers.filter(s => isPaid(s)).length;
-  const unpaidCount = visibleSubscribers.filter(s => !isPaid(s)).length;
-  const requiredCount = visibleSubscribers.filter(s => !isPaid(s)).length;
+  const requiredCount = visibleSubscribers.filter(s => !isPaid(s) && hasPartialPayments(s)).length;
+  const unpaidCount = visibleSubscribers.filter(s => !isPaid(s) && !hasPartialPayments(s)).length;
 
   const filters = [
     { id: 'total', label: 'الإجمالي اشتراك', count: visibleCount },
@@ -840,10 +1061,13 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
       (sub.meterNumber && sub.meterNumber.includes(searchText));
 
     if (activeFilter === 'paid') return matchesSearch && isPaid(sub);
-    if (activeFilter === 'unpaid') return matchesSearch && !isPaid(sub);
-    if (activeFilter === 'required') return matchesSearch && !isPaid(sub);
+    if (activeFilter === 'unpaid') return matchesSearch && !isPaid(sub) && !hasPartialPayments(sub);
+    if (activeFilter === 'required') return matchesSearch && !isPaid(sub) && hasPartialPayments(sub);
     return matchesSearch;
   });
+
+  const paginatedSubscribers = filteredSubscribers.slice(0, displayCount);
+  const hasMore = filteredSubscribers.length > displayCount;
 
   const filteredDeleted = deletedForMonth.filter(sub => {
     return sub.name.includes(searchText) ||
@@ -946,7 +1170,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                   <View style={styles.subscriberInfo}>
                     <Text style={styles.subscriberName}>{subscriber.name}</Text>
                     <Text style={styles.subscriberAmount}>
-                      د.ع {formatNumber(getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear)) * (parseFloat(amperPrice) || 0))}    <Text style={styles.amperBlue}>{getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear))} أميبر</Text>
+                      د.ع {formatNumber(getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear)) * getAmperPrice(amperPrices, `${selectedMonth}_${selectedYear}`))}    <Text style={styles.amperBlue}>{getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear))} أميبر</Text>
                     </Text>
                   </View>
                   <TouchableOpacity style={styles.restoreButton} onPress={() => onRestoreSubscriber(subscriber.id)}>
@@ -961,13 +1185,13 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               <Text style={styles.emptyStateText}>لا يوجد مشتركين</Text>
             </View>
           ) : (
-            filteredSubscribers.map((subscriber) => {
+            paginatedSubscribers.map((subscriber) => {
               const monthKey = `${selectedMonth}_${selectedYear}`;
               const currentAmper = getAmperForMonth(subscriber, selectedMonth, selectedYear);
               const historyForMonth = (subscriber.paymentHistory || []).filter(h => h.monthKey === monthKey);
               const hasMultipleActions = historyForMonth.length > 1;
               const isExpanded = expandedCard === subscriber.id;
-              const price = parseFloat(amperPrice) || 0;
+              const price = getAmperPrice(amperPrices, monthKey);
               const totalDue = currentAmper * price;
               const partialPayments = (subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
               const totalPartialPaid = partialPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -1003,10 +1227,14 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </TouchableOpacity>
                       <View style={styles.cardNameSection}>
                         <TouchableOpacity onPress={() => {
+                          if (isFullyPaid) {
+                            Alert.alert('تنبيه', 'لا يمكن تعديل بيانات المشترك لأنه دافع الشهر الحالي');
+                            return;
+                          }
                           setEditSubscriber(subscriber);
                           setEditSubscriberVisible(true);
                         }}>
-                          <Text style={styles.subscriberName}>{subscriber.name}</Text>
+                          <Text style={[styles.subscriberName, !isFullyPaid && styles.editableName]}>{subscriber.name}</Text>
                         </TouchableOpacity>
                         {!isFullyPaid && (
                             <Text style={styles.subscriberAmperTag}>{currentAmper} أميبر</Text>
@@ -1119,6 +1347,12 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               );
             })
           )}
+          {hasMore && activeFilter !== 'deleted' && (
+            <TouchableOpacity style={styles.loadMoreButton} onPress={() => setDisplayCount(prev => prev + PAGE_SIZE)}>
+              <Text style={styles.loadMoreText}>عرض المزيد ({filteredSubscribers.length - displayCount} متبقي)</Text>
+              <Ionicons name="chevron-down" size={20} color="#2196F3" />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
 
@@ -1134,8 +1368,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
         visible={partialPaymentVisible}
         onClose={() => { setPartialPaymentVisible(false); setPartialPaymentSubscriber(null); }}
         subscriber={partialPaymentSubscriber}
-        amperPrice={amperPrice}
-        monthKey={monthKey}
+        amperPrices={amperPrices}        monthKey={monthKey}
         onConfirm={(amount) => onPartialPayment(partialPaymentSubscriber.id, amount, monthKey)}
       />
 
@@ -1165,7 +1398,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   );
 };
 
-const ReportsScreen = ({ visible, onClose, subscribers, amperPrice }) => {
+const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedYear, setSelectedYear] = useState('2026');
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -1179,7 +1412,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrice }) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
-  const price = parseFloat(amperPrice) || 0;
+  const getPriceForMonth = (m, y) => getAmperPrice(amperPrices, `${m}_${y}`);
 
   const filteredSubscribers = subscribers.filter(sub => {
     if (!sub.name.includes(searchText)) return false;
@@ -1196,14 +1429,19 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrice }) => {
   let totalDue = 0;
   let totalPaid = 0;
   if (selectedSubscriber) {
+    const subAddedMonth = selectedSubscriber.addedMonth ? parseInt(selectedSubscriber.addedMonth) : 1;
+    const subAddedYear = selectedSubscriber.addedYear ? parseInt(selectedSubscriber.addedYear) : 2026;
     monthsToShow.forEach(m => {
+      const isBeforeAdded = (parseInt(selectedYear) < subAddedYear) || (parseInt(selectedYear) === subAddedYear && parseInt(m) < subAddedMonth);
+      if (isBeforeAdded) return;
       const monthKey = `${m}_${selectedYear}`;
       const isDeleted = isDeletedForReport(selectedSubscriber, m, selectedYear);
       if (isDeleted) return;
       const subAmper = getAmperForMonth(selectedSubscriber, m, selectedYear);
-      totalDue += subAmper * price;
+      const mPrice = getPriceForMonth(m, selectedYear);
+      totalDue += subAmper * mPrice;
       if (selectedSubscriber.paidMonths && selectedSubscriber.paidMonths[monthKey]) {
-        totalPaid += subAmper * price;
+        totalPaid += subAmper * mPrice;
       }
     });
   }
@@ -1289,6 +1527,26 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrice }) => {
 
                 {monthsToShow.map(m => {
                   const monthKey = `${m}_${selectedYear}`;
+                  const subAddedMonth = selectedSubscriber.addedMonth ? parseInt(selectedSubscriber.addedMonth) : 1;
+                  const subAddedYear = selectedSubscriber.addedYear ? parseInt(selectedSubscriber.addedYear) : 2026;
+                  const isBeforeAdded = (parseInt(selectedYear) < subAddedYear) || (parseInt(selectedYear) === subAddedYear && parseInt(m) < subAddedMonth);
+
+                  if (isBeforeAdded) {
+                    return (
+                      <View key={m} style={[styles.reportTableRow, { backgroundColor: '#F5F5F5' }]}>
+                        <Text style={[styles.reportTableCell, { color: '#BBB' }]}>{m}/{selectedYear}</Text>
+                        <Text style={[styles.reportTableCell, { color: '#BBB' }]}>-</Text>
+                        <Text style={[styles.reportTableCell, { color: '#BBB' }]}>-</Text>
+                        <View style={[styles.reportStatusBadge, { backgroundColor: '#E0E0E0' }]}>
+                          <Text style={[styles.reportStatusText, { color: '#999' }]}>لم يُضَف بعد</Text>
+                        </View>
+                        <View style={{flex: 1.5}}>
+                          <Text style={[styles.reportTableCellSmall, { color: '#BBB' }]}>-</Text>
+                        </View>
+                      </View>
+                    );
+                  }
+
                   const deleted = isDeletedForReport(selectedSubscriber, m, selectedYear);
 
                   if (deleted) {
@@ -1312,12 +1570,13 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrice }) => {
                   const history = (selectedSubscriber.paymentHistory || []).filter(h => h.monthKey === monthKey);
                   const lastEntry = history.length > 0 ? history[history.length - 1] : null;
                   const rowAmper = getAmperForMonth(selectedSubscriber, m, selectedYear);
+                  const rowPrice = getPriceForMonth(m, selectedYear);
 
                   return (
                     <View key={m} style={[styles.reportTableRow, isPaid ? styles.reportRowPaid : styles.reportRowUnpaid]}>
                       <Text style={styles.reportTableCell}>{m}/{selectedYear}</Text>
                       <Text style={[styles.reportTableCell, styles.amperBlue]}>{rowAmper}</Text>
-                      <Text style={styles.reportTableCell}>د.ع {formatNumber(rowAmper * price)}</Text>
+                      <Text style={styles.reportTableCell}>د.ع {formatNumber(rowAmper * rowPrice)}</Text>
                       <View style={[styles.reportStatusBadge, isPaid ? styles.reportStatusPaid : styles.reportStatusUnpaid]}>
                         <Text style={styles.reportStatusText}>{isPaid ? 'مدفوع' : 'غير مدفوع'}</Text>
                       </View>
@@ -1386,24 +1645,24 @@ const MonthPickerAllModal = ({ visible, onClose, onSelect, selectedMonth }) => {
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrice, onSetAmperPrice, expenses, onSetExpenses, onLogout }) => {
-  const [localAmperPrice, setLocalAmperPrice] = useState(amperPrice);
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline }) => {
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const currentMonthKey = `${currentMonth}_${currentYear}`;
+
+  const [localAmperPrice, setLocalAmperPrice] = useState(String(amperPrices[currentMonthKey] || '0'));
   const [gas, setGas] = useState(expenses.gas);
   const [oil, setOil] = useState(expenses.oil);
   const [repairs, setRepairs] = useState(expenses.repairs);
   const [salaries, setSalaries] = useState(expenses.salaries);
 
   useEffect(() => {
-    setLocalAmperPrice(amperPrice);
+    setLocalAmperPrice(String(amperPrices[currentMonthKey] || '0'));
     setGas(expenses.gas);
     setOil(expenses.oil);
     setRepairs(expenses.repairs);
     setSalaries(expenses.salaries);
-  }, [amperPrice, expenses]);
-
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const currentMonthKey = `${currentMonth}_${currentYear}`;
+  }, [amperPrices, expenses]);
 
   const totalSubscribers = subscribers.length;
   const totalAmper = subscribers.reduce((sum, sub) => sum + getAmperForMonth(sub, currentMonth, currentYear), 0);
@@ -1427,22 +1686,30 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   };
 
   const handleAmperPriceChange = (val) => {
-    setLocalAmperPrice(val);
-    onSetAmperPrice(val);
+    const clean = onlyDigits(val);
+    setLocalAmperPrice(clean);
+    onSetAmperPrice(currentMonthKey, clean);
   };
 
   const handleExpenseChange = (field, val) => {
-    const newExpenses = { gas, oil, repairs, salaries, [field]: val };
-    if (field === 'gas') setGas(val);
-    if (field === 'oil') setOil(val);
-    if (field === 'repairs') setRepairs(val);
-    if (field === 'salaries') setSalaries(val);
+    const clean = onlyDigits(val);
+    const newExpenses = { gas, oil, repairs, salaries, [field]: clean };
+    if (field === 'gas') setGas(clean);
+    if (field === 'oil') setOil(clean);
+    if (field === 'repairs') setRepairs(clean);
+    if (field === 'salaries') setSalaries(clean);
     onSetExpenses(newExpenses);
   };
 
   return (
     <View style={styles.mainContainer}>
-      <StatusBar backgroundColor="#2196F3" barStyle="light-content" />
+      <StatusBar backgroundColor={isOnline ? "#2196F3" : "#FF5722"} barStyle="light-content" />
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline-outline" size={16} color="white" />
+          <Text style={styles.offlineBannerText}>وضع عدم الاتصال - البيانات محفوظة محلياً</Text>
+        </View>
+      )}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity style={styles.menuButton} onPress={onOpenSettings}>
@@ -1474,7 +1741,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
 
         <View style={styles.priceSection}>
-          <Text style={styles.priceLabel}>سعر الأميبر (د.ع)</Text>
+          <Text style={styles.priceLabel}>سعر الأميبر - شهر {currentMonth} (د.ع)</Text>
           <TextInput style={styles.priceInput} value={localAmperPrice} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" />
         </View>
 
@@ -1565,6 +1832,69 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline }) => {
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const currentMonthKey = `${currentMonth}_${currentYear}`;
+
+  const totalSubscribers = subscribers.length;
+  const paidCount = subscribers.filter(s => s.paidMonths && s.paidMonths[currentMonthKey]).length;
+  const unpaidCount = totalSubscribers - paidCount;
+
+  const formatNumber = (num) => {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
+  return (
+    <View style={styles.mainContainer}>
+      <StatusBar backgroundColor={isOnline ? "#FF9800" : "#FF5722"} barStyle="light-content" />
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline-outline" size={16} color="white" />
+          <Text style={styles.offlineBannerText}>وضع عدم الاتصال - البيانات محفوظة محلياً</Text>
+        </View>
+      )}
+      <View style={[styles.header, { backgroundColor: '#FF9800' }]}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+            <Ionicons name="log-out-outline" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.headerTitle}>{generatorName || 'واجهة العامل'}</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.dateContainer}>
+          <Text style={styles.dateText}>{currentMonth} / {currentYear}</Text>
+        </View>
+
+        <View style={styles.statsContainer}>
+          <View style={[styles.statCard, styles.totalCard]}>
+            <Text style={[styles.statNumber, styles.totalNumber]}>{totalSubscribers}</Text>
+            <Text style={[styles.statLabel, styles.totalLabel]}>المجموع</Text>
+          </View>
+          <View style={[styles.statCard, styles.paidCard]}>
+            <Text style={[styles.statNumber, styles.paidNumber]}>{paidCount}</Text>
+            <Text style={[styles.statLabel, styles.paidLabel]}>مدفوع</Text>
+          </View>
+          <View style={[styles.statCard, styles.unpaidCard]}>
+            <Text style={[styles.statNumber, styles.unpaidNumber]}>{unpaidCount}</Text>
+            <Text style={[styles.statLabel, styles.unpaidLabel]}>غير مدفوع</Text>
+          </View>
+        </View>
+
+        <View style={styles.bottomButtons}>
+          <TouchableOpacity style={styles.showSubscribersButton} onPress={onShowSubscribers}>
+            <Ionicons name="people" size={20} color="white" />
+            <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
 export default function App() {
   const [screen, setScreen] = useState('welcome');
   const [currentUser, setCurrentUser] = useState(null);
@@ -1574,8 +1904,12 @@ export default function App() {
   const [subscribersVisible, setSubscribersVisible] = useState(false);
   const [reportsVisible, setReportsVisible] = useState(false);
   const [subscribers, setSubscribers] = useState([]);
-  const [amperPrice, setAmperPrice] = useState('0');
+  const [amperPrices, setAmperPrices] = useState({});
   const [expenses, setExpenses] = useState({ gas: '0', oil: '0', repairs: '0', salaries: '0' });
+  const [userRole, setUserRole] = useState(null);
+  const [workerOwnerPhone, setWorkerOwnerPhone] = useState(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingOps, setPendingOps] = useState(0);
 
   useEffect(() => {
     checkLoggedIn();
@@ -1586,6 +1920,13 @@ export default function App() {
       loadAllUserData();
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(state.isConnected);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const checkLoggedIn = async () => {
     const userData = await loadFromFile('current_user');
@@ -1599,12 +1940,12 @@ export default function App() {
     if (!currentUser) return;
     const name = await loadUserData(currentUser, 'generatorName');
     const owner = await loadUserData(currentUser, 'ownerName');
-    const price = await loadUserData(currentUser, 'amperPrice');
+    const prices = await loadUserData(currentUser, 'amperPrices');
     const subs = await loadUserData(currentUser, 'subscribers');
     const exp = await loadUserData(currentUser, 'expenses');
     if (name !== null) setGeneratorName(name);
     if (owner !== null) setOwnerName(owner);
-    if (price !== null) setAmperPrice(price);
+    if (prices !== null) setAmperPrices(prices);
     if (subs !== null) setSubscribers(subs);
     if (exp !== null) setExpenses(exp);
   };
@@ -1617,11 +1958,53 @@ export default function App() {
   const handleLogout = async () => {
     await deleteFile('current_user');
     setCurrentUser(null);
+    setUserRole(null);
+    setWorkerOwnerPhone(null);
     setGeneratorName('');
-    setAmperPrice('0');
+    setAmperPrices({});
     setSubscribers([]);
     setExpenses({ gas: '0', oil: '0', repairs: '0', salaries: '0' });
     setScreen('welcome');
+  };
+
+  const handleExport = async () => {
+    try {
+      const filePath = await exportUserData(currentUser);
+      if (!filePath) {
+        Alert.alert('تنبيه', 'لا توجد بيانات للتصدير');
+        return;
+      }
+      await Sharing.shareAsync(filePath, {
+        mimeType: 'application/json',
+        dialogTitle: 'تصدير بيانات نظام الجباية',
+      });
+    } catch (e) {
+      Alert.alert('خطأ', 'فشل التصدير');
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const fileUri = result.assets[0].uri;
+      const importResult = await importUserData(fileUri);
+      if (importResult.success) {
+        if (importResult.phone === currentUser) {
+          await loadAllUserData();
+          Alert.alert('نجاح', 'تم استيراد البيانات بنجاح');
+        } else {
+          Alert.alert('تنبيه', 'الملف يخص مستخدم آخر');
+        }
+      } else {
+        Alert.alert('خطأ', importResult.error);
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'فشل الاستيراد');
+    }
   };
 
   const saveGeneratorName = async (name) => {
@@ -1634,14 +2017,44 @@ export default function App() {
     if (currentUser) await saveUserData(currentUser, 'ownerName', name);
   };
 
-  const saveAmperPrice = async (price) => {
-    setAmperPrice(price);
-    if (currentUser) await saveUserData(currentUser, 'amperPrice', price);
+  const saveAmperPrice = async (monthKey, price) => {
+    const newPrices = { ...amperPrices, [monthKey]: price };
+    setAmperPrices(newPrices);
+    if (currentUser) await saveUserData(currentUser, 'amperPrices', newPrices);
   };
 
   const saveExpenses = async (exp) => {
     setExpenses(exp);
     if (currentUser) await saveUserData(currentUser, 'expenses', exp);
+  };
+
+  const handleCreateWorker = async () => {
+    const code = generateWorkerCode(currentUser);
+    const pin = generateWorkerPin();
+    const workers = await loadUserData(currentUser, 'workers') || [];
+    const newWorker = { code, pin, createdAt: new Date().toISOString() };
+    workers.push(newWorker);
+    await saveUserData(currentUser, 'workers', workers);
+    Alert.alert(
+      'تم إنشاء حساب العامل',
+      `كود العامل: ${code}\nالرمز السري: ${pin}\n\nأرسل هذا الكود والرمز للعامل`,
+      [{ text: 'حسناً' }]
+    );
+  };
+
+  const handleWorkerLogin = async (code, pin) => {
+    const users = await loadFromFile('registered_users');
+    const list = users || [];
+    for (const user of list) {
+      const workers = await loadUserData(user.phone, 'workers');
+      if (workers) {
+        const found = workers.find(w => w.code === code.toUpperCase() && w.pin === pin.toUpperCase());
+        if (found) {
+          return { success: true, ownerPhone: user.phone };
+        }
+      }
+    }
+    return { success: false };
   };
 
   const handleAddSubscriber = async (subscriber) => {
@@ -1724,7 +2137,6 @@ export default function App() {
     const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
     const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true });
     const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
-    const price = parseFloat(amperPrice) || 0;
 
     const newSubs = subscribers.map(s => {
       if (s.id === id) {
@@ -1804,6 +2216,7 @@ export default function App() {
       <WelcomeScreen
         onLogin={() => setScreen('login')}
         onRegister={() => setScreen('register')}
+        onWorkerLogin={() => setScreen('workerLogin')}
       />
     );
   }
@@ -1827,6 +2240,55 @@ export default function App() {
     );
   }
 
+  if (screen === 'workerLogin') {
+    return (
+      <WorkerLoginScreen
+        onBack={() => setScreen('welcome')}
+        onLogin={async (code, pin) => {
+          const result = await handleWorkerLogin(code, pin);
+          if (result.success) {
+            setWorkerOwnerPhone(result.ownerPhone);
+            setUserRole('worker');
+            setCurrentUser(result.ownerPhone);
+            setScreen('workerMain');
+          }
+          return result;
+        }}
+      />
+    );
+  }
+
+  if (screen === 'workerMain') {
+    return (
+      <View style={styles.mainContainer}>
+        <WorkerMainScreen
+          generatorName={generatorName}
+          onShowSubscribers={() => setSubscribersVisible(true)}
+          onShowReports={() => setReportsVisible(true)}
+          subscribers={subscribers}
+          amperPrices={amperPrices}
+          onLogout={handleLogout}
+          isOnline={isOnline}
+        />
+        <SubscribersScreen
+          visible={subscribersVisible}
+          onClose={() => setSubscribersVisible(false)}
+          subscribers={subscribers}
+          onSaveSubscriber={handleAddSubscriber}
+          onDeleteSubscriber={handleDeleteSubscriber}
+          onTogglePaid={handleTogglePaid}
+          onPartialPayment={handlePartialPayment}
+          onRestoreSubscriber={handleRestoreSubscriber}
+          onChangeAmper={handleChangeAmper}
+          amperPrices={amperPrices}
+          onSaveAmperPrice={saveAmperPrice}
+          currentUser={currentUser}
+          ownerName={ownerName}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.mainContainer}>
       <MainScreen
@@ -1836,11 +2298,12 @@ export default function App() {
         onShowSubscribers={() => setSubscribersVisible(true)}
         onShowReports={() => setReportsVisible(true)}
         subscribers={subscribers}
-        amperPrice={amperPrice}
+        amperPrices={amperPrices}
         onSetAmperPrice={saveAmperPrice}
         expenses={expenses}
         onSetExpenses={saveExpenses}
         onLogout={handleLogout}
+        isOnline={isOnline}
       />
       <SettingsScreen
         visible={settingsVisible}
@@ -1849,6 +2312,9 @@ export default function App() {
         onSaveGeneratorName={saveGeneratorName}
         ownerName={ownerName}
         onSaveOwnerName={saveOwnerName}
+        onExport={handleExport}
+        onImport={handleImport}
+        onCreateWorker={handleCreateWorker}
       />
       <SubscribersScreen
         visible={subscribersVisible}
@@ -1860,7 +2326,8 @@ export default function App() {
         onPartialPayment={handlePartialPayment}
         onRestoreSubscriber={handleRestoreSubscriber}
         onChangeAmper={handleChangeAmper}
-        amperPrice={amperPrice}
+        amperPrices={amperPrices}
+        onSaveAmperPrice={saveAmperPrice}
         currentUser={currentUser}
         ownerName={ownerName}
       />
@@ -1868,7 +2335,7 @@ export default function App() {
         visible={reportsVisible}
         onClose={() => setReportsVisible(false)}
         subscribers={subscribers}
-        amperPrice={amperPrice}
+        amperPrices={amperPrices}
       />
     </View>
   );
@@ -2405,6 +2872,41 @@ const styles = StyleSheet.create({
     color: '#2196F3',
     fontWeight: '600',
     marginTop: 2,
+  },
+  editableName: {
+    color: '#2196F3',
+    textDecorationLine: 'underline',
+  },
+  offlineBanner: {
+    backgroundColor: '#FF5722',
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    gap: 6,
+  },
+  offlineBannerText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  loadMoreButton: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginVertical: 10,
+    marginHorizontal: 20,
+    backgroundColor: '#F0F8FF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    color: '#2196F3',
+    fontWeight: '600',
+    marginLeft: 6,
   },
   subscriberAmount: {
     fontSize: 15,
