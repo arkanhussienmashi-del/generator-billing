@@ -18,8 +18,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://xisrouirxhvbkwvwfvkx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpc3JvdWlyeGh2Ymt3dndmdmt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg1MzcsImV4cCI6MjA5NzQ2NDUzN30.jts63Wqick77MaAJFHHdyuaMqWkPMFXxPqIpfUV9frE';
 
 function sbHeaders() {
   return {
