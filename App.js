@@ -18,7 +18,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 
-const API_BASE = 'http://YOUR_SERVER_IP:3001';
+const API_BASE = 'https://generator-billing-api-production.up.railway.app';
 
 async function apiCall(method, path, body) {
   try {
