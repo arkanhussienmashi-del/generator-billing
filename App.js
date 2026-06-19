@@ -18,33 +18,44 @@ import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 
-const API_BASE = 'https://generator-billing-api-production.up.railway.app';
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
-async function apiCall(method, path, body) {
+function sbHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Prefer': 'return=representation,resolution=merge-duplicates',
+  };
+}
+
+async function sbRequest(method, path, body) {
   try {
-    const options = {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    };
-    if (body) options.body = JSON.stringify(body);
-    const response = await fetch(`${API_BASE}${path}`, options);
-    return await response.json();
+    const opts = { method, headers: sbHeaders() };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(`${SUPABASE_URL}${path}`, opts);
+    const json = await res.json();
+    return json;
   } catch (e) {
-    return { success: false, error: e.message };
+    return null;
   }
 }
 
 async function saveToFile(filename, data) {
-  await apiCall('PUT', `/api/data/${filename}`, { data });
+  const row = { filename, data_value: data };
+  await sbRequest('POST', '/rest/v1/user_data?on_conflict=filename', [row]);
+  if (!row) await sbRequest('PATCH', `/rest/v1/user_data?filename=eq.${filename}`, { data_value: data });
 }
 
 async function loadFromFile(filename) {
-  const result = await apiCall('GET', `/api/data/${filename}`);
-  return result.success ? result.data : null;
+  const result = await sbRequest('GET', `/rest/v1/user_data?filename=eq.${filename}&select=data_value`);
+  if (Array.isArray(result) && result.length > 0) return result[0].data_value;
+  return null;
 }
 
 async function deleteFile(filename) {
-  await apiCall('DELETE', `/api/data/${filename}`);
+  await sbRequest('DELETE', `/rest/v1/user_data?filename=eq.${filename}`);
 }
 
 const saveQueues = {};
@@ -243,11 +254,14 @@ const RegisterScreen = ({ onBack, onRegister }) => {
     }
 
     const hashedPassword = await hashPassword(password);
-    const result = await apiCall('POST', '/api/register', { phone: phone.trim(), password: hashedPassword });
-    if (!result.success) {
-      Alert.alert('تنبيه', result.error || 'خطأ في التسجيل');
+    const existing = await sbRequest('GET', `/rest/v1/user_data?filename=eq.registered_users&select=data_value`);
+    const users = (Array.isArray(existing) && existing.length > 0) ? (existing[0].data_value || []) : [];
+    if (users.find(u => u.phone === phone.trim())) {
+      Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل');
       return;
     }
+    users.push({ phone: phone.trim(), password: hashedPassword });
+    await sbRequest('POST', '/rest/v1/user_data?on_conflict=filename', [{ filename: 'registered_users', data_value: users }]);
 
     await saveUserData(phone.trim(), 'generatorName', '');
     await saveUserData(phone.trim(), 'amperPrices', {});
@@ -350,12 +364,9 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
       return;
     }
 
-    const result = await apiCall('POST', '/api/login', { phone: phone.trim() });
-    if (!result.success) {
-      Alert.alert('تنبيه', 'خطأ في الاتصال بالخادم');
-      return;
-    }
-    const user = result.user;
+    const usersResult = await sbRequest('GET', `/rest/v1/user_data?filename=eq.registered_users&select=data_value`);
+    const usersList = (Array.isArray(usersResult) && usersResult.length > 0) ? (usersResult[0].data_value || []) : [];
+    const user = usersList.find(u => u.phone === phone.trim());
     if (!user) {
       Alert.alert('تنبيه', 'الرقم غير مسجل');
       return;
@@ -365,7 +376,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
     let authenticated = false;
     let migrated = false;
 
-    const stored = user.password_hash;
+    const stored = user.password;
     if (stored === hashedPassword) {
       authenticated = true;
     } else if (stored.length !== 64 && stored === password.trim()) {
@@ -374,7 +385,8 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
     }
 
     if (migrated) {
-      await apiCall('PUT', '/api/password', { phone: phone.trim(), password: hashedPassword });
+      user.password = hashedPassword;
+      await sbRequest('POST', '/rest/v1/user_data?on_conflict=filename', [{ filename: 'registered_users', data_value: usersList }]);
     }
 
     if (!authenticated) {
@@ -2859,8 +2871,8 @@ export default function App() {
   };
 
   const handleWorkerLogin = async (code, pin) => {
-    const usersResult = await apiCall('GET', '/api/users');
-    const list = usersResult.success ? usersResult.users : [];
+    const usersResult = await sbRequest('GET', `/rest/v1/user_data?filename=eq.registered_users&select=data_value`);
+    const list = (Array.isArray(usersResult) && usersResult.length > 0) ? (usersResult[0].data_value || []) : [];
     for (const user of list) {
       const workers = await loadUserData(user.phone, 'workers');
       if (workers) {
