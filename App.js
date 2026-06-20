@@ -35,46 +35,47 @@ async function sbRequest(method, path, body) {
     const opts = { method, headers: sbHeaders() };
     if (body !== undefined) opts.body = JSON.stringify(body);
     const res = await fetch(`${SUPABASE_URL}${path}`, opts);
-    const json = await res.json();
-    return json;
+    const text = await res.text();
+    if (!text) return null;
+    try { return JSON.parse(text); } catch (e2) { return null; }
   } catch (e) {
     return null;
   }
 }
 
+// General app data (registered_users, current_user)
 async function saveToFile(filename, data) {
-  const row = { filename, data_value: data };
-  await sbRequest('POST', '/rest/v1/user_data?on_conflict=filename', [row]);
-  if (!row) await sbRequest('PATCH', `/rest/v1/user_data?filename=eq.${filename}`, { data_value: data });
+  await sbRequest('POST', '/rest/v1/app_data?on_conflict=filename', [{ filename, data_value: data }]);
 }
 
 async function loadFromFile(filename) {
-  const result = await sbRequest('GET', `/rest/v1/user_data?filename=eq.${filename}&select=data_value`);
+  const result = await sbRequest('GET', `/rest/v1/app_data?filename=eq.${filename}&select=data_value`);
   if (Array.isArray(result) && result.length > 0) return result[0].data_value;
   return null;
 }
 
 async function deleteFile(filename) {
-  await sbRequest('DELETE', `/rest/v1/user_data?filename=eq.${filename}`);
+  await sbRequest('DELETE', `/rest/v1/app_data?filename=eq.${filename}`);
 }
 
-const saveQueues = {};
-
+// User data - per key (optimized: loads only what's needed)
 async function saveUserData(phone, key, data) {
-  const filename = phone + '_data';
-  if (!saveQueues[filename]) saveQueues[filename] = Promise.resolve();
-  saveQueues[filename] = saveQueues[filename].then(async () => {
-    const allData = await loadFromFile(filename) || {};
-    allData[key] = data;
-    await saveToFile(filename, allData);
-  });
-  return saveQueues[filename];
+  await sbRequest('POST', '/rest/v1/user_data?on_conflict=phone,data_key', [{ phone, data_key: key, data_value: data }]);
 }
 
 async function loadUserData(phone, key) {
-  const allData = await loadFromFile(phone + '_data');
-  if (!allData) return null;
-  return allData[key] !== undefined ? allData[key] : null;
+  const result = await sbRequest('GET', `/rest/v1/user_data?phone=eq.${phone}&data_key=eq.${key}&select=data_value`);
+  if (Array.isArray(result) && result.length > 0) return result[0].data_value;
+  return null;
+}
+
+async function loadAllUserKeys(phone) {
+  const result = await sbRequest('GET', `/rest/v1/user_data?phone=eq.${phone}&select=data_key,data_value`);
+  const map = {};
+  if (Array.isArray(result)) {
+    for (const row of result) map[row.data_key] = row.data_value;
+  }
+  return map;
 }
 
 function getAmperForMonth(subscriber, month, year) {
@@ -254,14 +255,14 @@ const RegisterScreen = ({ onBack, onRegister }) => {
     }
 
     const hashedPassword = await hashPassword(password);
-    const existing = await sbRequest('GET', `/rest/v1/user_data?filename=eq.registered_users&select=data_value`);
-    const users = (Array.isArray(existing) && existing.length > 0) ? (existing[0].data_value || []) : [];
+    const existing = await loadFromFile('registered_users');
+    const users = existing || [];
     if (users.find(u => u.phone === phone.trim())) {
       Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل');
       return;
     }
     users.push({ phone: phone.trim(), password: hashedPassword });
-    await sbRequest('POST', '/rest/v1/user_data?on_conflict=filename', [{ filename: 'registered_users', data_value: users }]);
+    await saveToFile('registered_users', users);
 
     await saveUserData(phone.trim(), 'generatorName', '');
     await saveUserData(phone.trim(), 'amperPrices', {});
@@ -364,8 +365,8 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
       return;
     }
 
-    const usersResult = await sbRequest('GET', `/rest/v1/user_data?filename=eq.registered_users&select=data_value`);
-    const usersList = (Array.isArray(usersResult) && usersResult.length > 0) ? (usersResult[0].data_value || []) : [];
+    const usersResult = await loadFromFile('registered_users');
+    const usersList = usersResult || [];
     const user = usersList.find(u => u.phone === phone.trim());
     if (!user) {
       Alert.alert('تنبيه', 'الرقم غير مسجل');
@@ -386,7 +387,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
 
     if (migrated) {
       user.password = hashedPassword;
-      await sbRequest('POST', '/rest/v1/user_data?on_conflict=filename', [{ filename: 'registered_users', data_value: usersList }]);
+      await saveToFile('registered_users', usersList);
     }
 
     if (!authenticated) {
@@ -466,14 +467,21 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
 const WorkerLoginScreen = ({ onBack, onLogin }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
+  const [workerName, setWorkerName] = useState('');
 
   const handleLogin = async () => {
+    if (!workerName.trim()) {
+      Alert.alert('تنبيه', 'يرجى إدخال اسمك');
+      return;
+    }
     if (!code.trim() || !pin.trim()) {
       Alert.alert('تنبيه', 'يرجى إدخال الكود والرمز السري');
       return;
     }
-    const result = await onLogin(code.trim(), pin.trim());
-    if (!result.success) {
+    const result = await onLogin(code.trim(), pin.trim(), workerName.trim());
+    if (result.deleted) {
+      Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
+    } else if (!result.success) {
       Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
     }
   };
@@ -492,6 +500,18 @@ const WorkerLoginScreen = ({ onBack, onLogin }) => {
         </View>
 
         <View style={styles.loginCard}>
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="اسمك (مطلوب)"
+              placeholderTextColor="#999"
+              value={workerName}
+              onChangeText={setWorkerName}
+              textAlign="right"
+            />
+          </View>
+
           <View style={styles.inputContainer}>
             <Ionicons name="key-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
@@ -527,11 +547,14 @@ const WorkerLoginScreen = ({ onBack, onLogin }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
   const [workerModalVisible, setWorkerModalVisible] = useState(false);
   const [workerPermissions, setWorkerPermissions] = useState([]);
+  const [editWorkerVisible, setEditWorkerVisible] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState(null);
+  const [editWorkerPermissions, setEditWorkerPermissions] = useState([]);
 
   useEffect(() => {
     setName(generatorName);
@@ -626,11 +649,19 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               </TouchableOpacity>
               <Text style={styles.settingsHint}>إنشاء كود ورمز سري جديد للعامل</Text>
 
+              <View style={{ marginTop: 10 }}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={() => setEditWorkerVisible(true)}>
+                  <Ionicons name="create-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تعديل بيانات العامل</Text>
+                </TouchableOpacity>
+                <Text style={styles.settingsHint}>تعديل الصلاحيات أو حذف عامل</Text>
+              </View>
+
               {pendingWorkerUpdates.length > 0 && (
                 <View style={{ marginTop: 15 }}>
                   <TouchableOpacity
                     style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
-                    onPress={async () => { await onLoadUpdates(); setUpdatesModalVisible(true); }}
+                    onPress={async () => { await onLoadUpdates(); onShowUpdates(); }}
                   >
                     <Ionicons name="notifications-outline" size={20} color="white" />
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>رؤية التحديثات الجديدة</Text>
@@ -678,9 +709,125 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <Text style={{ fontSize: 16, color: '#333' }}>تغيير سعر الأميبر</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('cancelPayment')}>
+              <Ionicons name={workerPermissions.includes('cancelPayment') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('cancelPayment') ? '#4CAF50' : '#999'} />
+              <Text style={{ fontSize: 16, color: '#333' }}>إلغاء الدفع</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('partialPayment')}>
+              <Ionicons name={workerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
+              <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#FF9800', marginTop: 20 }]} onPress={handleConfirmCreateWorker}>
               <Text style={styles.modalButtonText}>إنشاء حساب العامل</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={editWorkerVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedWorker ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => { setSelectedWorker(null); setEditWorkerPermissions([]); }}>
+                    <Ionicons name="arrow-forward" size={28} color="#333" />
+                  </TouchableOpacity>
+                  <Text style={styles.modalTitle}>تعديل صلاحيات العامل</Text>
+                  <View style={{ width: 30 }} />
+                </View>
+                <Text style={{ color: '#666', marginBottom: 10, textAlign: 'center' }}>كود: {selectedWorker.code}</Text>
+                <Text style={{ color: '#666', marginBottom: 20, textAlign: 'center' }}>اختر الصلاحيات الجديدة:</Text>
+
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('add') ? prev.filter(p => p !== 'add') : [...prev, 'add'])}>
+                  <Ionicons name={editWorkerPermissions.includes('add') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('add') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>إضافة مشتركين</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('edit') ? prev.filter(p => p !== 'edit') : [...prev, 'edit'])}>
+                  <Ionicons name={editWorkerPermissions.includes('edit') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('edit') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>تعديل بيانات المشتركين</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('delete') ? prev.filter(p => p !== 'delete') : [...prev, 'delete'])}>
+                  <Ionicons name={editWorkerPermissions.includes('delete') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('delete') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>حذف مشتركين</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('amperPrice') ? prev.filter(p => p !== 'amperPrice') : [...prev, 'amperPrice'])}>
+                  <Ionicons name={editWorkerPermissions.includes('amperPrice') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('amperPrice') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>تغيير سعر الأميبر</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('cancelPayment') ? prev.filter(p => p !== 'cancelPayment') : [...prev, 'cancelPayment'])}>
+                  <Ionicons name={editWorkerPermissions.includes('cancelPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('cancelPayment') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>إلغاء الدفع</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('partialPayment') ? prev.filter(p => p !== 'partialPayment') : [...prev, 'partialPayment'])}>
+                  <Ionicons name={editWorkerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 20 }]} onPress={() => {
+                  if (editWorkerPermissions.length === 0) {
+                    Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل');
+                    return;
+                  }
+                  onUpdateWorker(selectedWorker.code, editWorkerPermissions);
+                  setSelectedWorker(null);
+                  setEditWorkerPermissions([]);
+                }}>
+                  <Text style={styles.modalButtonText}>حفظ التعديلات</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#D32F2F', marginTop: 10 }]} onPress={() => {
+                  Alert.alert('حذف العامل', `هل تريد حذف العامل "${selectedWorker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
+                    { text: 'إلغاء', style: 'cancel' },
+                    { text: 'نعم، حذف', style: 'destructive', onPress: () => { onDeleteWorker(selectedWorker.code); setSelectedWorker(null); setEditWorkerPermissions([]); setEditWorkerVisible(false); } },
+                  ]);
+                }}>
+                  <Ionicons name="trash-outline" size={20} color="white" />
+                  <Text style={styles.modalButtonText}>حذف العامل نهائياً</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => setEditWorkerVisible(false)}>
+                    <Ionicons name="close" size={28} color="#333" />
+                  </TouchableOpacity>
+                  <Text style={styles.modalTitle}>تعديل بيانات العامل</Text>
+                  <View style={{ width: 30 }} />
+                </View>
+                {(!workers || workers.length === 0) ? (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Ionicons name="people-outline" size={60} color="#ccc" />
+                    <Text style={{ color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد عمال مسجلين</Text>
+                  </View>
+                ) : (
+                  workers.map((worker, index) => (
+                    <View key={index} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                      <TouchableOpacity style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }} onPress={() => {
+                        setSelectedWorker(worker);
+                        setEditWorkerPermissions(worker.permissions || []);
+                      }}>
+                        <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="person" size={20} color="white" />
+                        </View>
+                        <View>
+                          <Text style={{ fontSize: 16, color: '#333', fontWeight: 'bold' }}>كود: {worker.code}</Text>
+                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>الرمز: {worker.pin}</Text>
+                          <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => {
+                        Alert.alert('بيانات العامل', `كود العامل: ${worker.code}\nالرمز السري: ${worker.pin}`);
+                      }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
+                        <Ionicons name="copy-outline" size={18} color="#2196F3" />
+                      </TouchableOpacity>
+                      <Ionicons name="chevron-back" size={24} color="#999" style={{ marginLeft: 8 }} />
+                    </View>
+                  ))
+                )}
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -956,43 +1103,47 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
   if (!visible) return null;
 
   return (
-    <View style={styles.addSubscriberOverlay}>
-      <View style={styles.addSubscriberModalContent}>
-        <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={28} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.modalTitle}>إضافة مشترك</Text>
-          <View style={{ width: 30 }} />
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+      <View style={styles.subscribersOverlay}>
+        <View style={styles.subscribersContainer}>
+          <View style={styles.subscribersHeader}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons name="arrow-forward" size={26} color="white" />
+            </TouchableOpacity>
+            <Text style={styles.subscribersTitle}>إضافة مشترك</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: 20 }}>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>اسم المشترك <Text style={styles.required}>*</Text></Text>
+                <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="أدخل اسم المشترك" placeholderTextColor="#999" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
+                <TextInput style={styles.formInput} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholder="أدخل عدد الأمبيرات" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>رقم المشترك</Text>
+                <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={(t) => setSubscriberNumber(onlyDigits(t))} placeholder="أدخل رقم المشترك" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>رقم الجوزة</Text>
+                <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholder="أدخل رقم الجوزة" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>رقم الفيز</Text>
+                <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholder="أدخل رقم الفيز" placeholderTextColor="#999" textAlign="right" />
+              </View>
+              <TouchableOpacity style={styles.saveSubscriberButton} onPress={handleSave}>
+                <Ionicons name="checkmark-circle" size={22} color="white" />
+                <Text style={styles.saveSubscriberText}>حفظ المشترك</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
-        <ScrollView style={styles.addSubscriberBody} showsVerticalScrollIndicator={false}>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>اسم المشترك <Text style={styles.required}>*</Text></Text>
-            <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="أدخل اسم المشترك" placeholderTextColor="#999" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
-            <TextInput style={styles.formInput} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholder="أدخل عدد الأمبيرات" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>رقم المشترك</Text>
-            <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={(t) => setSubscriberNumber(onlyDigits(t))} placeholder="أدخل رقم المشترك" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>رقم الجوزة</Text>
-            <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholder="أدخل رقم الجوزة" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>رقم الفيز</Text>
-            <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholder="أدخل رقم الفيز" placeholderTextColor="#999" textAlign="right" />
-          </View>
-          <TouchableOpacity style={styles.saveSubscriberButton} onPress={handleSave}>
-            <Ionicons name="checkmark-circle" size={22} color="white" />
-            <Text style={styles.saveSubscriberText}>حفظ المشترك</Text>
-          </TouchableOpacity>
-        </ScrollView>
       </View>
-    </View>
+    </Modal>
   );
 };
 
@@ -1052,44 +1203,48 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   if (!visible || !subscriber) return null;
 
   return (
-    <View style={styles.addSubscriberOverlay}>
-      <View style={styles.addSubscriberModalContent}>
-        <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={28} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.modalTitle}>تعديل المشترك</Text>
-          <View style={{ width: 30 }} />
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+      <View style={styles.subscribersOverlay}>
+        <View style={styles.subscribersContainer}>
+          <View style={styles.subscribersHeader}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons name="arrow-forward" size={26} color="white" />
+            </TouchableOpacity>
+            <Text style={styles.subscribersTitle}>تعديل المشترك</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: 20 }}>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>اسم المشترك <Text style={styles.required}>*</Text></Text>
+                <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholderTextColor="#999" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
+                {isPaid && <Text style={{ color: '#FF9800', fontSize: 12, marginBottom: 4 }}>لا يمكن تغيير الأمبير - المشترك دافع الشهر الحالي</Text>}
+                <TextInput style={[styles.formInput, isPaid && { backgroundColor: '#f0f0f0', color: '#999' }]} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" editable={!isPaid} />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>رقم المشترك</Text>
+                <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={(t) => setSubscriberNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>رقم الجوزة</Text>
+                <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>رقم الفيز</Text>
+                <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholderTextColor="#999" textAlign="right" />
+              </View>
+              <TouchableOpacity style={styles.saveSubscriberButton} onPress={handleSave}>
+                <Ionicons name="checkmark-circle" size={22} color="white" />
+                <Text style={styles.saveSubscriberText}>حفظ التعديلات</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
-        <ScrollView style={styles.addSubscriberBody} showsVerticalScrollIndicator={false}>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>اسم المشترك <Text style={styles.required}>*</Text></Text>
-            <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholderTextColor="#999" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
-            {isPaid && <Text style={{ color: '#FF9800', fontSize: 12, marginBottom: 4 }}>لا يمكن تغيير الأمبير - المشترك دافع الشهر الحالي</Text>}
-            <TextInput style={[styles.formInput, isPaid && { backgroundColor: '#f0f0f0', color: '#999' }]} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" editable={!isPaid} />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>رقم المشترك</Text>
-            <TextInput style={styles.formInput} value={subscriberNumber} onChangeText={(t) => setSubscriberNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>رقم الجوزة</Text>
-            <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-          </View>
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>رقم الفيز</Text>
-            <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholderTextColor="#999" textAlign="right" />
-          </View>
-          <TouchableOpacity style={styles.saveSubscriberButton} onPress={handleSave}>
-            <Ionicons name="checkmark-circle" size={22} color="white" />
-            <Text style={styles.saveSubscriberText}>حفظ التعديلات</Text>
-          </TouchableOpacity>
-        </ScrollView>
       </View>
-    </View>
+    </Modal>
   );
 };
 
@@ -1164,7 +1319,7 @@ const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, monthK
               return;
             }
             if (parsed > remaining) {
-              Alert.alert('خطأ', 'المبلغ المدخل أكبر من المتبقي');
+              Alert.alert('خطأ', `المبلغ المدخل أكبر من المتبقي. الحد الأقصى المسموح: ${formatNumber(remaining)} د.ع`);
               return;
             }
             onConfirm(parsed);
@@ -1361,6 +1516,8 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   const canEdit = isOwner || workerPermissions.includes('edit');
   const canAdd = isOwner || workerPermissions.includes('add');
   const canChangeAmperPrice = isOwner || workerPermissions.includes('amperPrice');
+  const canCancelPayment = isOwner || workerPermissions.includes('cancelPayment');
+  const canPartialPayment = isOwner || workerPermissions.includes('partialPayment');
 
   const visibleSubscribers = subscribers.filter(sub => {
     return isVisibleForMonth(sub, parseInt(selectedMonth), parseInt(selectedYear));
@@ -1593,6 +1750,10 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                           return;
                         }
                         if (isFullyPaid) {
+                          if (!canCancelPayment) {
+                            Alert.alert('تنبيه', 'لا تملك صلاحية إلغاء الدفع');
+                            return;
+                          }
                           Alert.alert('إلغاء التسديد', `هل تريد إلغاء تسديد اشتراك "${subscriber.name}"؟`, [
                             { text: 'إلغاء', style: 'cancel' },
                             { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
@@ -1620,7 +1781,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </View>
                       <View style={styles.cardPriceSection}>
                         <Text style={styles.cardPrice}>د.ع {formatNumber(totalDue)}</Text>
-                        {!isFullyPaid && (
+                        {!isFullyPaid && canPartialPayment && (
                           <TouchableOpacity
                             style={styles.partialPayButton}
                             onPress={() => {
@@ -2442,7 +2603,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
@@ -2472,6 +2633,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           </TouchableOpacity>
         </View>
         <Text style={styles.headerTitle}>{generatorName || 'واجهة العامل'}</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 2 }}>{workerName}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -2532,9 +2694,11 @@ export default function App() {
   const [workerOwnerPhone, setWorkerOwnerPhone] = useState(null);
   const [workerPermissions, setWorkerPermissions] = useState([]);
   const [workerCode, setWorkerCode] = useState('');
+  const [workerName, setWorkerName] = useState('');
   const [isOnline, setIsOnline] = useState(true);
   const [workerUpdates, setWorkerUpdates] = useState([]);
   const [pendingWorkerUpdates, setPendingWorkerUpdates] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [updatesModalVisible, setUpdatesModalVisible] = useState(false);
   const [updateCategoryVisible, setUpdateCategoryVisible] = useState(false);
   const [updateCategoryType, setUpdateCategoryType] = useState(null);
@@ -2569,6 +2733,17 @@ export default function App() {
     return () => clearInterval(interval);
   }, [currentUser]);
 
+  useEffect(() => {
+    if (!currentUser || userRole === 'worker') return;
+    const pollInterval = setInterval(async () => {
+      const updates = await loadUserData(currentUser, 'pending_worker_updates');
+      if (updates && updates.length > 0) {
+        setPendingWorkerUpdates(updates);
+      }
+    }, 30000);
+    return () => clearInterval(pollInterval);
+  }, [currentUser, userRole]);
+
   const resetActivity = () => {
     lastActivity.current = Date.now();
   };
@@ -2583,18 +2758,14 @@ export default function App() {
 
   const loadAllUserData = async () => {
     if (!currentUser) return;
-    const name = await loadUserData(currentUser, 'generatorName');
-    const owner = await loadUserData(currentUser, 'ownerName');
-    const prices = await loadUserData(currentUser, 'amperPrices');
-    const subs = await loadUserData(currentUser, 'subscribers');
-    const exp = await loadUserData(currentUser, 'expenses');
-    const updates = await loadUserData(currentUser, 'pending_worker_updates');
-    if (name !== null) setGeneratorName(name);
-    if (owner !== null) setOwnerName(owner);
-    if (prices !== null) setAmperPrices(prices);
-    if (subs !== null) setSubscribers(subs);
-    if (exp !== null) setExpenses(exp);
-    if (updates !== null) setPendingWorkerUpdates(updates);
+    const all = await loadAllUserKeys(currentUser);
+    if (all.generatorName !== undefined) setGeneratorName(all.generatorName);
+    if (all.ownerName !== undefined) setOwnerName(all.ownerName);
+    if (all.amperPrices !== undefined) setAmperPrices(all.amperPrices);
+    if (all.subscribers !== undefined) setSubscribers(all.subscribers);
+    if (all.expenses !== undefined) setExpenses(all.expenses);
+    if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(all.pending_worker_updates);
+    if (all.workers !== undefined) setWorkers(all.workers);
   };
 
   const handleLogin = (userPhone) => {
@@ -2609,8 +2780,10 @@ export default function App() {
     setWorkerOwnerPhone(null);
     setWorkerPermissions([]);
     setWorkerCode('');
+    setWorkerName('');
     setWorkerUpdates([]);
     setPendingWorkerUpdates([]);
+    setWorkers([]);
     setGeneratorName('');
     setOwnerName('');
     setAmperPrices({});
@@ -2636,7 +2809,7 @@ export default function App() {
       timestamp,
       date: now.toISOString(),
       workerCode: workerCode || '',
-      ownerName: workerCode || '',
+      ownerName: workerName || workerCode || '',
       details: details || {},
     };
     setWorkerUpdates(prev => [...prev, update]);
@@ -2859,22 +3032,53 @@ export default function App() {
   const handleCreateWorker = async (permissions) => {
     const code = generateWorkerCode(currentUser);
     const pin = generateWorkerPin();
-    const workers = await loadUserData(currentUser, 'workers') || [];
     const newWorker = { code, pin, permissions, createdAt: new Date().toISOString() };
-    workers.push(newWorker);
-    await saveUserData(currentUser, 'workers', workers);
+    const updated = [...workers, newWorker];
+    await saveUserData(currentUser, 'workers', updated);
+    setWorkers(updated);
     Alert.alert(
       'تم إنشاء حساب العامل',
       `كود العامل: ${code}\nالرمز السري: ${pin}\n\nالصلاحيات: ${permissions.join(', ')}`,
-      [{ text: 'حسناً' }]
+      [
+        { text: 'حسناً' },
+      ]
     );
   };
 
+  const handleUpdateWorker = async (code, permissions) => {
+    const updated = workers.map(w => w.code === code ? { ...w, permissions } : w);
+    await saveUserData(currentUser, 'workers', updated);
+    setWorkers(updated);
+    Alert.alert('تم', 'تم تعديل صلاحيات العامل بنجاح');
+  };
+
+  const handleDeleteWorker = async (code) => {
+    const deletedWorkers = await loadUserData(currentUser, 'deletedWorkers') || [];
+    const worker = workers.find(w => w.code === code);
+    if (worker) {
+      deletedWorkers.push({ code: worker.code, deletedAt: new Date().toISOString() });
+      await saveUserData(currentUser, 'deletedWorkers', deletedWorkers);
+    }
+    const filtered = workers.filter(w => w.code !== code);
+    await saveUserData(currentUser, 'workers', filtered);
+    setWorkers(filtered);
+    if (userRole === 'worker' && workerCode === code) {
+      handleLogout();
+      Alert.alert('تم الحذف', 'تم حذف حسابك من قبل صاحب المولد');
+    } else {
+      Alert.alert('تم', 'تم حذف العامل بنجاح');
+    }
+  };
+
   const handleWorkerLogin = async (code, pin) => {
-    const usersResult = await sbRequest('GET', `/rest/v1/user_data?filename=eq.registered_users&select=data_value`);
-    const list = (Array.isArray(usersResult) && usersResult.length > 0) ? (usersResult[0].data_value || []) : [];
+    const usersResult = await loadFromFile('registered_users');
+    const list = usersResult || [];
     for (const user of list) {
       const workers = await loadUserData(user.phone, 'workers');
+      const deletedWorkers = await loadUserData(user.phone, 'deletedWorkers') || [];
+      if (deletedWorkers.find(d => d.code === code.toUpperCase())) {
+        return { success: false, deleted: true };
+      }
       if (workers) {
         const found = workers.find(w => w.code === code.toUpperCase() && w.pin === pin.toUpperCase());
         if (found) {
@@ -2940,7 +3144,7 @@ export default function App() {
           ...s,
           deletedFromMonth: monthKey,
           deletedAt: timestamp,
-          deletedByOwner: ownerName,
+          deletedByOwner: userRole === 'worker' ? workerName : ownerName,
         };
       }
       return s;
@@ -2972,9 +3176,12 @@ export default function App() {
           action: isCurrentlyPaid ? 'cancelled' : 'paid',
           timestamp,
           date: now.toISOString(),
-          ownerName: ownerName,
+          ownerName: userRole === 'worker' ? workerName : ownerName,
         });
         const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
+        if (isCurrentlyPaid) {
+          delete partialPayments[monthKey];
+        }
         return { ...s, paidMonths, paymentHistory, partialPayments };
       }
       return s;
@@ -3007,7 +3214,7 @@ export default function App() {
           amount: amount,
           timestamp,
           date: now.toISOString(),
-          ownerName: ownerName,
+          ownerName: userRole === 'worker' ? workerName : ownerName,
         });
         partialPayments[monthKey] = monthPayments;
 
@@ -3024,7 +3231,7 @@ export default function App() {
             action: 'paid',
             timestamp,
             date: now.toISOString(),
-            ownerName: ownerName,
+            ownerName: userRole === 'worker' ? workerName : ownerName,
             note: 'اكتمال الدفع عبر دفعات جزئية',
           });
         }
@@ -3120,13 +3327,14 @@ export default function App() {
     return (
       <WorkerLoginScreen
         onBack={() => setScreen('welcome')}
-        onLogin={async (code, pin) => {
+        onLogin={async (code, pin, name) => {
           const result = await handleWorkerLogin(code, pin);
           if (result.success) {
             setWorkerOwnerPhone(result.ownerPhone);
             setUserRole('worker');
             setWorkerPermissions(result.permissions);
             setWorkerCode(code.toUpperCase());
+            setWorkerName(name);
             setCurrentUser(result.ownerPhone);
             setScreen('workerMain');
           }
@@ -3149,6 +3357,7 @@ export default function App() {
           isOnline={isOnline}
           workerUpdates={workerUpdates}
           onSync={handleWorkerSync}
+          workerName={workerName}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -3200,6 +3409,10 @@ export default function App() {
         pendingWorkerUpdates={pendingWorkerUpdates}
         onLoadUpdates={loadPendingUpdates}
         onApplyUpdates={handleApplyUpdates}
+        workers={workers}
+        onUpdateWorker={handleUpdateWorker}
+        onDeleteWorker={handleDeleteWorker}
+        onShowUpdates={() => setUpdatesModalVisible(true)}
       />
       <WorkerUpdatesModal
         visible={updatesModalVisible}
@@ -3536,6 +3749,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 17,
     fontWeight: 'bold',
+  },
+  modalButton: {
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  subscriberInfo: {
+    flex: 1,
+    marginLeft: 12,
   },
 
   subscribersOverlay: {
