@@ -138,10 +138,11 @@ function onlyDigits(text) {
   return text.replace(/[^0-9]/g, '');
 }
 
-async function hashPassword(password) {
+async function hashPassword(password, salt) {
+  const saltedPassword = (salt || 'genBilling') + password.trim();
   return await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
-    password.trim()
+    saltedPassword
   );
 }
 
@@ -170,7 +171,7 @@ function validatePhone(phone) {
 }
 
 async function exportUserData(phone) {
-  const allData = await loadFromFile(phone + '_data');
+  const allData = await loadAllUserKeys(phone);
   if (!allData || Object.keys(allData).length === 0) {
     return null;
   }
@@ -178,7 +179,7 @@ async function exportUserData(phone) {
     appVersion: '1.0.0',
     exportDate: new Date().toISOString(),
     phone: phone,
-    data: allData,
+    keys: allData,
   };
   const json = JSON.stringify(exportObj, null, 2);
   const fileName = `backup_${phone}_${Date.now()}.json`;
@@ -191,10 +192,16 @@ async function importUserData(filePath) {
   try {
     const content = await FileSystem.readAsStringAsync(filePath);
     const importObj = JSON.parse(content);
-    if (!importObj.phone || !importObj.data) {
+    if (!importObj.phone) {
       return { success: false, error: 'ملف غير صالح' };
     }
-    await saveToFile(importObj.phone + '_data', importObj.data);
+    const data = importObj.keys || importObj.data;
+    if (!data || typeof data !== 'object') {
+      return { success: false, error: 'ملف غير صالح' };
+    }
+    for (const [key, value] of Object.entries(data)) {
+      await saveUserData(importObj.phone, key, value);
+    }
     return { success: true, phone: importObj.phone };
   } catch (e) {
     return { success: false, error: 'خطأ في قراءة الملف' };
@@ -254,7 +261,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
       return;
     }
 
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(password, phone.trim());
     const existing = await loadFromFile('registered_users');
     const users = existing || [];
     if (users.find(u => u.phone === phone.trim())) {
@@ -267,7 +274,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
     await saveUserData(phone.trim(), 'generatorName', '');
     await saveUserData(phone.trim(), 'amperPrices', {});
     await saveUserData(phone.trim(), 'subscribers', []);
-    await saveUserData(phone.trim(), 'expenses', { gas: '0', oil: '0', repairs: '0', salaries: '0' });
+    await saveUserData(phone.trim(), 'monthlyExpenses', {});
 
     Alert.alert('تم', 'تم إنشاء الحساب بنجاح', [
       { text: 'موافق', onPress: onBack }
@@ -373,20 +380,24 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
       return;
     }
 
-    const hashedPassword = await hashPassword(password);
+    const saltedHash = await hashPassword(password, phone.trim());
+    const unsaltedHash = await hashPassword(password, '');
     let authenticated = false;
     let migrated = false;
 
     const stored = user.password;
-    if (stored === hashedPassword) {
+    if (stored === saltedHash) {
       authenticated = true;
+    } else if (stored === unsaltedHash) {
+      authenticated = true;
+      migrated = true;
     } else if (stored.length !== 64 && stored === password.trim()) {
       authenticated = true;
       migrated = true;
     }
 
     if (migrated) {
-      user.password = hashedPassword;
+      user.password = saltedHash;
       await saveToFile('registered_users', usersList);
     }
 
@@ -405,7 +416,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
 
     setLoginAttempts(0);
     setLockUntil(null);
-    await saveToFile('current_user', { phone: phone.trim() });
+    await saveToFile('current_user', { phone: phone.trim(), role: 'owner' });
     onLogin(phone.trim());
   };
 
@@ -661,7 +672,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 <View style={{ marginTop: 15 }}>
                   <TouchableOpacity
                     style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
-                    onPress={async () => { await onLoadUpdates(); onShowUpdates(); }}
+                    onPress={async () => { await onLoadUpdates(); onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); onShowUpdates(); }}
                   >
                     <Ionicons name="notifications-outline" size={20} color="white" />
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>رؤية التحديثات الجديدة</Text>
@@ -843,41 +854,41 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
   const cancelledUpdates = updates.filter(u => u.type === 'cancelled');
   const deletedUpdates = updates.filter(u => u.type === 'delete');
   const partialUpdates = updates.filter(u => u.type === 'partialPayment');
+  const addUpdates = updates.filter(u => u.type === 'add');
   const editUpdates = updates.filter(u => u.type === 'edit' || u.type === 'restore');
 
   const paidTotal = paidUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
+  const cancelledTotal = cancelledUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
   const partialTotal = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-  const partialRemaining = partialUpdates.reduce((sum, u) => {
-    const monthPrice = getAmperPrice(amperPrices, u.monthKey);
-    const totalDue = (u.amper || 0) * monthPrice;
-    const paid = u.details && u.details.amount ? parseFloat(u.details.amount) : 0;
-    return sum + Math.max(0, totalDue - paid);
-  }, 0);
+  const totalCollected = paidTotal + partialTotal;
 
   const categories = [
+    { type: 'add', icon: 'person-add', label: 'مشتركين جدد', count: addUpdates.length, color: '#4CAF50' },
     { type: 'paid', icon: 'checkmark-circle', label: 'مدفوع', count: paidUpdates.length, color: '#4CAF50', total: paidTotal },
-    { type: 'cancelled', icon: 'close-circle', label: 'تم الغاء دفعه', count: cancelledUpdates.length, color: '#FF5722', total: 0 },
-    { type: 'delete', icon: 'trash', label: 'محذوف', count: deletedUpdates.length, color: '#F44336', total: 0, isAmper: true },
-    { type: 'partialPayment', icon: 'wallet', label: 'دفع جزئي', count: partialUpdates.length, color: '#FF9800', total: partialTotal, extra: partialRemaining },
-    { type: 'edit', icon: 'create', label: 'تعديلات', count: editUpdates.length, color: '#2196F3', total: 0 },
+    { type: 'cancelled', icon: 'close-circle', label: 'إلغاء الدفع', count: cancelledUpdates.length, color: '#FF5722', total: cancelledTotal },
+    { type: 'partialPayment', icon: 'wallet', label: 'دفع جزئي', count: partialUpdates.length, color: '#FF9800', total: partialTotal },
+    { type: 'delete', icon: 'trash', label: 'محذوف', count: deletedUpdates.length, color: '#F44336' },
+    { type: 'edit', icon: 'create', label: 'تعديلات', count: editUpdates.length, color: '#2196F3' },
   ];
 
   const getUpdatesByType = (type) => {
     switch (type) {
+      case 'add': return addUpdates;
       case 'paid': return paidUpdates;
       case 'cancelled': return cancelledUpdates;
-      case 'delete': return deletedUpdates;
       case 'partialPayment': return partialUpdates;
+      case 'delete': return deletedUpdates;
       case 'edit': return editUpdates;
       default: return [];
     }
   };
 
   const categoryLabels = {
+    add: 'مشتركين جدد',
     paid: 'المدفوعين',
-    cancelled: 'تم الغاء دفعهم',
-    delete: 'المحذوفين',
+    cancelled: 'إلغاء الدفع',
     partialPayment: 'الدفعات الجزئية',
+    delete: 'المحذوفين',
     edit: 'التعديلات',
   };
 
@@ -895,13 +906,21 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ padding: 15 }}>
-              {(paidTotal + partialTotal) > 0 && (
-                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#4CAF50', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 14, color: '#4CAF50', fontWeight: 'bold' }}>المجموع الكلي</Text>
-                  <Text style={{ fontSize: 22, color: '#2E7D32', fontWeight: 'bold', marginTop: 5 }}>{formatNumber(paidTotal + partialTotal)} د.ع</Text>
+              {totalCollected > 0 && (
+                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#4CAF50', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#4CAF50', fontWeight: 'bold' }}>مجموع الاموال التي تم استيفائها</Text>
+                  <Text style={{ fontSize: 22, color: '#2E7D32', fontWeight: 'bold', marginTop: 5 }}>{formatNumber(totalCollected)} د.ع</Text>
                   <Text style={{ fontSize: 12, color: '#666', marginTop: 5 }}>مدفوع: {formatNumber(paidTotal)} | دفع جزئي: {formatNumber(partialTotal)}</Text>
                 </View>
               )}
+
+              {cancelledTotal > 0 && (
+                <View style={{ backgroundColor: '#FFEBEE', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF5722', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#FF5722', fontWeight: 'bold' }}>مجموع الاموال من الغاء الدفع</Text>
+                  <Text style={{ fontSize: 22, color: '#C62828', fontWeight: 'bold', marginTop: 5 }}>{formatNumber(cancelledTotal)} د.ع</Text>
+                </View>
+              )}
+
               {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat.type}
@@ -913,21 +932,14 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
                   </View>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{cat.label}</Text>
-                    <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>{cat.count} حالة</Text>
-                    {cat.count > 0 && cat.total > 0 && (
-                      <Text style={{ fontSize: 13, color: cat.color, fontWeight: 'bold', marginTop: 2 }}>
-                        {cat.isAmper ? `المجموع: ${formatNumber(cat.total)} أميبر` : `المجموع: ${formatNumber(cat.total)} د.ع`}
-                      </Text>
-                    )}
-                    {cat.count > 0 && cat.extra > 0 && (
-                      <Text style={{ fontSize: 12, color: '#F44336', fontWeight: 'bold', marginTop: 2 }}>
-                        المتبقي: {formatNumber(cat.extra)} د.ع
-                      </Text>
-                    )}
                   </View>
-                  {cat.count > 0 && (
-                    <View style={{ backgroundColor: cat.color, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+                  {cat.count > 0 ? (
+                    <View style={{ backgroundColor: cat.color, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, minWidth: 32, alignItems: 'center' }}>
                       <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>{cat.count}</Text>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: '#E0E0E0', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, minWidth: 32, alignItems: 'center' }}>
+                      <Text style={{ color: '#999', fontWeight: 'bold', fontSize: 14 }}>0</Text>
                     </View>
                   )}
                   <Ionicons name="chevron-back" size={22} color="#999" />
@@ -936,12 +948,15 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
             </View>
           </ScrollView>
 
-          <TouchableOpacity
-            style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 10 }]}
-            onPress={onApplyUpdates}
-          >
-            <Text style={styles.modalButtonText}>تطبيق جميع التحديثات</Text>
-          </TouchableOpacity>
+          {updates.length > 0 && (
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 10, marginHorizontal: 15, marginBottom: 15 }]}
+              onPress={onApplyUpdates}
+            >
+              <Ionicons name="checkmark-done" size={20} color="white" />
+              <Text style={styles.modalButtonText}>تطبيق جميع التحديثات</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -950,7 +965,7 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setCategoryVisible(false)}>
-                <Ionicons name="close" size={28} color="#333" />
+                <Ionicons name="arrow-forward" size={28} color="#333" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>{categoryLabels[categoryType] || ''}</Text>
               <View style={{ width: 28 }} />
@@ -958,7 +973,10 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
               <View style={{ padding: 15 }}>
                 {getUpdatesByType(categoryType).length === 0 ? (
-                  <Text style={{ textAlign: 'center', color: '#999', fontSize: 16, marginTop: 40 }}>لا يوجد تحديثات</Text>
+                  <View style={{ alignItems: 'center', marginTop: 40 }}>
+                    <Ionicons name="checkmark-done-circle-outline" size={60} color="#ccc" />
+                    <Text style={{ textAlign: 'center', color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد تحديثات</Text>
+                  </View>
                 ) : (
                   getUpdatesByType(categoryType).map((update, index) => (
                     <View key={update.id || index} style={{ backgroundColor: '#f8f8f8', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#eee' }}>
@@ -1370,8 +1388,8 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
 
   const handleConfirm = () => {
     const parsed = parseInt(newAmper);
-    if (!parsed || parsed <= 0) {
-      Alert.alert('خطأ', 'أدخل عدد أمبير صحيح');
+    if (!parsed || parsed <= 0 || parsed > 100) {
+      Alert.alert('خطأ', 'أدخل عدد أمبير صحيح بين 1 و 100');
       return;
     }
     onConfirm(parsed, changeMonth, changeYear);
@@ -1759,6 +1777,10 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                             { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
                           ]);
                         } else {
+                          if (!canEdit) {
+                            Alert.alert('تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
+                            return;
+                          }
                           Alert.alert('تسديد الاشتراك', `هل تريد تسديد اشتراك "${subscriber.name}"؟`, [
                             { text: 'إلغاء', style: 'cancel' },
                             { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
@@ -1776,7 +1798,19 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       <View style={styles.cardNameSection}>
                           <Text style={styles.subscriberName}>{subscriber.name}</Text>
                         {!isFullyPaid && (
-                            <Text style={styles.subscriberAmperTag}>{currentAmper} أميبر</Text>
+                            <TouchableOpacity
+                              onLongPress={() => {
+                                if (!canChangeAmperPrice) {
+                                  Alert.alert('تنبيه', 'لا تملك صلاحية تغيير الأمبير');
+                                  return;
+                                }
+                                setChangeAmperSubscriber(subscriber);
+                                setChangeAmperVisible(true);
+                              }}
+                              disabled={!canChangeAmperPrice}
+                            >
+                              <Text style={[styles.subscriberAmperTag, canChangeAmperPrice && { textDecorationLine: 'underline' }]}>{currentAmper} أميبر</Text>
+                            </TouchableOpacity>
                         )}
                       </View>
                       <View style={styles.cardPriceSection}>
@@ -2324,7 +2358,271 @@ const MonthPickerAllModal = ({ visible, onClose, onSelect, selectedMonth }) => {
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline }) => {
+const AddGeneratorInput = ({ onAdd }) => {
+  const [name, setName] = useState('');
+  return (
+    <View>
+      <TextInput
+        style={[styles.formInput, { textAlign: 'right', marginBottom: 15 }]}
+        placeholder="ادخل اسم المولد"
+        placeholderTextColor="#999"
+        value={name}
+        onChangeText={setName}
+      />
+      <TouchableOpacity
+        style={[styles.addButton, { backgroundColor: '#2196F3', paddingVertical: 14, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }]}
+        onPress={() => {
+          if (!name.trim()) {
+            Alert.alert('تنبيه', 'ادخل اسم المولد');
+            return;
+          }
+          onAdd(name);
+        }}
+      >
+        <Ionicons name="save-outline" size={20} color="white" />
+        <Text style={styles.addButtonText}>حفظ</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthlyExpenses }) => {
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+
+  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+  useEffect(() => {
+    if (visible) {
+      setSelectedYear(String(now.getFullYear()));
+      setSelectedMonth(String(now.getMonth() + 1));
+    }
+  }, [visible]);
+
+  const m = parseInt(selectedMonth);
+  const y = parseInt(selectedYear);
+  const monthKey = `${m}_${y}`;
+
+  let activeCount = 0;
+  let deletedCount = 0;
+  let totalAmper = 0;
+  let paidCount = 0;
+  let unpaidCount = 0;
+  let requiredCount = 0;
+  let requiredAmount = 0;
+  let totalExpected = 0;
+  let totalCollected = 0;
+
+  const price = getAmperPrice(amperPrices, monthKey);
+
+  subscribers.forEach(s => {
+    const addedMonth = s.addedMonth ? parseInt(s.addedMonth) : 1;
+    const addedYear = s.addedYear ? parseInt(s.addedYear) : now.getFullYear();
+    const isBeforeAdded = (y < addedYear) || (y === addedYear && m < addedMonth);
+    if (isBeforeAdded) return;
+    const isDeleted = isDeletedForReport(s, m, y);
+    if (isDeleted) { deletedCount++; return; }
+    activeCount++;
+    const subAmper = getAmperForMonth(s, m, y);
+    totalAmper += subAmper;
+    const monthDue = subAmper * price;
+    totalExpected += monthDue;
+    const isPaid = s.paidMonths && s.paidMonths[monthKey];
+    const pp = s.partialPayments && s.partialPayments[monthKey];
+    if (isPaid) {
+      paidCount++;
+      totalCollected += monthDue;
+    } else if (pp && pp.length > 0) {
+      requiredCount++;
+      const ppSum = pp.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      totalCollected += ppSum;
+      requiredAmount += monthDue - ppSum;
+    }
+    else { unpaidCount++; }
+  });
+
+  const monthExpenses = monthlyExpenses[monthKey] || { gas: '0', oil: '0', repairs: '0', salaries: '0' };
+  const totalExpenses = (parseFloat(monthExpenses.gas) || 0) + (parseFloat(monthExpenses.oil) || 0) + (parseFloat(monthExpenses.repairs) || 0) + (parseFloat(monthExpenses.salaries) || 0);
+  const netProfit = totalCollected - totalExpenses;
+
+  const years = [];
+  for (let yr = now.getFullYear(); yr >= now.getFullYear() - 5; yr--) years.push(String(yr));
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { flex: 1, paddingTop: 40 }]}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={28} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>بيانات كل شهر</Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row-reverse', gap: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+              <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setYearPickerVisible(true)}>
+                <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{selectedYear}</Text>
+                <Ionicons name="calendar-outline" size={16} color="#1565C0" />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
+                <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{monthNames[m - 1]}</Text>
+                <Ionicons name="chevron-down" size={16} color="#1565C0" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.statsContainer}>
+              <View style={[styles.statCard, styles.totalCard]}>
+                <Text style={[styles.statNumber, styles.totalNumber]} numberOfLines={1} adjustsFontSizeToFit>{activeCount}</Text>
+                <Text style={[styles.statLabel, styles.totalLabel]} numberOfLines={1} adjustsFontSizeToFit>المشتركين</Text>
+              </View>
+              <View style={[styles.statCard, styles.paidCard]}>
+                <Text style={[styles.statNumber, styles.paidNumber]} numberOfLines={1} adjustsFontSizeToFit>{paidCount}</Text>
+                <Text style={[styles.statLabel, styles.paidLabel]} numberOfLines={1} adjustsFontSizeToFit>مدفوع</Text>
+              </View>
+              <View style={[styles.statCard, styles.unpaidCard]}>
+                <Text style={[styles.statNumber, styles.unpaidNumber]} numberOfLines={1} adjustsFontSizeToFit>{unpaidCount}</Text>
+                <Text style={[styles.statLabel, styles.unpaidLabel]} numberOfLines={1} adjustsFontSizeToFit>غير مدفوع</Text>
+              </View>
+            </View>
+            <View style={styles.statsContainer}>
+              <View style={[styles.statCard, styles.requiredCard]}>
+                <Text style={[styles.statNumber, styles.requiredNumber]} numberOfLines={1} adjustsFontSizeToFit>{requiredCount}</Text>
+                <Text style={[styles.statLabel, styles.requiredLabel]} numberOfLines={1} adjustsFontSizeToFit>المطلوبين</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
+                <Text style={[styles.statNumber, { color: '#9C27B0' }]} numberOfLines={1} adjustsFontSizeToFit>{totalAmper}</Text>
+                <Text style={[styles.statLabel, { color: '#9C27B0' }]} numberOfLines={1} adjustsFontSizeToFit>الأمبير</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
+                <Text style={[styles.statNumber, { color: '#607D8B' }]} numberOfLines={1} adjustsFontSizeToFit>{deletedCount}</Text>
+                <Text style={[styles.statLabel, { color: '#607D8B' }]} numberOfLines={1} adjustsFontSizeToFit>المحذوفين</Text>
+              </View>
+            </View>
+
+            <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+              <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: 12 }} />
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Ionicons name="cash" size={22} color="#1565C0" />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
+              </View>
+              <View style={[styles.settingsInput, { backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1 }]}>
+                <Text style={{ fontSize: 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(totalExpected)}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
+                <Ionicons name="wallet" size={22} color="#4CAF50" />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المحصل</Text>
+              </View>
+              <View style={[styles.settingsInput, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1 }]}>
+                <Text style={{ fontSize: 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(totalCollected)}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
+                <Ionicons name="alert-circle" size={22} color="#FF9800" />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المطلوبين</Text>
+              </View>
+              <View style={[styles.settingsInput, { backgroundColor: '#FFF3E0', borderColor: '#FF9800', borderWidth: 1 }]}>
+                <Text style={{ fontSize: 15, color: '#E65100', fontWeight: '600' }}>د.ع {formatNumber(requiredAmount)}</Text>
+              </View>
+
+              <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: 16 }} />
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Ionicons name="receipt" size={22} color="#F44336" />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>الصرفيات</Text>
+              </View>
+
+              <View style={{ gap: 10 }}>
+                <View>
+                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>وقود</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
+                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.gas) || 0)}</Text>
+                  </View>
+                </View>
+                <View>
+                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>زيت</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
+                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.oil) || 0)}</Text>
+                  </View>
+                </View>
+                <View>
+                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>صيانة</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
+                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.repairs) || 0)}</Text>
+                  </View>
+                </View>
+                <View>
+                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>رواتب</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
+                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.salaries) || 0)}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 14, padding: 14, backgroundColor: '#FFEBEE', borderRadius: 10 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>مجموع الصرفيات</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#F44336' }}>د.ع {formatNumber(totalExpenses)}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 10, padding: 14, backgroundColor: netProfit >= 0 ? '#E8F5E9' : '#FFEBEE', borderRadius: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>صافي الربح</Text>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: netProfit >= 0 ? '#4CAF50' : '#F44336' }}>د.ع {formatNumber(netProfit)}</Text>
+              </View>
+            </View>
+
+            <View style={{ height: 30 }} />
+          </ScrollView>
+        </View>
+
+        {yearPickerVisible && (
+          <Modal visible={yearPickerVisible} transparent animationType="slide">
+            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setYearPickerVisible(false)}>
+              <View style={[styles.partialModalContent, { maxHeight: '50%' }]} onStartShouldSetResponder={() => true}>
+                <Text style={styles.modalTitle}>اختر السنة</Text>
+                <ScrollView style={{ maxHeight: 300 }}>
+                  {years.map(yr => (
+                    <TouchableOpacity key={yr} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedYear(yr); setYearPickerVisible(false); }}>
+                      <Text style={{ fontSize: 18, color: yr === selectedYear ? '#1565C0' : '#333', fontWeight: yr === selectedYear ? 'bold' : 'normal' }}>{yr}</Text>
+                      {yr === selectedYear && <Ionicons name="checkmark" size={20} color="#1565C0" style={{ marginRight: 8 }} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+
+        {monthPickerVisible && (
+          <Modal visible={monthPickerVisible} transparent animationType="slide">
+            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMonthPickerVisible(false)}>
+              <View style={[styles.partialModalContent, { maxHeight: '50%' }]} onStartShouldSetResponder={() => true}>
+                <Text style={styles.modalTitle}>اختر الشهر</Text>
+                <ScrollView style={{ maxHeight: 350 }}>
+                  {monthNames.map((name, idx) => (
+                    <TouchableOpacity key={idx + 1} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedMonth(String(idx + 1)); setMonthPickerVisible(false); }}>
+                      <Text style={{ fontSize: 18, color: (idx + 1) === m ? '#1565C0' : '#333', fontWeight: (idx + 1) === m ? 'bold' : 'normal' }}>{name}</Text>
+                      {(idx + 1) === m && <Ionicons name="checkmark" size={20} color="#1565C0" style={{ marginRight: 8 }} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+      </View>
+    </Modal>
+  );
+};
+
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData }) => {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
@@ -2448,10 +2746,17 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.addButton}>
-            <Text style={styles.addButtonText}>إضافة مولد</Text>
+          <TouchableOpacity style={[styles.addButton, { paddingHorizontal: 12, paddingVertical: 8 }]} onPress={onAddGenerator}>
+            <Ionicons name="add-circle-outline" size={16} color="white" />
+            <Text style={[styles.addButtonText, { fontSize: 13 }]}>إضافة مولد</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.monthlyDataButton}>
+          {generators && generators.length > 1 && (
+            <TouchableOpacity style={[styles.addButton, { paddingHorizontal: 12, paddingVertical: 8 }]} onPress={onSwitchGenerator}>
+              <Ionicons name="swap-horizontal-outline" size={16} color="white" />
+              <Text style={[styles.addButtonText, { fontSize: 13 }]}>تبديل المولد ({generators.length})</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
             <Text style={styles.monthlyDataButtonText}>بيانات كل شهر</Text>
           </TouchableOpacity>
         </View>
@@ -2668,7 +2973,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           </TouchableOpacity>
         </View>
 
-        {workerUpdates.length > 0 && (
+        {workerUpdates.length > 0 && isOnline && (
           <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#2196F3', marginTop: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={onSync}>
             <Ionicons name="cloud-upload-outline" size={20} color="white" />
             <Text style={styles.showSubscribersText}>رفع التحديثات ({workerUpdates.length})</Text>
@@ -2681,6 +2986,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
 
 export default function App() {
   const [screen, setScreen] = useState('welcome');
+  const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [generatorName, setGeneratorName] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -2689,7 +2995,7 @@ export default function App() {
   const [reportsVisible, setReportsVisible] = useState(false);
   const [subscribers, setSubscribers] = useState([]);
   const [amperPrices, setAmperPrices] = useState({});
-  const [expenses, setExpenses] = useState({ gas: '0', oil: '0', repairs: '0', salaries: '0' });
+  const [monthlyExpenses, setMonthlyExpenses] = useState({});
   const [userRole, setUserRole] = useState(null);
   const [workerOwnerPhone, setWorkerOwnerPhone] = useState(null);
   const [workerPermissions, setWorkerPermissions] = useState([]);
@@ -2699,9 +3005,14 @@ export default function App() {
   const [workerUpdates, setWorkerUpdates] = useState([]);
   const [pendingWorkerUpdates, setPendingWorkerUpdates] = useState([]);
   const [workers, setWorkers] = useState([]);
+  const [generators, setGenerators] = useState([]);
+  const [currentGeneratorId, setCurrentGeneratorId] = useState(null);
+  const [addGeneratorVisible, setAddGeneratorVisible] = useState(false);
+  const [switchGeneratorVisible, setSwitchGeneratorVisible] = useState(false);
   const [updatesModalVisible, setUpdatesModalVisible] = useState(false);
   const [updateCategoryVisible, setUpdateCategoryVisible] = useState(false);
   const [updateCategoryType, setUpdateCategoryType] = useState(null);
+  const [monthlyDataVisible, setMonthlyDataVisible] = useState(false);
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -2715,6 +3026,42 @@ export default function App() {
       loadAllUserData();
     }
   }, [currentUser]);
+
+  const isFirstRender = React.useRef(true);
+  const generatorsRef = React.useRef(generators);
+  generatorsRef.current = generators;
+  const syncTimerRef = React.useRef(null);
+
+  const defaultExpenses = { gas: '0', oil: '0', repairs: '0', salaries: '0' };
+  const currentMonthKeyForMain = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
+  const expenses = monthlyExpenses[currentMonthKeyForMain] || defaultExpenses;
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (!currentGeneratorId || generatorsRef.current.length === 0) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      const updated = generatorsRef.current.map(g => {
+        if (g.id === currentGeneratorId) {
+          return { ...g, subscribers, amperPrices, monthlyExpenses };
+        }
+        return g;
+      });
+      setGenerators(updated);
+      saveUserData(currentUser, 'generators', updated);
+    }, 500);
+  }, [subscribers, amperPrices, monthlyExpenses]);
+
+  useEffect(() => {
+    if (userRole === 'worker' && screen === 'main') {
+      setScreen('workerMain');
+    }
+    if (userRole !== 'worker' && screen === 'workerMain') {
+      setScreen('main');
+    }
+  }, [userRole, screen]);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
@@ -2737,9 +3084,7 @@ export default function App() {
     if (!currentUser || userRole === 'worker') return;
     const pollInterval = setInterval(async () => {
       const updates = await loadUserData(currentUser, 'pending_worker_updates');
-      if (updates && updates.length > 0) {
-        setPendingWorkerUpdates(updates);
-      }
+      setPendingWorkerUpdates(updates || []);
     }, 30000);
     return () => clearInterval(pollInterval);
   }, [currentUser, userRole]);
@@ -2749,26 +3094,130 @@ export default function App() {
   };
 
   const checkLoggedIn = async () => {
-    const userData = await loadFromFile('current_user');
-    if (userData && userData.phone) {
-      setCurrentUser(userData.phone);
-      setScreen('main');
+    try {
+      const userData = await loadFromFile('current_user');
+      if (userData && userData.phone) {
+        if (userData.role === 'worker') {
+          setCurrentUser(userData.phone);
+          setUserRole('worker');
+          setWorkerOwnerPhone(userData.phone);
+          setWorkerCode(userData.workerCode || '');
+          setWorkerName(userData.workerName || '');
+          setWorkerPermissions(userData.permissions || []);
+          setScreen('workerMain');
+        } else if (userData.role === 'owner') {
+          setCurrentUser(userData.phone);
+          setScreen('main');
+        } else {
+          await deleteFile('current_user');
+        }
+      }
+    } catch (e) {
+      await deleteFile('current_user');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadAllUserData = async () => {
     if (!currentUser) return;
     const all = await loadAllUserKeys(currentUser);
-    if (all.generatorName !== undefined) setGeneratorName(all.generatorName);
     if (all.ownerName !== undefined) setOwnerName(all.ownerName);
-    if (all.amperPrices !== undefined) setAmperPrices(all.amperPrices);
-    if (all.subscribers !== undefined) setSubscribers(all.subscribers);
-    if (all.expenses !== undefined) setExpenses(all.expenses);
     if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(all.pending_worker_updates);
     if (all.workers !== undefined) setWorkers(all.workers);
+
+    let loadedGenerators = all.generators || [];
+    let loadedCurrentId = all.currentGeneratorId || null;
+
+    if (loadedGenerators.length === 0 && all.subscribers !== undefined) {
+      const migrated = {
+        id: Date.now().toString(),
+        name: all.generatorName || 'المولد الرئيسي',
+        subscribers: all.subscribers || [],
+        amperPrices: all.amperPrices || {},
+        monthlyExpenses: all.monthlyExpenses || {},
+      };
+      loadedGenerators = [migrated];
+      loadedCurrentId = migrated.id;
+      await saveUserData(currentUser, 'generators', loadedGenerators);
+      await saveUserData(currentUser, 'currentGeneratorId', loadedCurrentId);
+    }
+
+    if (loadedGenerators.length > 0) {
+      setGenerators(loadedGenerators);
+      setCurrentGeneratorId(loadedCurrentId);
+      const active = loadedGenerators.find(g => g.id === loadedCurrentId) || loadedGenerators[0];
+      if (active) {
+        setGeneratorName(active.name);
+        setSubscribers(active.subscribers || []);
+        setAmperPrices(active.amperPrices || {});
+        setMonthlyExpenses(active.monthlyExpenses || {});
+        if (!loadedCurrentId || loadedCurrentId !== active.id) {
+          setCurrentGeneratorId(active.id);
+          await saveUserData(currentUser, 'currentGeneratorId', active.id);
+        }
+      }
+    } else {
+      if (all.generatorName !== undefined) setGeneratorName(all.generatorName);
+      if (all.amperPrices !== undefined) setAmperPrices(all.amperPrices);
+      if (all.subscribers !== undefined) setSubscribers(all.subscribers);
+      if (all.monthlyExpenses !== undefined) setMonthlyExpenses(all.monthlyExpenses);
+    }
+  };
+
+  const saveCurrentGeneratorData = async (updatedGenerators) => {
+    setGenerators(updatedGenerators);
+    if (currentUser) await saveUserData(currentUser, 'generators', updatedGenerators);
+  };
+
+  const handleCreateGenerator = async (name) => {
+    const newGen = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      subscribers: [],
+      amperPrices: {},
+      monthlyExpenses: {},
+    };
+    const updated = [...generators, newGen];
+    setGenerators(updated);
+    setCurrentGeneratorId(newGen.id);
+    setGeneratorName(newGen.name);
+    setSubscribers([]);
+    setAmperPrices({});
+    setMonthlyExpenses({});
+    if (currentUser) {
+      await saveUserData(currentUser, 'generators', updated);
+      await saveUserData(currentUser, 'currentGeneratorId', newGen.id);
+    }
+  };
+
+  const handleSwitchGenerator = async (genId) => {
+    if (genId === currentGeneratorId) return;
+
+    const updatedGenerators = generators.map(g => {
+      if (g.id === currentGeneratorId) {
+        return { ...g, subscribers, amperPrices, monthlyExpenses };
+      }
+      return g;
+    });
+
+    const target = updatedGenerators.find(g => g.id === genId);
+    if (!target) return;
+
+    setGenerators(updatedGenerators);
+    setCurrentGeneratorId(genId);
+    setGeneratorName(target.name);
+    setSubscribers(target.subscribers || []);
+    setAmperPrices(target.amperPrices || {});
+    setMonthlyExpenses(target.monthlyExpenses || {});
+    if (currentUser) {
+      await saveUserData(currentUser, 'generators', updatedGenerators);
+      await saveUserData(currentUser, 'currentGeneratorId', genId);
+    }
   };
 
   const handleLogin = (userPhone) => {
+    if (userRole === 'worker') return;
     setCurrentUser(userPhone);
     setScreen('main');
   };
@@ -2788,7 +3237,9 @@ export default function App() {
     setOwnerName('');
     setAmperPrices({});
     setSubscribers([]);
-    setExpenses({ gas: '0', oil: '0', repairs: '0', salaries: '0' });
+    setMonthlyExpenses({});
+    setGenerators([]);
+    setCurrentGeneratorId(null);
     setScreen('welcome');
   };
 
@@ -2820,12 +3271,20 @@ export default function App() {
       Alert.alert('تنبيه', 'لا توجد تحديثات للرفع');
       return;
     }
+    if (!isOnline) {
+      Alert.alert('تنبيه', 'لا يوجد اتصال بالإنترنت. حاول لاحقاً');
+      return;
+    }
     try {
       const existing = await loadUserData(workerOwnerPhone, 'pending_worker_updates') || [];
       const merged = [...existing, ...workerUpdates];
-      await saveUserData(workerOwnerPhone, 'pending_worker_updates', merged);
-      setWorkerUpdates([]);
-      Alert.alert('تم', 'تم رفع التحديثات بنجاح');
+      const result = await saveUserData(workerOwnerPhone, 'pending_worker_updates', merged);
+      if (result !== null) {
+        setWorkerUpdates([]);
+        Alert.alert('تم', 'تم رفع التحديثات بنجاح');
+      } else {
+        Alert.alert('خطأ', 'فشل رفع التحديثات');
+      }
     } catch (e) {
       Alert.alert('خطأ', 'فشل رفع التحديثات');
     }
@@ -2845,12 +3304,16 @@ export default function App() {
               name: update.subscriberName,
               amper: update.amper,
               phone: update.details.phone || '',
+              subscriberNumber: update.details.subscriberNumber || '',
+              meterNumber: update.details.meterNumber || '',
+              visaNumber: update.details.visaNumber || '',
               addedMonth: update.details.addedMonth || new Date().getMonth() + 1,
               addedYear: update.details.addedYear || new Date().getFullYear(),
               paidMonths: {},
               paymentHistory: [],
               partialPayments: {},
               amperHistory: update.details.amperHistory || [],
+              date: update.date,
             });
           }
           break;
@@ -2870,7 +3333,9 @@ export default function App() {
               ownerName: update.ownerName,
             }];
             sub.partialPayments = { ...sub.partialPayments };
-            if (update.type === 'paid') sub.partialPayments[update.monthKey] = [];
+            if (update.type === 'cancelled') {
+              delete sub.partialPayments[update.monthKey];
+            }
             newSubs[subIndex] = sub;
           }
           break;
@@ -2926,6 +3391,9 @@ export default function App() {
             const sub = { ...newSubs[subIndex] };
             if (update.details.name) sub.name = update.details.name;
             if (update.details.phone) sub.phone = update.details.phone;
+            if (update.details.subscriberNumber !== undefined) sub.subscriberNumber = update.details.subscriberNumber;
+            if (update.details.meterNumber !== undefined) sub.meterNumber = update.details.meterNumber;
+            if (update.details.visaNumber !== undefined) sub.visaNumber = update.details.visaNumber;
             if (update.details.amper !== undefined) {
               sub.amper = update.details.amper;
               sub.amperHistory = [...(sub.amperHistory || [])];
@@ -2956,6 +3424,11 @@ export default function App() {
 
     setSubscribers(newSubs);
     if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+    if (currentGeneratorId && generators.length > 0) {
+      const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
+      setGenerators(updated);
+      await saveUserData(currentUser, 'generators', updated);
+    }
     await saveUserData(currentUser, 'pending_worker_updates', []);
     setPendingWorkerUpdates([]);
     setUpdatesModalVisible(false);
@@ -3011,6 +3484,11 @@ export default function App() {
   const saveGeneratorName = async (name) => {
     setGeneratorName(name);
     if (currentUser) await saveUserData(currentUser, 'generatorName', name);
+    if (currentGeneratorId && generators.length > 0) {
+      const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, name } : g);
+      setGenerators(updated);
+      await saveUserData(currentUser, 'generators', updated);
+    }
   };
 
   const saveOwnerName = async (name) => {
@@ -3025,8 +3503,10 @@ export default function App() {
   };
 
   const saveExpenses = async (exp) => {
-    setExpenses(exp);
-    if (currentUser) await saveUserData(currentUser, 'expenses', exp);
+    const key = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
+    const updated = { ...monthlyExpenses, [key]: exp };
+    setMonthlyExpenses(updated);
+    if (currentUser) await saveUserData(currentUser, 'monthlyExpenses', updated);
   };
 
   const handleCreateWorker = async (permissions) => {
@@ -3091,6 +3571,7 @@ export default function App() {
 
   const handleAddSubscriber = async (subscriber) => {
     resetActivity();
+    if (userRole === 'worker' && !workerPermissions.includes('add')) return;
     const existing = subscribers.find(s => s.id === subscriber.id);
     if (existing) {
       const duplicate = subscribers.find(s => s.name.trim() === subscriber.name.trim() && s.id !== subscriber.id);
@@ -3102,10 +3583,15 @@ export default function App() {
       setSubscribers(newSubs);
       if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
       if (userRole === 'worker') {
-        trackWorkerUpdate('edit', subscriber.id, subscriber.name, subscriber.amper, subscriber.addedMonth + '_' + subscriber.addedYear, {
+        const now = new Date();
+        const editMonthKey = `${now.getMonth() + 1}_${now.getFullYear()}`;
+        trackWorkerUpdate('edit', subscriber.id, subscriber.name, subscriber.amper, editMonthKey, {
           name: subscriber.name,
           phone: subscriber.phone,
           amper: subscriber.amper,
+          subscriberNumber: subscriber.subscriberNumber,
+          meterNumber: subscriber.meterNumber,
+          visaNumber: subscriber.visaNumber,
         });
       }
     } else {
@@ -3123,6 +3609,9 @@ export default function App() {
           addedMonth: subscriber.addedMonth,
           addedYear: subscriber.addedYear,
           amperHistory: subscriber.amperHistory,
+          subscriberNumber: subscriber.subscriberNumber,
+          meterNumber: subscriber.meterNumber,
+          visaNumber: subscriber.visaNumber,
         });
       }
     }
@@ -3130,6 +3619,7 @@ export default function App() {
 
   const handleDeleteSubscriber = async (id, monthKey) => {
     resetActivity();
+    if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
     const now = new Date();
     const hours = now.getHours();
     const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
@@ -3158,13 +3648,15 @@ export default function App() {
 
   const handleTogglePaid = async (id, monthKey) => {
     resetActivity();
+    if (userRole === 'worker' && !workerPermissions.includes('edit')) return;
+    const sub = subscribers.find(s => s.id === id);
+    if (!sub) return;
     const now = new Date();
     const hours = now.getHours();
     const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
     const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
     const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
     const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
-    const sub = subscribers.find(s => s.id === id);
     const isCurrentlyPaid = sub && sub.paidMonths && sub.paidMonths[monthKey];
     const newSubs = subscribers.map(s => {
       if (s.id === id) {
@@ -3198,13 +3690,15 @@ export default function App() {
 
   const handlePartialPayment = async (id, amount, monthKey) => {
     resetActivity();
+    if (userRole === 'worker' && !workerPermissions.includes('partialPayment')) return;
+    const sub = subscribers.find(s => s.id === id);
+    if (!sub) return;
     const now = new Date();
     const hours = now.getHours();
     const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
     const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
     const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
     const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
-    const sub = subscribers.find(s => s.id === id);
 
     const newSubs = subscribers.map(s => {
       if (s.id === id) {
@@ -3248,6 +3742,7 @@ export default function App() {
   };
 
   const handleRestoreSubscriber = async (id) => {
+    if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
     const sub = subscribers.find(s => s.id === id);
     const newSubs = subscribers.map(s => {
       if (s.id === id) {
@@ -3267,6 +3762,7 @@ export default function App() {
   };
 
   const handleChangeAmper = async (id, newAmper, monthKey) => {
+    if (userRole === 'worker' && !workerPermissions.includes('amperPrice')) return;
     const sub = subscribers.find(s => s.id === id);
     const newSubs = subscribers.map(s => {
       if (s.id === id) {
@@ -3293,6 +3789,18 @@ export default function App() {
       trackWorkerUpdate('edit', id, sub.name, newAmper, monthKey, { amper: newAmper });
     }
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.mainContainer}>
+        <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Ionicons name="flash" size={60} color="#FFD700" />
+          <Text style={{ color: '#333', fontSize: 18, marginTop: 20 }}>جاري التحميل...</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (screen === 'welcome') {
     return (
@@ -3336,6 +3844,13 @@ export default function App() {
             setWorkerCode(code.toUpperCase());
             setWorkerName(name);
             setCurrentUser(result.ownerPhone);
+            await saveToFile('current_user', {
+              phone: result.ownerPhone,
+              role: 'worker',
+              workerCode: code.toUpperCase(),
+              workerName: name,
+              permissions: result.permissions,
+            });
             setScreen('workerMain');
           }
           return result;
@@ -3344,7 +3859,43 @@ export default function App() {
     );
   }
 
-  if (screen === 'workerMain') {
+  if (screen === 'workerMain' && userRole === 'worker') {
+    return (
+      <View style={styles.mainContainer}>
+        <WorkerMainScreen
+          generatorName={generatorName}
+          onShowSubscribers={() => setSubscribersVisible(true)}
+          onShowReports={() => setReportsVisible(true)}
+          subscribers={subscribers}
+          amperPrices={amperPrices}
+          onLogout={handleLogout}
+          isOnline={isOnline}
+          workerUpdates={workerUpdates}
+          onSync={handleWorkerSync}
+          workerName={workerName}
+        />
+        <SubscribersScreen
+          visible={subscribersVisible}
+          onClose={() => setSubscribersVisible(false)}
+          subscribers={subscribers}
+          onSaveSubscriber={handleAddSubscriber}
+          onDeleteSubscriber={handleDeleteSubscriber}
+          onTogglePaid={handleTogglePaid}
+          onPartialPayment={handlePartialPayment}
+          onRestoreSubscriber={handleRestoreSubscriber}
+          onChangeAmper={handleChangeAmper}
+          amperPrices={amperPrices}
+          onSaveAmperPrice={saveAmperPrice}
+          currentUser={currentUser}
+          ownerName={ownerName}
+          userRole={userRole}
+          workerPermissions={workerPermissions}
+        />
+      </View>
+    );
+  }
+
+  if (userRole === 'worker') {
     return (
       <View style={styles.mainContainer}>
         <WorkerMainScreen
@@ -3395,6 +3946,10 @@ export default function App() {
         onSetExpenses={saveExpenses}
         onLogout={handleLogout}
         isOnline={isOnline}
+        generators={generators}
+        onAddGenerator={() => setAddGeneratorVisible(true)}
+        onSwitchGenerator={() => setSwitchGeneratorVisible(true)}
+        onShowMonthlyData={() => setMonthlyDataVisible(true)}
       />
       <SettingsScreen
         visible={settingsVisible}
@@ -3444,6 +3999,80 @@ export default function App() {
         subscribers={subscribers}
         amperPrices={amperPrices}
       />
+      <MonthlyDataScreen
+        visible={monthlyDataVisible}
+        onClose={() => setMonthlyDataVisible(false)}
+        subscribers={subscribers}
+        amperPrices={amperPrices}
+        monthlyExpenses={monthlyExpenses}
+      />
+      {addGeneratorVisible && (
+        <Modal visible={addGeneratorVisible} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.partialModalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setAddGeneratorVisible(false)}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>إضافة مولد جديد</Text>
+                <View style={{ width: 28 }} />
+              </View>
+              <View style={{ padding: 20 }}>
+                <Text style={{ fontSize: 16, color: '#333', marginBottom: 10, textAlign: 'right' }}>ادخل اسم المولد الجديد</Text>
+                <AddGeneratorInput
+                  onAdd={(name) => {
+                    handleCreateGenerator(name);
+                    setAddGeneratorVisible(false);
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+      {switchGeneratorVisible && (
+        <Modal visible={switchGeneratorVisible} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.partialModalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setSwitchGeneratorVisible(false)}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>تبديل المولد</Text>
+                <View style={{ width: 28 }} />
+              </View>
+              <ScrollView style={{ maxHeight: 400 }}>
+                {generators.map(gen => (
+                  <TouchableOpacity
+                    key={gen.id}
+                    style={{
+                      padding: 16,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#eee',
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      backgroundColor: gen.id === currentGeneratorId ? '#E3F2FD' : 'white',
+                    }}
+                    onPress={() => {
+                      handleSwitchGenerator(gen.id);
+                      setSwitchGeneratorVisible(false);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Ionicons name="flash" size={24} color={gen.id === currentGeneratorId ? '#2196F3' : '#999'} />
+                      <Text style={{ fontSize: 16, color: '#333', fontWeight: gen.id === currentGeneratorId ? 'bold' : 'normal' }}>{gen.name}</Text>
+                    </View>
+                    {gen.id === currentGeneratorId && (
+                      <Ionicons name="checkmark-circle" size={24} color="#2196F3" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -4120,7 +4749,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   historyItem: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     paddingVertical: 6,
     gap: 10,
@@ -4226,6 +4855,26 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 16,
   },
+  monthlyDataCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginTop: 12,
+    padding: 16,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 12,
+    borderLeftWidth: 4,
+  },
+  reportCardTitle: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  reportCardValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
   reportSubscriberHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -4276,7 +4925,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   reportTableHeader: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     backgroundColor: '#2196F3',
     borderRadius: 10,
     padding: 12,
@@ -4290,7 +4939,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   reportTableRow: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
@@ -4598,6 +5247,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingHorizontal: 20,
     paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   addButtonText: {
     color: '#2196F3',
