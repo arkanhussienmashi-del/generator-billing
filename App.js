@@ -352,8 +352,6 @@ const RegisterScreen = ({ onBack, onRegister }) => {
   const [phone, setPhone] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleRegister = async () => {
@@ -374,20 +372,8 @@ const RegisterScreen = ({ onBack, onRegister }) => {
       Alert.alert('تنبيه', 'الرمز غير متطابق');
       return;
     }
-    if (!password.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال كلمة المرور');
-      return;
-    }
-    if (password.length < 4) {
-      Alert.alert('تنبيه', 'كلمة المرور يجب أن تكون 4 أحرف على الأقل');
-      return;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert('تنبيه', 'كلمتا المرور غير متطابقتين');
-      return;
-    }
 
-    const hashedPassword = await hashPassword(password, phone.trim());
+    const hashedPassword = await hashPassword(ownerCode.trim(), phone.trim());
     const existing = await loadFromFile('registered_users');
     const users = existing || [];
     if (users.find(u => u.phone === phone.trim())) {
@@ -455,33 +441,6 @@ const RegisterScreen = ({ onBack, onRegister }) => {
               placeholderTextColor="#999"
               value={confirmOwnerCode}
               onChangeText={setConfirmOwnerCode}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="كلمة المرور"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={22} color="#666" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="تأكيد كلمة المرور"
-              placeholderTextColor="#999"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry={!showPassword}
             />
           </View>
 
