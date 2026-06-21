@@ -2174,7 +2174,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                                 <Text style={[styles.subscriberAmperTag]}>{currentAmper} أميبر</Text>
                               </TouchableOpacity>
                           )}
-                          {subscriber.visaNumber ? <Text style={{ fontSize: 12, color: '#999' }}>{subscriber.visaNumber}</Text> : null}
+                          {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999' }}>{subscriber.meterNumber}</Text> : null}
                         </View>
                       </View>
                       <View style={styles.cardPriceSection}>
