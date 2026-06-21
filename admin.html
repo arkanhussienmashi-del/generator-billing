@@ -380,10 +380,11 @@ function renderOwners(owners) {
       html += '<div class="section"><div class="section-title">العمال</div>';
       owner.workers.forEach(function(w) {
         html += '<div class="worker-card">';
-        html += '<div><strong>' + esc(w.name || '') + '</strong>';
-        html += '<div style="display:flex;gap:8px;margin-top:4px">';
-        html += '<span class="badge badge-purple">الاسم: ' + esc(w.name || '') + '</span>';
-        html += '<span class="badge badge-blue">الكود: ' + esc(w.code || '') + '</span>';
+        html += '<div>';
+        html += '<div style="display:flex;gap:8px;margin-bottom:6px">';
+        html += '<span class="badge badge-purple">الكود: ' + esc(w.code || '') + '</span>';
+        html += '<span class="badge badge-green">الرمز: ' + esc(w.pin || '') + '</span>';
+        if (w.deleted) html += '<span class="badge badge-red">محذوف</span>';
         html += '</div>';
         html += '<div class="worker-perms">';
         var perms = w.permissions || {};
