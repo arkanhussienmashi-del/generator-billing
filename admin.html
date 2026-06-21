@@ -113,8 +113,7 @@ body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f2f5; 
 </div>
 
 <script>
-const SUPABASE_URL = 'https://xisrouirxhvbkwvwfvkx.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpc3JvdWlyeGh2Ymt3dndmdmt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg1MzcsImV4cCI6MjA5NzQ2NDUzN30.jts63Wqick77MaAJFHHdyuaMqWkPMFXxPqIpfUV9frE';
+const API_URL = 'https://generator-billing-api.vercel.app';
 
 let allOwners = [];
 
@@ -125,7 +124,7 @@ function checkAdminPassword() {
   if (input === ADMIN_PASSWORD) {
     document.getElementById('loginBox').style.display = 'none';
     document.getElementById('adminPanel').style.display = 'block';
-document.getElementById('adminPassword').focus();
+    loadAll();
   } else {
     document.getElementById('loginError').style.display = 'block';
     document.getElementById('adminPassword').value = '';
@@ -133,21 +132,18 @@ document.getElementById('adminPassword').focus();
   }
 }
 
-function headers() {
-  return {
-    'Content-Type': 'application/json',
-    'apikey': SUPABASE_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_KEY,
-  };
+async function apiGet(params) {
+  try {
+    var r = await fetch(API_URL + '/api?' + params);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { return null; }
 }
 
-async function sbGet(path) {
-  try {
-    const r = await fetch(SUPABASE_URL + path, { headers: headers() });
-    if (!r.ok) return null;
-    const t = await r.text();
-    return t ? JSON.parse(t) : null;
-  } catch(e) { return null; }
+function parseVal(v) {
+  if (!v) return v;
+  if (typeof v === 'string') { try { return JSON.parse(v); } catch(e) { return v; } }
+  return v;
 }
 
 function fmt(n) {
@@ -188,11 +184,10 @@ function getAmperForMonth(sub, month, year) {
 async function loadAll() {
   document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div><br>جاري تحميل البيانات...</div>';
   
-  var usersResult = await sbGet('/rest/v1/app_data?filename=eq.registered_users&select=data_value');
+  var usersResult = await apiGet('table=app_data&filename=registered_users');
   var users = [];
   if (Array.isArray(usersResult) && usersResult.length > 0) {
-    var raw = usersResult[0].data_value;
-    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) {} }
+    var raw = parseVal(usersResult[0].data_value);
     if (Array.isArray(raw)) users = raw;
   }
 
@@ -212,50 +207,34 @@ async function loadAll() {
     var user = users[i];
     var phone = user.phone || '';
     
-    var subsResult = await sbGet('/rest/v1/user_data?phone=eq.' + encodeURIComponent(phone) + '&data_key=eq.subscribers&select=data_value');
-    var subs = [];
-    if (Array.isArray(subsResult) && subsResult.length > 0) {
-      var sv = subsResult[0].data_value;
-      if (typeof sv === 'string') { try { sv = JSON.parse(sv); } catch(e) {} }
-      if (Array.isArray(sv)) subs = sv;
-    }
+    var subsResult = await apiGet('table=user_data&phone=' + encodeURIComponent(phone) + '&key=subscribers');
+    var subs = parseVal(Array.isArray(subsResult) && subsResult.length > 0 ? subsResult[0].data_value : null);
+    if (!Array.isArray(subs)) subs = [];
 
-    var gensResult = await sbGet('/rest/v1/user_data?phone=eq.' + encodeURIComponent(phone) + '&data_key=eq.generators&select=data_value');
-    var gens = [];
-    if (Array.isArray(gensResult) && gensResult.length > 0) {
-      var gv = gensResult[0].data_value;
-      if (typeof gv === 'string') { try { gv = JSON.parse(gv); } catch(e) {} }
-      if (Array.isArray(gv)) gens = gv;
-    }
+    var gensResult = await apiGet('table=user_data&phone=' + encodeURIComponent(phone) + '&key=generators');
+    var gens = parseVal(Array.isArray(gensResult) && gensResult.length > 0 ? gensResult[0].data_value : null);
+    if (!Array.isArray(gens)) gens = [];
 
-    var workersResult = await sbGet('/rest/v1/user_data?phone=eq.' + encodeURIComponent(phone) + '&data_key=eq.workers&select=data_value');
-    var workers = [];
-    if (Array.isArray(workersResult) && workersResult.length > 0) {
-      var wv = workersResult[0].data_value;
-      if (typeof wv === 'string') { try { wv = JSON.parse(wv); } catch(e) {} }
-      if (Array.isArray(wv)) workers = wv;
-    }
+    var workersResult = await apiGet('table=user_data&phone=' + encodeURIComponent(phone) + '&key=workers');
+    var workers = parseVal(Array.isArray(workersResult) && workersResult.length > 0 ? workersResult[0].data_value : null);
+    if (!Array.isArray(workers)) workers = [];
 
-    var expensesResult = await sbGet('/rest/v1/user_data?phone=eq.' + encodeURIComponent(phone) + '&data_key=eq.monthlyExpenses&select=data_value');
-    var expenses = {};
-    if (Array.isArray(expensesResult) && expensesResult.length > 0) {
-      var ev = expensesResult[0].data_value;
-      if (typeof ev === 'string') { try { ev = JSON.parse(ev); } catch(e) {} }
-      if (ev && typeof ev === 'object') expenses = ev;
-    }
+    var expensesResult = await apiGet('table=user_data&phone=' + encodeURIComponent(phone) + '&key=monthlyExpenses');
+    var expenses = parseVal(Array.isArray(expensesResult) && expensesResult.length > 0 ? expensesResult[0].data_value : null);
+    if (!expenses || typeof expenses !== 'object') expenses = {};
 
-    var nameResult = await sbGet('/rest/v1/user_data?phone=eq.' + encodeURIComponent(phone) + '&data_key=eq.ownerName&select=data_value');
+    var nameResult = await apiGet('table=user_data&phone=' + encodeURIComponent(phone) + '&key=ownerName');
     var ownerName = user.name || '';
     if (Array.isArray(nameResult) && nameResult.length > 0) {
-      ownerName = nameResult[0].data_value || ownerName;
-      if (typeof ownerName === 'string') {} else if (typeof ownerName === 'object') ownerName = JSON.stringify(ownerName);
+      ownerName = parseVal(nameResult[0].data_value) || ownerName;
+      if (typeof ownerName !== 'string') ownerName = String(ownerName);
     }
 
-    var genNameResult = await sbGet('/rest/v1/user_data?phone=eq.' + encodeURIComponent(phone) + '&data_key=eq.generatorName&select=data_value');
+    var genNameResult = await apiGet('table=user_data&phone=' + encodeURIComponent(phone) + '&key=generatorName');
     var genName = '';
     if (Array.isArray(genNameResult) && genNameResult.length > 0) {
-      genName = genNameResult[0].data_value || '';
-      if (typeof genName !== 'string') genName = JSON.stringify(genName);
+      genName = parseVal(genNameResult[0].data_value) || '';
+      if (typeof genName !== 'string') genName = String(genName);
     }
 
     var activeSubs = subs.filter(function(s) { return !s.deletedFromMonth; });

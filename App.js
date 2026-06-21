@@ -27,65 +27,63 @@ import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 
-const SUPABASE_URL = 'https://xisrouirxhvbkwvwfvkx.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpc3JvdWlyeGh2Ymt3dndmdmt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg1MzcsImV4cCI6MjA5NzQ2NDUzN30.jts63Wqick77MaAJFHHdyuaMqWkPMFXxPqIpfUV9frE';
+const API_URL = 'https://generator-billing-api.vercel.app';
 
-function sbHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
-    'Prefer': 'return=representation,resolution=merge-duplicates',
-  };
-}
-
-async function sbRequest(method, path, body) {
+async function apiRequest(method, path, body) {
   try {
-    const opts = { method, headers: sbHeaders() };
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== undefined) opts.body = JSON.stringify(body);
-    const fetchPromise = fetch(`${SUPABASE_URL}${path}`, opts);
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, text: async () => '' }), 10000));
+    const fetchPromise = fetch(`${API_URL}${path}`, opts);
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, json: async () => null }), 15000));
     const res = await Promise.race([fetchPromise, timeoutPromise]);
-    if (!res.ok && !res.text) return null;
-    const text = await res.text();
-    if (!text) return null;
-    try { return JSON.parse(text); } catch (e2) { return null; }
+    if (!res.ok) return null;
+    try { return await res.json(); } catch (e2) { return null; }
   } catch (e) {
     return null;
   }
 }
 
-// General app data (registered_users, current_user)
 async function saveToFile(filename, data) {
-  await sbRequest('POST', '/rest/v1/app_data?on_conflict=filename', [{ filename, data_value: data }]);
+  await apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data });
 }
 
 async function loadFromFile(filename) {
-  const result = await sbRequest('GET', `/rest/v1/app_data?filename=eq.${filename}&select=data_value`);
-  if (Array.isArray(result) && result.length > 0) return result[0].data_value;
+  const result = await apiRequest('GET', `/api?table=app_data&filename=${encodeURIComponent(filename)}`);
+  if (Array.isArray(result) && result.length > 0) {
+    let val = result[0].data_value;
+    if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+    return val;
+  }
   return null;
 }
 
 async function deleteFile(filename) {
-  await sbRequest('DELETE', `/rest/v1/app_data?filename=eq.${filename}`);
+  await apiRequest('DELETE', `/api?table=app_data&filename=${encodeURIComponent(filename)}`);
 }
 
-// User data - per key (optimized: loads only what's needed)
 async function saveUserData(phone, key, data) {
-  await sbRequest('POST', '/rest/v1/user_data?on_conflict=phone,data_key', [{ phone, data_key: key, data_value: data }]);
+  await apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data });
 }
 
 async function loadUserData(phone, key) {
-  const result = await sbRequest('GET', `/rest/v1/user_data?phone=eq.${phone}&data_key=eq.${key}&select=data_value`);
-  if (Array.isArray(result) && result.length > 0) return result[0].data_value;
+  const result = await apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}&key=${encodeURIComponent(key)}`);
+  if (Array.isArray(result) && result.length > 0) {
+    let val = result[0].data_value;
+    if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+    return val;
+  }
   return null;
 }
 
 async function loadAllUserKeys(phone) {
-  const result = await sbRequest('GET', `/rest/v1/user_data?phone=eq.${phone}&select=data_key,data_value`);
+  const result = await apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}`);
   const map = {};
   if (Array.isArray(result)) {
-    for (const row of result) map[row.data_key] = row.data_value;
+    for (const row of result) {
+      let val = row.data_value;
+      if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+      map[row.data_key] = val;
+    }
   }
   return map;
 }
