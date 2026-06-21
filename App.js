@@ -664,14 +664,16 @@ const WorkerLoginScreen = ({ onBack, onLogin }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
   const [workerModalVisible, setWorkerModalVisible] = useState(false);
   const [workerPermissions, setWorkerPermissions] = useState([]);
+  const [workerAssignedGenerators, setWorkerAssignedGenerators] = useState([]);
   const [editWorkerVisible, setEditWorkerVisible] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [editWorkerPermissions, setEditWorkerPermissions] = useState([]);
+  const [editWorkerAssignedGenerators, setEditWorkerAssignedGenerators] = useState([]);
 
   useEffect(() => {
     setName(generatorName);
@@ -697,8 +699,9 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
       Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل');
       return;
     }
-    onCreateWorker(workerPermissions);
+    onCreateWorker(workerPermissions, workerAssignedGenerators);
     setWorkerPermissions([]);
+    setWorkerAssignedGenerators([]);
     setWorkerModalVisible(false);
   };
 
@@ -854,10 +857,24 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('multiGenerators')}>
-              <Ionicons name={workerPermissions.includes('multiGenerators') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('multiGenerators') ? '#FF9800' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>التبديل بين المولدات</Text>
-            </TouchableOpacity>
+            <View style={{ marginTop: 16, marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10, textAlign: 'right' }}>المولدات المسموح بها:</Text>
+              {generators && generators.length > 1 ? generators.map(function(gen) {
+                const isSelected = workerAssignedGenerators.indexOf(gen.id) >= 0;
+                return (
+                  <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
+                    setWorkerAssignedGenerators(function(prev) {
+                      if (isSelected) return prev.filter(function(id) { return id !== gen.id; });
+                      return [...prev, gen.id];
+                    });
+                  }}>
+                    <Ionicons name={isSelected ? 'checkbox' : 'square-outline'} size={26} color={isSelected ? '#FF9800' : '#999'} />
+                    <Text style={{ fontSize: 16, color: '#333' }}>{gen.name}</Text>
+                    <Text style={{ fontSize: 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
+                  </TouchableOpacity>
+                );
+              }) : <Text style={{ fontSize: 14, color: '#999', textAlign: 'center' }}>مولد واحد فقط - العامل يعمل عليه بال')</Text>}
+            </View>
 
             <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#FF9800', marginTop: 20 }]} onPress={handleConfirmCreateWorker}>
               <Text style={styles.modalButtonText}>إنشاء حساب العامل</Text>
@@ -872,7 +889,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             {selectedWorker ? (
               <>
                 <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => { setSelectedWorker(null); setEditWorkerPermissions([]); }}>
+                  <TouchableOpacity onPress={() => { setSelectedWorker(null); setEditWorkerPermissions([]); setEditWorkerAssignedGenerators([]); }}>
                     <Ionicons name="arrow-forward" size={28} color="#333" />
                   </TouchableOpacity>
                   <Text style={styles.modalTitle}>تعديل صلاحيات العامل</Text>
@@ -905,26 +922,42 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   <Ionicons name={editWorkerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
                   <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('multiGenerators') ? prev.filter(p => p !== 'multiGenerators') : [...prev, 'multiGenerators'])}>
-                  <Ionicons name={editWorkerPermissions.includes('multiGenerators') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('multiGenerators') ? '#FF9800' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>التبديل بين المولدات</Text>
-                </TouchableOpacity>
+
+                <View style={{ marginTop: 16, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10, textAlign: 'right' }}>المولدات المسموح بها:</Text>
+                  {generators && generators.length > 1 ? generators.map(function(gen) {
+                    const isSelected = editWorkerAssignedGenerators.indexOf(gen.id) >= 0;
+                    return (
+                      <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
+                        setEditWorkerAssignedGenerators(function(prev) {
+                          if (isSelected) return prev.filter(function(id) { return id !== gen.id; });
+                          return [...prev, gen.id];
+                        });
+                      }}>
+                        <Ionicons name={isSelected ? 'checkbox' : 'square-outline'} size={26} color={isSelected ? '#FF9800' : '#999'} />
+                        <Text style={{ fontSize: 16, color: '#333' }}>{gen.name}</Text>
+                        <Text style={{ fontSize: 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
+                      </TouchableOpacity>
+                    );
+                  }) : <Text style={{ fontSize: 14, color: '#999', textAlign: 'center' }}>مولد واحد فقط</Text>}
+                </View>
 
                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 20 }]} onPress={() => {
                   if (editWorkerPermissions.length === 0) {
                     Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل');
                     return;
                   }
-                  onUpdateWorker(selectedWorker.code, editWorkerPermissions);
+                  onUpdateWorker(selectedWorker.code, editWorkerPermissions, editWorkerAssignedGenerators);
                   setSelectedWorker(null);
                   setEditWorkerPermissions([]);
+                  setEditWorkerAssignedGenerators([]);
                 }}>
                   <Text style={styles.modalButtonText}>حفظ التعديلات</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#D32F2F', marginTop: 10 }]} onPress={() => {
                   Alert.alert('حذف العامل', `هل تريد حذف العامل "${selectedWorker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
                     { text: 'إلغاء', style: 'cancel' },
-                    { text: 'نعم، حذف', style: 'destructive', onPress: () => { onDeleteWorker(selectedWorker.code); setSelectedWorker(null); setEditWorkerPermissions([]); setEditWorkerVisible(false); } },
+                    { text: 'نعم، حذف', style: 'destructive', onPress: () => { onDeleteWorker(selectedWorker.code); setSelectedWorker(null); setEditWorkerPermissions([]); setEditWorkerAssignedGenerators([]); setEditWorkerVisible(false); } },
                   ]);
                 }}>
                   <Ionicons name="trash-outline" size={20} color="white" />
@@ -951,6 +984,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                       <TouchableOpacity style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }} onPress={() => {
                         setSelectedWorker(worker);
                         setEditWorkerPermissions(worker.permissions || []);
+                        setEditWorkerAssignedGenerators(worker.assignedGenerators || []);
                       }}>
                         <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="person" size={20} color="white" />
@@ -3085,7 +3119,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
@@ -3144,7 +3178,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
         </View>
 
         <View style={styles.bottomButtons}>
-          {generators && generators.length > 1 && workerPermissions && workerPermissions.includes('multiGenerators') && (
+          {generators && generators.length > 1 && workerAssignedGenerators && workerAssignedGenerators.length > 1 && (
             <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF9800', marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={onShowWorkerSwitchGenerator}>
               <Ionicons name="swap-horizontal-outline" size={20} color="white" />
               <Text style={styles.showSubscribersText}>تبديل المولد ({generators.length})</Text>
@@ -3194,6 +3228,7 @@ export default function App() {
   const [addGeneratorVisible, setAddGeneratorVisible] = useState(false);
   const [switchGeneratorVisible, setSwitchGeneratorVisible] = useState(false);
   const [workerAssignedGeneratorId, setWorkerAssignedGeneratorId] = useState(null);
+  const [workerAssignedGenerators, setWorkerAssignedGenerators] = useState([]);
   const [workerSwitchGeneratorVisible, setWorkerSwitchGeneratorVisible] = useState(false);
   const [newWorkerCredentials, setNewWorkerCredentials] = useState(null);
   const [updatesModalVisible, setUpdatesModalVisible] = useState(false);
@@ -3351,6 +3386,7 @@ export default function App() {
           setWorkerCode(userData.workerCode || '');
           setWorkerName(userData.workerName || '');
           setWorkerPermissions(userData.permissions || []);
+          setWorkerAssignedGenerators(userData.assignedGenerators || []);
           const ownerData = await loadAllUserKeys(userData.phone);
           const ownerGens = ownerData.generators || [];
           if (ownerGens.length > 0) {
@@ -3783,18 +3819,18 @@ export default function App() {
     if (currentUser) await saveUserData(currentUser, 'monthlyExpenses', updated);
   };
 
-  const handleCreateWorker = async (permissions) => {
+  const handleCreateWorker = async (permissions, assignedGenerators) => {
     const code = generateWorkerCode(currentUser);
     const pin = generateWorkerPin();
-    const newWorker = { code, pin, permissions, assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+    const newWorker = { code, pin, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
     const updated = [...workers, newWorker];
     await saveUserData(currentUser, 'workers', updated);
     setWorkers(updated);
     setNewWorkerCredentials({ code, pin, permissions });
   };
 
-  const handleUpdateWorker = async (code, permissions) => {
-    const updated = workers.map(w => w.code === code ? { ...w, permissions } : w);
+  const handleUpdateWorker = async (code, permissions, assignedGenerators) => {
+    const updated = workers.map(w => w.code === code ? { ...w, permissions, assignedGenerators: assignedGenerators || [] } : w);
     await saveUserData(currentUser, 'workers', updated);
     setWorkers(updated);
     Alert.alert('تم', 'تم تعديل صلاحيات العامل بنجاح');
@@ -3830,7 +3866,7 @@ export default function App() {
       if (workers) {
         const found = workers.find(w => w.code === code.toUpperCase() && w.pin === pin.toUpperCase());
         if (found) {
-          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [], assignedGeneratorId: found.assignedGeneratorId || null };
+          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [], assignedGeneratorId: found.assignedGeneratorId || null, assignedGenerators: found.assignedGenerators || [] };
         }
       }
     }
@@ -4116,6 +4152,8 @@ export default function App() {
             setWorkerCode(code.toUpperCase());
             setWorkerName(name);
             setCurrentUser(result.ownerPhone);
+            const assignedGens = result.assignedGenerators || [];
+            setWorkerAssignedGenerators(assignedGens);
             await saveToFile('current_user', {
               phone: result.ownerPhone,
               role: 'worker',
@@ -4123,6 +4161,7 @@ export default function App() {
               workerName: name,
               permissions: result.permissions,
               assignedGeneratorId: result.assignedGeneratorId || null,
+              assignedGenerators: assignedGens,
             });
             const ownerData = await loadAllUserKeys(result.ownerPhone);
             const ownerGens = ownerData.generators || [];
@@ -4169,6 +4208,7 @@ export default function App() {
           workerPermissions={workerPermissions}
           onSwitchGenerator={null}
           onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
+          workerAssignedGenerators={workerAssignedGenerators}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -4197,6 +4237,7 @@ export default function App() {
                 </TouchableOpacity>
               </View>
               {generators.map(function(gen) {
+                if (workerAssignedGenerators.indexOf(gen.id) < 0) return null;
                 const isActive = gen.id === currentGeneratorId;
                 return (
                   <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: isActive ? (darkMode ? '#2a3a4a' : '#E3F2FD') : 'transparent', borderRadius: isActive ? 8 : 0 }}                   onPress={async function() {
@@ -4257,6 +4298,7 @@ export default function App() {
           workerPermissions={workerPermissions}
           onSwitchGenerator={null}
           onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
+          workerAssignedGenerators={workerAssignedGenerators}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -4285,6 +4327,7 @@ export default function App() {
                 </TouchableOpacity>
               </View>
               {generators.map(function(gen) {
+                if (workerAssignedGenerators.indexOf(gen.id) < 0) return null;
                 const isActive = gen.id === currentGeneratorId;
                 return (
                   <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: isActive ? (darkMode ? '#2a3a4a' : '#E3F2FD') : 'transparent', borderRadius: isActive ? 8 : 0 }}                   onPress={async function() {
@@ -4374,6 +4417,7 @@ export default function App() {
         }}
         newWorkerCredentials={newWorkerCredentials}
         onDismissCredentials={() => setNewWorkerCredentials(null)}
+        generators={generators}
       />
       <WorkerUpdatesModal
         visible={updatesModalVisible}
