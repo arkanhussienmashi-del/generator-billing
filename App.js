@@ -1201,8 +1201,8 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
     const partialTotal = partialUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
     return (
       <Modal visible={visible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { justifyContent: 'center', borderRadius: 20, maxHeight: '85%' }]}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+          <View style={[styles.modalContent, { borderRadius: 20, maxHeight: '85%', width: MODAL_WIDTH }]}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setSelectedBatch(null)}>
                 <Ionicons name="arrow-forward" size={28} color="#333" />
@@ -1286,8 +1286,8 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { justifyContent: 'center', borderRadius: 20, maxHeight: '85%' }]}>
+      <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={[styles.modalContent, { borderRadius: 20, maxHeight: '85%', width: MODAL_WIDTH }]}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={28} color="#333" />
