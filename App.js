@@ -394,7 +394,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
       Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل');
       return;
     }
-    users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim() || '' });
+    users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim() });
     await saveToFile('registered_users', users);
 
     await Promise.all([
