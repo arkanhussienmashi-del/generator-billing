@@ -27,7 +27,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 
-const API_URL = 'https://generator-billing-api.vercel.app';
+const API_URL = 'https://server-ten-wheat.vercel.app';
 
 async function apiRequest(method, path, body) {
   try {
