@@ -970,6 +970,45 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
         </View>
       </Modal>
     </Modal>
+
+    <Modal visible={!!newWorkerCredentials} transparent animationType="fade">
+      <View style={styles.modalOverlay}>
+        <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#4CAF50', borderRadius: 40, width: 70, height: 70, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <Ionicons name="checkmark-circle" size={40} color="white" />
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: 8 }}>تم إنشاء حساب العامل</Text>
+
+          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>كود العامل</Text>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1565C0', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.code : ''}</Text>
+              <TouchableOpacity onPress={() => { Alert.alert('كود العامل', newWorkerCredentials ? newWorkerCredentials.code : ''); }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
+                <Ionicons name="copy-outline" size={20} color="#1565C0" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>الرمز السري</Text>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#F44336', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.pin : ''}</Text>
+              <TouchableOpacity onPress={() => { Alert.alert('الرمز السري', newWorkerCredentials ? newWorkerCredentials.pin : ''); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
+                <Ionicons name="copy-outline" size={20} color="#F44336" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 20 }}>
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.join(', ') : ''}</Text>
+          </View>
+
+          <TouchableOpacity style={{ backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center' }} onPress={onDismissCredentials}>
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>حسناً</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 };
 
@@ -3024,49 +3063,6 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           </View>
         </View>
       </Modal>
-    </Modal>
-
-    <Modal visible={!!newWorkerCredentials} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#4CAF50', borderRadius: 40, width: 70, height: 70, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <Ionicons name="checkmark-circle" size={40} color="white" />
-          </View>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: 8 }}>تم إنشاء حساب العامل</Text>
-
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>كود العامل</Text>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1565C0', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.code : ''}</Text>
-              <TouchableOpacity onPress={() => { Alert.alert('كود العامل', newWorkerCredentials ? newWorkerCredentials.code : ''); }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
-                <Ionicons name="copy-outline" size={20} color="#1565C0" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>الرمز السري</Text>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#F44336', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.pin : ''}</Text>
-              <TouchableOpacity onPress={() => { Alert.alert('الرمز السري', newWorkerCredentials ? newWorkerCredentials.pin : ''); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
-                <Ionicons name="copy-outline" size={20} color="#F44336" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 20 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.join(', ') : ''}</Text>
-          </View>
-
-          <TouchableOpacity
-            style={{ backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center' }}
-            onPress={onDismissCredentials}
-          >
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>حسناً</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
   );
 };
 
