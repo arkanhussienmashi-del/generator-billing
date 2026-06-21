@@ -3277,6 +3277,59 @@ export default function App() {
     return () => clearInterval(pollInterval);
   }, [currentUser, userRole, settingsVisible]);
 
+  const workerSyncRef = React.useRef({ generators: generators, currentGeneratorId: currentGeneratorId });
+  useEffect(() => {
+    workerSyncRef.current = { generators, currentGeneratorId };
+  }, [generators, currentGeneratorId]);
+
+  useEffect(() => {
+    if (userRole !== 'worker' || !workerOwnerPhone) return;
+    const pollInterval = setInterval(async () => {
+      try {
+        const all = await loadAllUserKeys(workerOwnerPhone);
+        if (all.generators && all.generators.length > 0) {
+          const newCurrentId = all.currentGeneratorId || all.generators[0].id;
+          const oldRef = workerSyncRef.current;
+          const oldCurrentId = oldRef.currentGeneratorId;
+          if (newCurrentId !== oldCurrentId) {
+            const active = all.generators.find(g => g.id === newCurrentId) || all.generators[0];
+            if (active) {
+              setGenerators(all.generators);
+              setCurrentGeneratorId(newCurrentId);
+              setGeneratorName(active.name);
+              setSubscribers(active.subscribers || []);
+              setAmperPrices(active.amperPrices || {});
+              setMonthlyExpenses(active.monthlyExpenses || {});
+            }
+          } else {
+            const active = all.generators.find(g => g.id === newCurrentId) || all.generators[0];
+            if (active) {
+              const oldActive = oldRef.generators.find(function(g) { return g.id === newCurrentId; }) || oldRef.generators[0];
+              const newSubs = active.subscribers || [];
+              const oldSubs = oldActive ? (oldActive.subscribers || []) : [];
+              const newPrices = active.amperPrices || {};
+              const oldPrices = oldActive ? (oldActive.amperPrices || {}) : {};
+              const newExpenses = active.monthlyExpenses || {};
+              const oldExpenses = oldActive ? (oldActive.monthlyExpenses || {}) : {};
+              const subsChanged = JSON.stringify(newSubs) !== JSON.stringify(oldSubs);
+              const pricesChanged = JSON.stringify(newPrices) !== JSON.stringify(oldPrices);
+              const expensesChanged = JSON.stringify(newExpenses) !== JSON.stringify(oldExpenses);
+              if (subsChanged || pricesChanged || expensesChanged) {
+                setGenerators(all.generators);
+                setSubscribers(newSubs);
+                if (pricesChanged) setAmperPrices(newPrices);
+                if (expensesChanged) setMonthlyExpenses(newExpenses);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // silent
+      }
+    }, 30000);
+    return () => clearInterval(pollInterval);
+  }, [userRole, workerOwnerPhone]);
+
   const resetActivity = () => {
     lastActivity.current = Date.now();
   };
