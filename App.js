@@ -1177,17 +1177,18 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
   const [selectedBatch, setSelectedBatch] = useState(null);
 
   const getBatchSummary = (updates) => {
-    const paidUpdates = updates.filter(u => u.type === 'paid');
-    const cancelledUpdates = updates.filter(u => u.type === 'cancelled');
-    const deletedUpdates = updates.filter(u => u.type === 'delete');
-    const partialUpdates = updates.filter(u => u.type === 'partialPayment');
+    const list = updates || [];
+    const paidUpdates = list.filter(u => u.type === 'paid');
+    const cancelledUpdates = list.filter(u => u.type === 'cancelled');
+    const deletedUpdates = list.filter(u => u.type === 'delete');
+    const partialUpdates = list.filter(u => u.type === 'partialPayment');
     const paidTotal = paidUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
     const partialTotal = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
     return { paidCount: paidUpdates.length, paidTotal, cancelledCount: cancelledUpdates.length, deletedCount: deletedUpdates.length, partialCount: partialUpdates.length, partialTotal };
   };
 
   if (selectedBatch) {
-    const updates = selectedBatch.updates;
+    const updates = selectedBatch.updates || [];
     const paidUpdates = updates.filter(u => u.type === 'paid');
     const cancelledUpdates = updates.filter(u => u.type === 'cancelled');
     const deletedUpdates = updates.filter(u => u.type === 'delete');
