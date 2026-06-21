@@ -2158,21 +2158,24 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </TouchableOpacity>
                       <View style={styles.cardNameSection}>
                           <Text style={styles.subscriberName}>{subscriber.name}</Text>
-                        {!isFullyPaid && (
-                            <TouchableOpacity
-                              onLongPress={() => {
-                                if (!canChangeAmperPrice) {
-                                  Alert.alert('تنبيه', 'لا تملك صلاحية تغيير الأمبير');
-                                  return;
-                                }
-                                setChangeAmperSubscriber(subscriber);
-                                setChangeAmperVisible(true);
-                              }}
-                              disabled={!canChangeAmperPrice}
-                            >
-                              <Text style={[styles.subscriberAmperTag]}>{currentAmper} أميبر</Text>
-                            </TouchableOpacity>
-                        )}
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                          {!isFullyPaid && (
+                              <TouchableOpacity
+                                onLongPress={() => {
+                                  if (!canChangeAmperPrice) {
+                                    Alert.alert('تنبيه', 'لا تملك صلاحية تغيير الأمبير');
+                                    return;
+                                  }
+                                  setChangeAmperSubscriber(subscriber);
+                                  setChangeAmperVisible(true);
+                                }}
+                                disabled={!canChangeAmperPrice}
+                              >
+                                <Text style={[styles.subscriberAmperTag]}>{currentAmper} أميبر</Text>
+                              </TouchableOpacity>
+                          )}
+                          {subscriber.visaNumber ? <Text style={{ fontSize: 12, color: '#999' }}>{subscriber.visaNumber}</Text> : null}
+                        </View>
                       </View>
                       <View style={styles.cardPriceSection}>
                         <Text style={styles.cardPrice}>د.ع {formatNumber(totalDue)}</Text>
