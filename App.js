@@ -1175,7 +1175,8 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
   const paidTotal = paidUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
   const cancelledTotal = cancelledUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
   const partialTotal = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-  const totalCollected = paidTotal + partialTotal;
+
+  const partialPaid = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
 
   const categories = [
     { type: 'add', icon: 'person-add', label: 'مشتركين جدد', count: addUpdates.length, color: '#4CAF50' },
@@ -1221,19 +1222,69 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ padding: 15 }}>
-              {totalCollected > 0 && (
-                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#4CAF50', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: '#4CAF50', fontWeight: 'bold' }}>مجموع الاموال التي تم استيفائها</Text>
-                  <Text style={{ fontSize: 22, color: '#2E7D32', fontWeight: 'bold', marginTop: 5 }}>{formatNumber(totalCollected)} د.ع</Text>
-                  <Text style={{ fontSize: 12, color: '#666', marginTop: 5 }}>مدفوع: {formatNumber(paidTotal)} | دفع جزئي: {formatNumber(partialTotal)}</Text>
+              {paidUpdates.length > 0 && (
+                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#4CAF50' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم دفع اشتراك ({paidUpdates.length}) بمبلغ ({formatNumber(paidTotal)} د.ع)</Text>
+                  </View>
                 </View>
               )}
 
-              {cancelledTotal > 0 && (
-                <View style={{ backgroundColor: '#FFEBEE', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF5722', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, color: '#FF5722', fontWeight: 'bold' }}>مجموع الاموال من الغاء الدفع</Text>
-                  <Text style={{ fontSize: 22, color: '#C62828', fontWeight: 'bold', marginTop: 5 }}>{formatNumber(cancelledTotal)} د.ع</Text>
+              {partialUpdates.length > 0 && (
+                <View style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF9800' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Ionicons name="wallet" size={22} color="#FF9800" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#E65100' }}>تم دفع جزئي ل({partialUpdates.length}) بمبلغ ({formatNumber(partialPaid)} د.ع)</Text>
+                  </View>
                 </View>
+              )}
+
+              {cancelledUpdates.length > 0 && (
+                <View style={{ backgroundColor: '#FFEBEE', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF5722' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="close-circle" size={22} color="#FF5722" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#C62828' }}>تم الغاء دفع ({cancelledUpdates.length})</Text>
+                  </View>
+                </View>
+              )}
+
+              {deletedUpdates.length > 0 && (
+                <View style={{ backgroundColor: '#FBE9E7', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#D84315' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="trash" size={22} color="#D84315" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#BF360C' }}>تم حذف ({deletedUpdates.length})</Text>
+                  </View>
+                </View>
+              )}
+
+              {addUpdates.length > 0 && (
+                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#2E7D32' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="person-add" size={22} color="#2E7D32" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم اضافة ({addUpdates.length}) مشترك جديد</Text>
+                  </View>
+                </View>
+              )}
+
+              {editUpdates.length > 0 && (
+                <View style={{ backgroundColor: '#E3F2FD', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#1565C0' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="create" size={22} color="#1565C0" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1565C0' }}>تم تعديل ({editUpdates.length})</Text>
+                  </View>
+                </View>
+              )}
+
+              {updates.length === 0 && (
+                <View style={{ alignItems: 'center', marginTop: 40 }}>
+                  <Ionicons name="checkmark-done-circle-outline" size={60} color="#ccc" />
+                  <Text style={{ textAlign: 'center', color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد تحديثات</Text>
+                </View>
+              )}
+
+              {updates.length > 0 && (
+                <Text style={{ fontSize: 13, color: '#999', textAlign: 'center', marginTop: 10 }}>اضغط على أي قسم لعرض التفاصيل</Text>
               )}
 
               {categories.map((cat) => (
@@ -2933,7 +2984,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode }) => {
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -3045,6 +3096,11 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         <View style={styles.headerLeft}>
           <TouchableOpacity style={styles.menuButton} onPress={onOpenSettings}>
             <Ionicons name="settings-outline" size={26} color="white" />
+            {pendingUpdatesCount > 0 && (
+              <View style={{ position: 'absolute', top: -4, left: -4, backgroundColor: '#F44336', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+                <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>{pendingUpdatesCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
         <Text style={styles.headerTitle}>{generatorName || 'نظام الجباية'}</Text>
@@ -4548,6 +4604,7 @@ export default function App() {
         onSwitchGenerator={() => setSwitchGeneratorVisible(true)}
         onShowMonthlyData={() => setMonthlyDataVisible(true)}
         darkMode={darkMode}
+        pendingUpdatesCount={pendingWorkerUpdates.length}
       />
       <SettingsScreen
         visible={settingsVisible}
