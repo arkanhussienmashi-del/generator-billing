@@ -1140,7 +1140,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
                     Alert.alert('استرداد المولد', 'هل تريد استرداد "' + dg.name + '"؟', [
                       { text: 'إلغاء', style: 'cancel' },
-                      { text: 'نعم، استرداد', onPress: function() { handleRestoreGenerator(dg.id); } },
+                      { text: 'نعم، استرداد', onPress: function() { onRestoreGenerator(dg.id); } },
                     ]);
                   }}>
                     <View style={{ flex: 1 }}>
