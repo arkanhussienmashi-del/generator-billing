@@ -3063,6 +3063,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           </View>
         </View>
       </Modal>
+    </View>
   );
 };
 
