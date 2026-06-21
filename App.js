@@ -16,7 +16,9 @@ import {
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const IS_TABLET = SCREEN_WIDTH >= 768;
-const MODAL_WIDTH = IS_TABLET ? Math.min(500, SCREEN_WIDTH * 0.7) : SCREEN_WIDTH * 0.85;
+const IS_SMALL = SCREEN_WIDTH < 360;
+const MODAL_WIDTH = IS_TABLET ? Math.min(500, SCREEN_WIDTH * 0.7) : Math.min(SCREEN_WIDTH * 0.9, 420);
+const SCALE = SCREEN_WIDTH / 375;
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -1580,7 +1582,6 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       visaNumber: visaNumber.trim(),
     };
     if (!isPaid && amperVal !== subscriber.amper) {
-      updatedSubscriber.amper = amperVal;
       updatedSubscriber.amperHistory = [
         ...(subscriber.amperHistory || []),
         { monthKey: `${selectedMonth}_${selectedYear}`, amper: amperVal },
@@ -2847,7 +2848,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
                 <Ionicons name="calendar-outline" size={16} color="#1565C0" />
               </TouchableOpacity>
               <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
-                <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{monthNames[m - 1]}</Text>
+                <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{m}/{selectedYear}</Text>
                 <Ionicons name="chevron-down" size={16} color="#1565C0" />
               </TouchableOpacity>
             </View>
@@ -2983,7 +2984,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
                 <ScrollView style={{ maxHeight: 350 }}>
                   {monthNames.map((name, idx) => (
                     <TouchableOpacity key={idx + 1} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedMonth(String(idx + 1)); setMonthPickerVisible(false); }}>
-                      <Text style={{ fontSize: 18, color: (idx + 1) === m ? '#1565C0' : '#333', fontWeight: (idx + 1) === m ? 'bold' : 'normal' }}>{name}</Text>
+                      <Text style={{ fontSize: 18, color: (idx + 1) === m ? '#1565C0' : '#333', fontWeight: (idx + 1) === m ? 'bold' : 'normal' }}>{idx + 1}</Text>
                       {(idx + 1) === m && <Ionicons name="checkmark" size={20} color="#1565C0" style={{ marginRight: 8 }} />}
                     </TouchableOpacity>
                   ))}
@@ -3925,7 +3926,6 @@ export default function App() {
             if (update.details.meterNumber !== undefined) sub.meterNumber = update.details.meterNumber;
             if (update.details.visaNumber !== undefined) sub.visaNumber = update.details.visaNumber;
             if (update.details.amper !== undefined) {
-              sub.amper = update.details.amper;
               sub.amperHistory = [...(sub.amperHistory || [])];
               const existingIdx = sub.amperHistory.findIndex(h => h.monthKey === update.monthKey);
               if (existingIdx >= 0) {
@@ -4321,8 +4321,7 @@ export default function App() {
           const [bM, bY] = b.monthKey.split('_').map(Number);
           return aY - bY || aM - bM;
         });
-        const latestEntry = amperHistory[amperHistory.length - 1];
-        return { ...s, amper: latestEntry.amper, amperHistory };
+        return { ...s, amperHistory };
       }
       return s;
     });
@@ -4858,7 +4857,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   appTitle: {
-    fontSize: 32,
+    fontSize: IS_SMALL ? 24 : 32,
     fontWeight: 'bold',
     color: 'white',
     marginTop: 12,
@@ -4866,7 +4865,7 @@ const styles = StyleSheet.create({
   loginCard: {
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 24,
+    padding: IS_SMALL ? 16 : 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -4888,21 +4887,21 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingVertical: 16,
-    fontSize: 16,
+    paddingVertical: IS_SMALL ? 12 : 16,
+    fontSize: IS_SMALL ? 14 : 16,
     color: '#333',
   },
   loginButton: {
     backgroundColor: '#2196F3',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: IS_SMALL ? 12 : 16,
     alignItems: 'center',
     marginTop: 6,
     marginBottom: 16,
   },
   loginButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: IS_SMALL ? 15 : 18,
     fontWeight: 'bold',
   },
   linkText: {
@@ -4950,7 +4949,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   settingsLabel: {
-    fontSize: 16,
+    fontSize: IS_SMALL ? 14 : 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 10,
@@ -5131,7 +5130,7 @@ const styles = StyleSheet.create({
   },
   subscribersTitle: {
     color: 'white',
-    fontSize: 22,
+    fontSize: IS_SMALL ? 17 : 22,
     fontWeight: 'bold',
   },
   subscribersContent: {
@@ -5254,11 +5253,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#90A4AE',
   },
   filterTabText: {
-    fontSize: 11,
+    fontSize: IS_SMALL ? 9 : 11,
     fontWeight: '600',
     color: '#666',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: IS_SMALL ? 13 : 16,
   },
   activeFilterTabText: {
     color: 'white',
@@ -5277,7 +5276,7 @@ const styles = StyleSheet.create({
   subscriberCard: {
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 16,
+    padding: IS_SMALL ? 12 : 16,
     marginTop: 12,
     borderWidth: 1.5,
     borderColor: '#E8E8E8',
@@ -5313,7 +5312,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardPrice: {
-    fontSize: 16,
+    fontSize: IS_SMALL ? 14 : 16,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -5342,13 +5341,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   subscriberName: {
-    fontSize: 18,
+    fontSize: IS_SMALL ? 15 : 18,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'right',
   },
   subscriberAmperTag: {
-    fontSize: 13,
+    fontSize: IS_SMALL ? 11 : 13,
     color: '#2196F3',
     fontWeight: '600',
     marginTop: 2,
@@ -5584,7 +5583,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   reportCardValue: {
-    fontSize: 20,
+    fontSize: IS_SMALL ? 16 : 20,
     fontWeight: 'bold',
     marginTop: 2,
   },
@@ -5598,7 +5597,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   reportSubscriberName: {
-    fontSize: 22,
+    fontSize: IS_SMALL ? 17 : 22,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -5715,7 +5714,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   partialSubscriberName: {
-    fontSize: 22,
+    fontSize: IS_SMALL ? 17 : 22,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -5758,7 +5757,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   partialInputLabel: {
-    fontSize: 16,
+    fontSize: IS_SMALL ? 14 : 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 10,
@@ -5767,8 +5766,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#2196F3',
     borderRadius: 12,
-    padding: 16,
-    fontSize: 20,
+    padding: IS_SMALL ? 12 : 16,
+    fontSize: IS_SMALL ? 17 : 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -5909,7 +5908,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 15,
-    paddingHorizontal: IS_TABLET ? 30 : 16,
+    paddingHorizontal: IS_TABLET ? 30 : Math.round(16 * SCALE),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -5927,7 +5926,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: 'white',
-    fontSize: 22,
+    fontSize: IS_SMALL ? 17 : Math.round(22 * SCALE),
     fontWeight: 'bold',
   },
   detailsButton: {
@@ -5946,7 +5945,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: IS_TABLET ? 30 : 16,
+    paddingHorizontal: IS_TABLET ? 30 : Math.round(16 * SCALE),
   },
   actionButtons: {
     flexDirection: 'row',
@@ -6019,11 +6018,11 @@ const styles = StyleSheet.create({
   },
   statCard: {
     borderRadius: 16,
-    padding: IS_TABLET ? 20 : 16,
+    padding: IS_TABLET ? 20 : Math.round(14 * SCALE),
     alignItems: 'center',
-    minHeight: IS_TABLET ? 110 : 90,
+    minHeight: IS_TABLET ? 110 : Math.round(80 * SCALE),
     justifyContent: 'center',
-    width: IS_TABLET ? '23%' : '31%',
+    width: IS_TABLET ? '23%' : (IS_SMALL ? '48%' : '31%'),
   },
   totalCard: {
     backgroundColor: '#E3F2FD',
@@ -6038,7 +6037,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFEBEE',
   },
   statNumber: {
-    fontSize: IS_TABLET ? 34 : 28,
+    fontSize: IS_TABLET ? 34 : Math.round(28 * SCALE),
     fontWeight: 'bold',
   },
   totalNumber: {
@@ -6054,7 +6053,7 @@ const styles = StyleSheet.create({
     color: '#D32F2F',
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: IS_SMALL ? 10 : 13,
     fontWeight: '600',
     marginTop: 4,
   },
@@ -6100,12 +6099,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   summaryLabel: {
-    fontSize: 17,
+    fontSize: IS_SMALL ? 14 : 17,
     fontWeight: '700',
     color: '#333',
   },
   summaryValue: {
-    fontSize: 17,
+    fontSize: IS_SMALL ? 14 : 17,
     fontWeight: '700',
     color: '#333',
   },
@@ -6128,7 +6127,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   expensesTitle: {
-    fontSize: 18,
+    fontSize: IS_SMALL ? 15 : 18,
     fontWeight: '700',
     color: '#333',
   },
@@ -6145,10 +6144,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    width: 90,
+    width: IS_SMALL ? 75 : 90,
   },
   expenseLabel: {
-    fontSize: 15,
+    fontSize: IS_SMALL ? 12 : 15,
     fontWeight: '600',
     color: '#555',
   },
@@ -6156,8 +6155,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f9f9f9',
     borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
+    padding: IS_SMALL ? 10 : 14,
+    fontSize: IS_SMALL ? 14 : 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
     marginHorizontal: 10,
@@ -6179,12 +6178,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F5',
   },
   netExpectedLabel: {
-    fontSize: 17,
+    fontSize: IS_SMALL ? 14 : 17,
     fontWeight: '700',
     color: '#333',
   },
   netExpectedValue: {
-    fontSize: 17,
+    fontSize: IS_SMALL ? 14 : 17,
     fontWeight: '700',
     color: '#333',
   },
@@ -6194,15 +6193,15 @@ const styles = StyleSheet.create({
   bottomButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 30,
-    gap: 12,
+    marginTop: IS_SMALL ? 12 : 20,
+    marginBottom: IS_SMALL ? 15 : 30,
+    gap: IS_SMALL ? 8 : 12,
   },
   showSubscribersButton: {
     backgroundColor: '#2196F3',
     borderRadius: 25,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: IS_SMALL ? 16 : 24,
+    paddingVertical: IS_SMALL ? 10 : 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -6211,21 +6210,21 @@ const styles = StyleSheet.create({
   },
   showSubscribersText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: IS_SMALL ? 13 : 16,
     fontWeight: '700',
   },
   reportsButton: {
     borderWidth: 2,
     borderColor: '#2196F3',
     borderRadius: 25,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: IS_SMALL ? 16 : 24,
+    paddingVertical: IS_SMALL ? 10 : 14,
     flex: 1,
     alignItems: 'center',
   },
   reportsButtonText: {
     color: '#2196F3',
-    fontSize: 16,
+    fontSize: IS_SMALL ? 13 : 16,
     fontWeight: '700',
   },
 });
