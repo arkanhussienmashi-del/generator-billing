@@ -780,7 +780,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 <View style={{ marginTop: 15 }}>
                   <TouchableOpacity
                     style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
-                    onPress={async () => { await onLoadUpdates(); onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); onShowUpdates(); }}
+                    onPress={() => { onClose(); onShowUpdates(); }}
                   >
                     <Ionicons name="notifications-outline" size={20} color="white" />
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>رؤية التحديثات الجديدة</Text>
@@ -1297,6 +1297,7 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
           </View>
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ padding: 15 }}>
+              <Text style={{ fontSize: 12, color: '#999', textAlign: 'center' }}>عدد الباتشات: {batches ? batches.length : 'null'}</Text>
               {batches.length === 0 ? (
                 <View style={{ alignItems: 'center', marginTop: 40 }}>
                   <Ionicons name="checkmark-done-circle-outline" size={60} color="#ccc" />
@@ -3972,16 +3973,14 @@ export default function App() {
     Alert.alert('تم', 'تم تطبيق التحديثات بنجاح');
   };
 
-  const loadPendingUpdates = async () => {
-    if (!currentUser) return;
-    const updates = await loadUserData(currentUser, 'pending_worker_updates');
-    setPendingWorkerUpdates(normalizeBatches(updates));
-  };
-
   const normalizeBatches = (data) => {
-    if (!data || data.length === 0) return [];
-    return data.map((item, idx) => {
-      if (item.updates && item.id && item.number) return item;
+    if (!data) return [];
+    let d = data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch(e) { return []; } }
+    if (!Array.isArray(d) || d.length === 0) return [];
+    return d.map((item, idx) => {
+      if (!item) return null;
+      if (item.updates && Array.isArray(item.updates) && item.id && item.number) return item;
       return {
         id: 'legacy_' + idx + '_' + Date.now(),
         number: idx + 1,
@@ -3989,7 +3988,13 @@ export default function App() {
         workerName: item.ownerName || '',
         updates: [item],
       };
-    });
+    }).filter(Boolean);
+  };
+
+  const loadPendingUpdates = async () => {
+    if (!currentUser) return;
+    const updates = await loadUserData(currentUser, 'pending_worker_updates');
+    setPendingWorkerUpdates(normalizeBatches(updates));
   };
 
   const handleExport = async () => {
