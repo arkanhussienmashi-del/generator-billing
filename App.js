@@ -1182,9 +1182,11 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
     const cancelledUpdates = list.filter(u => u.type === 'cancelled');
     const deletedUpdates = list.filter(u => u.type === 'delete');
     const partialUpdates = list.filter(u => u.type === 'partialPayment');
+    const addUpdates = list.filter(u => u.type === 'add');
+    const editUpdates = list.filter(u => u.type === 'edit' || u.type === 'restore');
     const paidTotal = paidUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
     const partialTotal = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-    return { paidCount: paidUpdates.length, paidTotal, cancelledCount: cancelledUpdates.length, deletedCount: deletedUpdates.length, partialCount: partialUpdates.length, partialTotal };
+    return { paidCount: paidUpdates.length, paidTotal, cancelledCount: cancelledUpdates.length, deletedCount: deletedUpdates.length, partialCount: partialUpdates.length, partialTotal, addCount: addUpdates.length, editCount: editUpdates.length };
   };
 
   if (selectedBatch) {
@@ -1195,10 +1197,12 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
     const partialUpdates = updates.filter(u => u.type === 'partialPayment');
     const addUpdates = updates.filter(u => u.type === 'add');
     const editUpdates = updates.filter(u => u.type === 'edit' || u.type === 'restore');
+    const paidTotal = paidUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
+    const partialTotal = partialUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
     return (
       <Modal visible={visible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { justifyContent: 'center', borderRadius: 20, maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={() => setSelectedBatch(null)}>
                 <Ionicons name="arrow-forward" size={28} color="#333" />
@@ -1212,7 +1216,7 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
                   <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#4CAF50' }}>
                     <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
                       <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
-                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم دفع اشتراك ({paidUpdates.length}) بمبلغ ({formatNumber(paidUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0))} د.ع)</Text>
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم دفع اشتراك ({paidUpdates.length}) بمبلغ ({formatNumber(paidTotal)} د.ع)</Text>
                     </View>
                   </View>
                 )}
@@ -1220,8 +1224,9 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
                   <View style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF9800' }}>
                     <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <Ionicons name="wallet" size={22} color="#FF9800" />
-                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#E65100' }}>تم دفع جزئي ل({partialUpdates.length}) بمبلغ ({formatNumber(partialUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0))} د.ع)</Text>
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#E65100' }}>تم دفع جزئي ل({partialUpdates.length})</Text>
                     </View>
+                    <Text style={{ fontSize: 14, color: '#E65100', fontWeight: '600', marginRight: 30 }}>المبلغ الواصل: {formatNumber(partialTotal)} د.ع</Text>
                   </View>
                 )}
                 {cancelledUpdates.length > 0 && (
@@ -1282,7 +1287,7 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { justifyContent: 'center', borderRadius: 20, maxHeight: '85%' }]}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={28} color="#333" />
@@ -1333,6 +1338,18 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
                         <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                           <Ionicons name="trash" size={16} color="#D84315" />
                           <Text style={{ fontSize: 13, color: '#BF360C', fontWeight: '600' }}>تم الحذف ({summary.deletedCount})</Text>
+                        </View>
+                      )}
+                      {summary.addCount > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Ionicons name="person-add" size={16} color="#2E7D32" />
+                          <Text style={{ fontSize: 13, color: '#2E7D32', fontWeight: '600' }}>تم الاضافة ({summary.addCount})</Text>
+                        </View>
+                      )}
+                      {summary.editCount > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Ionicons name="create" size={16} color="#1565C0" />
+                          <Text style={{ fontSize: 13, color: '#1565C0', fontWeight: '600' }}>تم التعديل ({summary.editCount})</Text>
                         </View>
                       )}
                       <View style={{ borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, marginTop: 4, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
