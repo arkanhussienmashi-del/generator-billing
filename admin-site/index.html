@@ -151,57 +151,6 @@ function fmt(n) {
   return Number(n).toLocaleString('ar-IQ');
 }
 
-async function apiPost(body) {
-  var r = await fetch(API_URL + '/api', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  return await r.json();
-}
-
-async function apiPut(body) {
-  var r = await fetch(API_URL + '/api', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  return await r.json();
-}
-
-async function apiDelete(body) {
-  var r = await fetch(API_URL + '/api?_action=deleteUser', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  return await r.json();
-}
-
-function editOwner(phone, currentCode) {
-  var newCode = prompt('أدخل الرمز الجديد:', currentCode);
-  if (newCode === null) return;
-  if (newCode.trim().length < 6) { alert('الرمز يجب أن يكون 6 أحرف على الأقل'); return; }
-  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newOwnerCode: newCode.trim() }).then(function(r) {
-    if (r.ok) { alert('تم التعديل'); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
-  });
-}
-
-function changeOwnerPhone(phone) {
-  var newPhone = prompt('أدخل الرقم الجديد:', phone);
-  if (newPhone === null) return;
-  if (!/^07\d{9}$/.test(newPhone)) { alert('رقم الهاتف يجب أن يكون 11 خانة يبدأ بـ 07'); return; }
-  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newPhone: newPhone.trim() }).then(function(r) {
-    if (r.ok) { alert('تم التعديل'); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
-  });
-}
-
-function changeOwnerPassword(phone) {
-  var newPass = prompt('أدخل كلمة المرور الجديدة (4 أحرف على الأقل):');
-  if (newPass === null) return;
-  if (newPass.trim().length < 4) { alert('كلمة المرور يجب أن تكون 4 أحرف على الأقل'); return; }
-  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newPassword: newPass.trim() }).then(function(r) {
-    if (r.ok) { alert('تم التعديل'); } else { alert('خطأ: ' + (r.error || 'unknown')); }
-  });
-}
-
-function deleteOwner(phone) {
-  if (!confirm('هل أنت متأكد من حذف حساب ' + phone + '?\nسيتم حذف جميع بياناته نهائياً!')) return;
-  var confirmText = prompt('اكتب رقم الهاتف للتأكيد: ' + phone);
-  if (confirmText !== phone) { alert('التأكيد غير صحيح'); return; }
-  apiDelete({ phone: phone }).then(function(r) {
-    if (r.ok) { alert('تم الحذف'); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
-  });
-}
-
 function getMonthStatus(sub, month, year, amperPrices) {
   var key = month + '_' + year;
   if (sub.deletedFromMonth) {
@@ -364,14 +313,6 @@ function renderOwners(owners) {
     html += '</div></div>';
 
     html += '<div class="owner-body" id="owner' + idx + '">';
-
-    html += '<div class="section"><div class="section-title">التحكم</div>';
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-    html += '<button onclick="editOwner(\'' + esc(owner.phone) + '\', \'' + esc(owner.ownerCode || '') + '\')" style="padding:8px 14px;background:#2196F3;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">تعديل الرمز</button>';
-    html += '<button onclick="changeOwnerPhone(\'' + esc(owner.phone) + '\')" style="padding:8px 14px;background:#FF9800;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">تغيير الرقم</button>';
-    html += '<button onclick="changeOwnerPassword(\'' + esc(owner.phone) + '\')" style="padding:8px 14px;background:#9C27B0;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">تغيير كلمة المرور</button>';
-    html += '<button onclick="deleteOwner(\'' + esc(owner.phone) + '\')" style="padding:8px 14px;background:#F44336;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">حذف الحساب</button>';
-    html += '</div></div>';
 
     if (owner.genName) {
       html += '<div style="margin-bottom:10px;font-size:13px;color:#666">المولدة: <strong>' + esc(owner.genName) + '</strong></div>';
