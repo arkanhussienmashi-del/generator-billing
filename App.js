@@ -676,7 +676,7 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
   const [workerModalVisible, setWorkerModalVisible] = useState(false);
@@ -1173,52 +1173,110 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   </>);
 };
 
-const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPrices }) => {
-  const [categoryVisible, setCategoryVisible] = useState(false);
-  const [categoryType, setCategoryType] = useState(null);
+const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPrices }) => {
+  const [selectedBatch, setSelectedBatch] = useState(null);
 
-  const paidUpdates = updates.filter(u => u.type === 'paid');
-  const cancelledUpdates = updates.filter(u => u.type === 'cancelled');
-  const deletedUpdates = updates.filter(u => u.type === 'delete');
-  const partialUpdates = updates.filter(u => u.type === 'partialPayment');
-  const addUpdates = updates.filter(u => u.type === 'add');
-  const editUpdates = updates.filter(u => u.type === 'edit' || u.type === 'restore');
-
-  const paidTotal = paidUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-  const cancelledTotal = cancelledUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-  const partialTotal = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-
-  const partialPaid = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
-
-  const categories = [
-    { type: 'add', icon: 'person-add', label: 'مشتركين جدد', count: addUpdates.length, color: '#4CAF50' },
-    { type: 'paid', icon: 'checkmark-circle', label: 'مدفوع', count: paidUpdates.length, color: '#4CAF50', total: paidTotal },
-    { type: 'cancelled', icon: 'close-circle', label: 'إلغاء الدفع', count: cancelledUpdates.length, color: '#FF5722', total: cancelledTotal },
-    { type: 'partialPayment', icon: 'wallet', label: 'دفع جزئي', count: partialUpdates.length, color: '#FF9800', total: partialTotal },
-    { type: 'delete', icon: 'trash', label: 'محذوف', count: deletedUpdates.length, color: '#F44336' },
-    { type: 'edit', icon: 'create', label: 'تعديلات', count: editUpdates.length, color: '#2196F3' },
-  ];
-
-  const getUpdatesByType = (type) => {
-    switch (type) {
-      case 'add': return addUpdates;
-      case 'paid': return paidUpdates;
-      case 'cancelled': return cancelledUpdates;
-      case 'partialPayment': return partialUpdates;
-      case 'delete': return deletedUpdates;
-      case 'edit': return editUpdates;
-      default: return [];
-    }
+  const getBatchSummary = (updates) => {
+    const paidUpdates = updates.filter(u => u.type === 'paid');
+    const cancelledUpdates = updates.filter(u => u.type === 'cancelled');
+    const deletedUpdates = updates.filter(u => u.type === 'delete');
+    const partialUpdates = updates.filter(u => u.type === 'partialPayment');
+    const paidTotal = paidUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
+    const partialTotal = partialUpdates.reduce((sum, u) => sum + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0);
+    return { paidCount: paidUpdates.length, paidTotal, cancelledCount: cancelledUpdates.length, deletedCount: deletedUpdates.length, partialCount: partialUpdates.length, partialTotal };
   };
 
-  const categoryLabels = {
-    add: 'مشتركين جدد',
-    paid: 'المدفوعين',
-    cancelled: 'إلغاء الدفع',
-    partialPayment: 'الدفعات الجزئية',
-    delete: 'المحذوفين',
-    edit: 'التعديلات',
-  };
+  if (selectedBatch) {
+    const updates = selectedBatch.updates;
+    const paidUpdates = updates.filter(u => u.type === 'paid');
+    const cancelledUpdates = updates.filter(u => u.type === 'cancelled');
+    const deletedUpdates = updates.filter(u => u.type === 'delete');
+    const partialUpdates = updates.filter(u => u.type === 'partialPayment');
+    const addUpdates = updates.filter(u => u.type === 'add');
+    const editUpdates = updates.filter(u => u.type === 'edit' || u.type === 'restore');
+    return (
+      <Modal visible={visible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setSelectedBatch(null)}>
+                <Ionicons name="arrow-forward" size={28} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>تحديثات #{selectedBatch.number}</Text>
+              <View style={{ width: 28 }} />
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <View style={{ padding: 15 }}>
+                {paidUpdates.length > 0 && (
+                  <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#4CAF50' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم دفع اشتراك ({paidUpdates.length}) بمبلغ ({formatNumber(paidUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0))} د.ع)</Text>
+                    </View>
+                  </View>
+                )}
+                {partialUpdates.length > 0 && (
+                  <View style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF9800' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <Ionicons name="wallet" size={22} color="#FF9800" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#E65100' }}>تم دفع جزئي ل({partialUpdates.length}) بمبلغ ({formatNumber(partialUpdates.reduce((s, u) => s + (u.details && u.details.amount ? parseFloat(u.details.amount) : 0), 0))} د.ع)</Text>
+                    </View>
+                  </View>
+                )}
+                {cancelledUpdates.length > 0 && (
+                  <View style={{ backgroundColor: '#FFEBEE', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF5722' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="close-circle" size={22} color="#FF5722" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#C62828' }}>تم الغاء دفع ({cancelledUpdates.length})</Text>
+                    </View>
+                  </View>
+                )}
+                {deletedUpdates.length > 0 && (
+                  <View style={{ backgroundColor: '#FBE9E7', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#D84315' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="trash" size={22} color="#D84315" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#BF360C' }}>تم حذف ({deletedUpdates.length})</Text>
+                    </View>
+                  </View>
+                )}
+                {addUpdates.length > 0 && (
+                  <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#2E7D32' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="person-add" size={22} color="#2E7D32" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم اضافة ({addUpdates.length}) مشترك جديد</Text>
+                    </View>
+                  </View>
+                )}
+                {editUpdates.length > 0 && (
+                  <View style={{ backgroundColor: '#E3F2FD', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#1565C0' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="create" size={22} color="#1565C0" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1565C0' }}>تم تعديل ({editUpdates.length})</Text>
+                    </View>
+                  </View>
+                )}
+                {updates.map((update, index) => (
+                  <View key={update.id || index} style={{ backgroundColor: '#f8f8f8', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#eee' }}>
+                    <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{update.subscriberName}</Text>
+                      <Text style={{ fontSize: 12, color: '#666' }}>{update.monthKey && update.monthKey.split('_')[0]}/{update.monthKey && update.monthKey.split('_')[1]}</Text>
+                    </View>
+                    {update.details && update.details.amount && (
+                      <Text style={{ fontSize: 13, color: update.type === 'paid' ? '#4CAF50' : update.type === 'partialPayment' ? '#FF9800' : '#D32F2F', fontWeight: 'bold', marginTop: 4 }}>{formatNumber(update.details.amount)} د.ع</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 10, marginHorizontal: 15, marginBottom: 15 }]} onPress={() => { onApplyBatch(selectedBatch.id); setSelectedBatch(null); }}>
+              <Ionicons name="checkmark-done" size={20} color="white" />
+              <Text style={styles.modalButtonText}>تطبيق التغييرات</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -1231,155 +1289,63 @@ const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPr
             <Text style={styles.modalTitle}>تحديثات العامل</Text>
             <View style={{ width: 28 }} />
           </View>
-
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ padding: 15 }}>
-              {paidUpdates.length > 0 && (
-                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#4CAF50' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم دفع اشتراك ({paidUpdates.length}) بمبلغ ({formatNumber(paidTotal)} د.ع)</Text>
-                  </View>
-                </View>
-              )}
-
-              {partialUpdates.length > 0 && (
-                <View style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF9800' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Ionicons name="wallet" size={22} color="#FF9800" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#E65100' }}>تم دفع جزئي ل({partialUpdates.length}) بمبلغ ({formatNumber(partialPaid)} د.ع)</Text>
-                  </View>
-                </View>
-              )}
-
-              {cancelledUpdates.length > 0 && (
-                <View style={{ backgroundColor: '#FFEBEE', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#FF5722' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="close-circle" size={22} color="#FF5722" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#C62828' }}>تم الغاء دفع ({cancelledUpdates.length})</Text>
-                  </View>
-                </View>
-              )}
-
-              {deletedUpdates.length > 0 && (
-                <View style={{ backgroundColor: '#FBE9E7', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#D84315' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="trash" size={22} color="#D84315" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#BF360C' }}>تم حذف ({deletedUpdates.length})</Text>
-                  </View>
-                </View>
-              )}
-
-              {addUpdates.length > 0 && (
-                <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#2E7D32' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="person-add" size={22} color="#2E7D32" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#2E7D32' }}>تم اضافة ({addUpdates.length}) مشترك جديد</Text>
-                  </View>
-                </View>
-              )}
-
-              {editUpdates.length > 0 && (
-                <View style={{ backgroundColor: '#E3F2FD', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#1565C0' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="create" size={22} color="#1565C0" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1565C0' }}>تم تعديل ({editUpdates.length})</Text>
-                  </View>
-                </View>
-              )}
-
-              {updates.length === 0 && (
+              {batches.length === 0 ? (
                 <View style={{ alignItems: 'center', marginTop: 40 }}>
                   <Ionicons name="checkmark-done-circle-outline" size={60} color="#ccc" />
                   <Text style={{ textAlign: 'center', color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد تحديثات</Text>
                 </View>
+              ) : (
+                batches.map((batch) => {
+                  const summary = getBatchSummary(batch.updates);
+                  return (
+                    <TouchableOpacity key={batch.id} style={{ backgroundColor: '#f8f8f8', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1.5, borderColor: '#eee', elevation: 2 }} onPress={() => setSelectedBatch(batch)}>
+                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                          <View style={{ backgroundColor: '#2196F3', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+                            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>#{batch.number}</Text>
+                          </View>
+                          <Text style={{ fontSize: 14, color: '#666' }}>{batch.workerName}</Text>
+                        </View>
+                        <Text style={{ fontSize: 12, color: '#999' }}>{batch.timestamp}</Text>
+                      </View>
+                      {summary.paidCount > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                          <Text style={{ fontSize: 13, color: '#2E7D32', fontWeight: '600' }}>تم الدفع ({summary.paidCount}) بمبلغ ({formatNumber(summary.paidTotal)} د.ع)</Text>
+                        </View>
+                      )}
+                      {summary.partialCount > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Ionicons name="wallet" size={16} color="#FF9800" />
+                          <Text style={{ fontSize: 13, color: '#E65100', fontWeight: '600' }}>دفع جزئي ({summary.partialCount}) بمبلغ ({formatNumber(summary.partialTotal)} د.ع)</Text>
+                        </View>
+                      )}
+                      {summary.cancelledCount > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Ionicons name="close-circle" size={16} color="#FF5722" />
+                          <Text style={{ fontSize: 13, color: '#C62828', fontWeight: '600' }}>تم الغاء الدفع ({summary.cancelledCount})</Text>
+                        </View>
+                      )}
+                      {summary.deletedCount > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Ionicons name="trash" size={16} color="#D84315" />
+                          <Text style={{ fontSize: 13, color: '#BF360C', fontWeight: '600' }}>تم الحذف ({summary.deletedCount})</Text>
+                        </View>
+                      )}
+                      <View style={{ borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, marginTop: 4, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, color: '#666' }}>عدد التحديثات: {batch.updates.length}</Text>
+                        <Ionicons name="chevron-back" size={20} color="#999" />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
               )}
-
-              {updates.length > 0 && (
-                <Text style={{ fontSize: 13, color: '#999', textAlign: 'center', marginTop: 10 }}>اضغط على أي قسم لعرض التفاصيل</Text>
-              )}
-
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.type}
-                  style={{ flexDirection: 'row-reverse', alignItems: 'center', padding: 15, marginBottom: 10, backgroundColor: '#f8f8f8', borderRadius: 12, gap: 12 }}
-                  onPress={() => { setCategoryType(cat.type); setCategoryVisible(true); }}
-                >
-                  <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: cat.color + '20', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name={cat.icon} size={28} color={cat.color} />
-                  </View>
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{cat.label}</Text>
-                  </View>
-                  {cat.count > 0 ? (
-                    <View style={{ backgroundColor: cat.color, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, minWidth: 32, alignItems: 'center' }}>
-                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>{cat.count}</Text>
-                    </View>
-                  ) : (
-                    <View style={{ backgroundColor: '#E0E0E0', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, minWidth: 32, alignItems: 'center' }}>
-                      <Text style={{ color: '#999', fontWeight: 'bold', fontSize: 14 }}>0</Text>
-                    </View>
-                  )}
-                  <Ionicons name="chevron-back" size={22} color="#999" />
-                </TouchableOpacity>
-              ))}
             </View>
           </ScrollView>
-
-          {updates.length > 0 && (
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 10, marginHorizontal: 15, marginBottom: 15 }]}
-              onPress={onApplyUpdates}
-            >
-              <Ionicons name="checkmark-done" size={20} color="white" />
-              <Text style={styles.modalButtonText}>تطبيق جميع التحديثات</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
-
-      <Modal visible={categoryVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setCategoryVisible(false)}>
-                <Ionicons name="arrow-forward" size={28} color="#333" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>{categoryLabels[categoryType] || ''}</Text>
-              <View style={{ width: 28 }} />
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-              <View style={{ padding: 15 }}>
-                {getUpdatesByType(categoryType).length === 0 ? (
-                  <View style={{ alignItems: 'center', marginTop: 40 }}>
-                    <Ionicons name="checkmark-done-circle-outline" size={60} color="#ccc" />
-                    <Text style={{ textAlign: 'center', color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد تحديثات</Text>
-                  </View>
-                ) : (
-                  getUpdatesByType(categoryType).map((update, index) => (
-                    <View key={update.id || index} style={{ backgroundColor: '#f8f8f8', borderRadius: 12, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: '#eee' }}>
-                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>{update.subscriberName}</Text>
-                        {update.amper && <Text style={{ fontSize: 14, color: '#FF9800', fontWeight: 'bold' }}>{update.amper} أميبر</Text>}
-                      </View>
-                      {update.monthKey && (
-                        <Text style={{ fontSize: 13, color: '#666', marginTop: 5 }}>شهر: {update.monthKey.split('_')[0]}/{update.monthKey.split('_')[1]}</Text>
-                      )}
-                      {update.details && update.details.amount && (
-                        <Text style={{ fontSize: 14, color: '#4CAF50', fontWeight: 'bold', marginTop: 5 }}>المبلغ: {formatNumber(update.details.amount)} د.ع</Text>
-                      )}
-                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 8 }}>
-                        <Text style={{ fontSize: 12, color: '#999' }}>{update.timestamp}</Text>
-                        <Text style={{ fontSize: 12, color: '#FF9800', fontWeight: 'bold' }}>{update.ownerName}</Text>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </Modal>
   );
 };
@@ -3808,7 +3774,20 @@ export default function App() {
     }
     try {
       const existing = await loadUserData(workerOwnerPhone, 'pending_worker_updates') || [];
-      const merged = [...existing, ...workerUpdates];
+      const now = new Date();
+      const hours = now.getHours();
+      const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+      const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+      const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+      const batchNumber = existing.length + 1;
+      const batch = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        number: batchNumber,
+        timestamp: `${dateStr} - ${timeStr} ${ampm}`,
+        workerName: workerName || workerCode || '',
+        updates: workerUpdates,
+      };
+      const merged = [...existing, batch];
       const result = await saveUserData(workerOwnerPhone, 'pending_worker_updates', merged);
       if (result !== null) {
         setWorkerUpdates([]);
@@ -3821,11 +3800,13 @@ export default function App() {
     }
   };
 
-  const handleApplyUpdates = async () => {
+  const handleApplyBatch = async (batchId) => {
     if (pendingWorkerUpdates.length === 0) return;
+    const batch = pendingWorkerUpdates.find(b => b.id === batchId);
+    if (!batch) return;
 
     let newSubs = [...subscribers];
-    for (const update of pendingWorkerUpdates) {
+    for (const update of batch.updates) {
       switch (update.type) {
         case 'add': {
           const exists = newSubs.find(s => s.id === update.subscriberId);
@@ -3953,29 +3934,44 @@ export default function App() {
     }
 
     setSubscribers(newSubs);
+    const remainingBatches = pendingWorkerUpdates.filter(b => b.id !== batchId);
     if (currentGeneratorId && generators.length > 0) {
       const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
       setGenerators(updated);
       await Promise.all([
         saveUserData(currentUser, 'subscribers', newSubs),
         saveUserData(currentUser, 'generators', updated),
-        saveUserData(currentUser, 'pending_worker_updates', []),
+        saveUserData(currentUser, 'pending_worker_updates', remainingBatches),
       ]);
     } else {
       await Promise.all([
         saveUserData(currentUser, 'subscribers', newSubs),
-        saveUserData(currentUser, 'pending_worker_updates', []),
+        saveUserData(currentUser, 'pending_worker_updates', remainingBatches),
       ]);
     }
-    setPendingWorkerUpdates([]);
+    setPendingWorkerUpdates(remainingBatches);
     setUpdatesModalVisible(false);
-    Alert.alert('تم', 'تم تطبيق جميع التحديثات بنجاح');
+    Alert.alert('تم', 'تم تطبيق التحديثات بنجاح');
   };
 
   const loadPendingUpdates = async () => {
     if (!currentUser) return;
     const updates = await loadUserData(currentUser, 'pending_worker_updates');
-    setPendingWorkerUpdates(updates || []);
+    if (!updates || updates.length === 0) {
+      setPendingWorkerUpdates([]);
+      return;
+    }
+    const normalized = updates.map((item, idx) => {
+      if (item.updates && item.id && item.number) return item;
+      return {
+        id: 'legacy_' + idx,
+        number: idx + 1,
+        timestamp: item.timestamp || '',
+        workerName: item.ownerName || '',
+        updates: [item],
+      };
+    });
+    setPendingWorkerUpdates(normalized);
   };
 
   const handleExport = async () => {
@@ -4642,7 +4638,6 @@ export default function App() {
         onCreateWorker={handleCreateWorker}
         pendingWorkerUpdates={pendingWorkerUpdates}
         onLoadUpdates={loadPendingUpdates}
-        onApplyUpdates={handleApplyUpdates}
         workers={workers}
         onUpdateWorker={handleUpdateWorker}
         onDeleteWorker={handleDeleteWorker}
@@ -4665,8 +4660,8 @@ export default function App() {
       <WorkerUpdatesModal
         visible={updatesModalVisible}
         onClose={() => setUpdatesModalVisible(false)}
-        updates={pendingWorkerUpdates}
-        onApplyUpdates={handleApplyUpdates}
+        batches={pendingWorkerUpdates}
+        onApplyBatch={handleApplyBatch}
         amperPrices={amperPrices}
       />
       <SubscribersScreen
