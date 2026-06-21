@@ -34,10 +34,10 @@ async function sbRequest(method, path, body) {
   try {
     const opts = { method, headers: sbHeaders() };
     if (body !== undefined) opts.body = JSON.stringify(body);
-    const res = await Promise.race([
-      fetch(`${SUPABASE_URL}${path}`, opts),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
-    ]);
+    const fetchPromise = fetch(`${SUPABASE_URL}${path}`, opts);
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, text: async () => '' }), 10000));
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if (!res.ok && !res.text) return null;
     const text = await res.text();
     if (!text) return null;
     try { return JSON.parse(text); } catch (e2) { return null; }
@@ -1594,7 +1594,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
             <Text style={styles.partialConfirmText}>تأكيد التغيير</Text>
           </TouchableOpacity>
         </View>
-      </Modal>
+      </View>
     </Modal>
   );
 };
@@ -3183,6 +3183,9 @@ export default function App() {
   const SESSION_TIMEOUT = 30 * 60 * 1000;
 
   useEffect(() => {
+    let done = false;
+    const safeFinish = () => { if (!done) { done = true; setIsLoading(false); } };
+    const timer = setTimeout(safeFinish, 5000);
     const init = async () => {
       try {
         const onboardingDone = await loadFromFile('onboarding_done');
@@ -3194,7 +3197,8 @@ export default function App() {
       } catch (e) {
         // silent
       }
-      setIsLoading(false);
+      clearTimeout(timer);
+      safeFinish();
     };
     init();
   }, []);
