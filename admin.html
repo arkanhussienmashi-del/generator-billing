@@ -59,6 +59,8 @@ body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f2f5; 
 @keyframes spin { to { transform: rotate(360deg); } }
 .error-box { background: #ffebee; color: #c62828; padding: 20px; border-radius: 12px; text-align: center; margin: 40px auto; max-width: 400px; }
 .empty { text-align: center; padding: 40px; color: #999; }
+.login-box { background: white; border-radius: 16px; padding: 40px 30px; max-width: 380px; margin: 60px auto; text-align: center; box-shadow: 0 2px 15px rgba(0,0,0,0.1); }
+.login-icon { font-size: 48px; margin-bottom: 10px; }
 .summary-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
 .summary-box { flex: 1; min-width: 120px; background: white; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #e0e0e0; }
 .summary-box .label { font-size: 12px; color: #888; }
@@ -87,17 +89,27 @@ body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f0f2f5; 
 </div>
 
 <div class="container">
-  <div class="search-bar">
-    <input type="text" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف..." oninput="filterOwners()">
-    <select id="filterType" onchange="filterOwners()">
-      <option value="all">الكل</option>
-      <option value="hasUnpaid">يوجد غير مدفوع</option>
-      <option value="hasSubscribers">يوجد مشتركين</option>
-      <option value="noSubscribers">بدون مشتركين</option>
-    </select>
-    <button onclick="loadAll()">تحديث البيانات</button>
+  <div id="loginBox" class="login-box">
+    <div class="login-icon">🔒</div>
+    <h2 style="margin-bottom:15px;color:#333">لوحة ADMiN</h2>
+    <p style="color:#888;margin-bottom:20px;font-size:14px">أدخل كلمة المرور للدخول</p>
+    <input type="password" id="adminPassword" placeholder="كلمة المرور" style="width:100%;padding:12px 15px;border:1px solid #ddd;border-radius:8px;font-size:16px;font-family:inherit;text-align:center;margin-bottom:15px" onkeydown="if(event.key==='Enter')checkAdminPassword()">
+    <button onclick="checkAdminPassword()" style="width:100%;padding:12px;background:#1a237e;color:white;border:none;border-radius:8px;font-size:16px;font-family:inherit;cursor:pointer;font-weight:bold">دخول</button>
+    <p id="loginError" style="color:#c62828;margin-top:10px;display:none;font-size:13px">كلمة المرور غير صحيحة</p>
   </div>
-  <div id="content"><div class="loading"><div class="spinner"></div><br>جاري تحميل البيانات...</div></div>
+  <div id="adminPanel" style="display:none">
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف..." oninput="filterOwners()">
+      <select id="filterType" onchange="filterOwners()">
+        <option value="all">الكل</option>
+        <option value="hasUnpaid">يوجد غير مدفوع</option>
+        <option value="hasSubscribers">يوجد مشتركين</option>
+        <option value="noSubscribers">بدون مشتركين</option>
+      </select>
+      <button onclick="loadAll()">تحديث البيانات</button>
+    </div>
+    <div id="content"><div class="loading"><div class="spinner"></div><br>جاري تحميل البيانات...</div></div>
+  </div>
 </div>
 
 <script>
@@ -105,6 +117,21 @@ const SUPABASE_URL = 'https://xisrouirxhvbkwvwfvkx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhpc3JvdWlyeGh2Ymt3dndmdmt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg1MzcsImV4cCI6MjA5NzQ2NDUzN30.jts63Wqick77MaAJFHHdyuaMqWkPMFXxPqIpfUV9frE';
 
 let allOwners = [];
+
+const ADMIN_PASSWORD = 'admin@billing2026';
+
+function checkAdminPassword() {
+  var input = document.getElementById('adminPassword').value;
+  if (input === ADMIN_PASSWORD) {
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'block';
+document.getElementById('adminPassword').focus();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminPassword').focus();
+  }
+}
 
 function headers() {
   return {
