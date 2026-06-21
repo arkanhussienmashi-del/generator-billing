@@ -676,6 +676,8 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   const [editWorkerAssignedGenerators, setEditWorkerAssignedGenerators] = useState([]);
   const [deleteGenPassword, setDeleteGenPassword] = useState('');
   const [selectedDeleteGenId, setSelectedDeleteGenId] = useState(null);
+  const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
+  const [restoreGeneratorVisible, setRestoreGeneratorVisible] = useState(false);
 
   useEffect(() => {
     setName(generatorName);
@@ -3332,8 +3334,6 @@ export default function App() {
   const [monthlyDataVisible, setMonthlyDataVisible] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [deletedGenerators, setDeletedGenerators] = useState([]);
-  const [restoreGeneratorVisible, setRestoreGeneratorVisible] = useState(false);
-  const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
