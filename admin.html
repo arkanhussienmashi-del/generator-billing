@@ -170,8 +170,8 @@ function editOwner(phone, currentCode) {
   var newCode = prompt('أدخل الرمز الجديد:', currentCode);
   if (newCode === null) return;
   if (newCode.trim().length < 6) { alert('الرمز يجب أن يكون 6 أحرف على الأقل'); return; }
-  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newOwnerCode: newCode.trim() }).then(function(r) {
-    if (r.ok) { alert('تم التعديل'); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
+  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newOwnerCode: newCode.trim(), newPassword: newCode.trim() }).then(function(r) {
+    if (r.ok) { alert('تم التعديل - الرمز الجديد: ' + newCode.trim()); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
   });
 }
 
@@ -179,8 +179,10 @@ function changeOwnerPhone(phone) {
   var newPhone = prompt('أدخل الرقم الجديد:', phone);
   if (newPhone === null) return;
   if (!/^07\d{9}$/.test(newPhone)) { alert('رقم الهاتف يجب أن يكون 11 خانة يبدأ بـ 07'); return; }
-  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newPhone: newPhone.trim() }).then(function(r) {
-    if (r.ok) { alert('تم التعديل'); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
+  var currentPass = prompt('أدخل كلمة المرور الحالية للتأكيد:');
+  if (currentPass === null) return;
+  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newPhone: newPhone.trim(), newPassword: currentPass.trim(), newOwnerCode: currentPass.trim() }).then(function(r) {
+    if (r.ok) { alert('تم تغيير الرقم - سجّل الدخول بالرقم الجديد'); loadAll(); } else { alert('خطأ: ' + (r.error || 'unknown')); }
   });
 }
 
@@ -188,8 +190,8 @@ function changeOwnerPassword(phone) {
   var newPass = prompt('أدخل كلمة المرور الجديدة (4 أحرف على الأقل):');
   if (newPass === null) return;
   if (newPass.trim().length < 4) { alert('كلمة المرور يجب أن تكون 4 أحرف على الأقل'); return; }
-  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newPassword: newPass.trim() }).then(function(r) {
-    if (r.ok) { alert('تم التعديل'); } else { alert('خطأ: ' + (r.error || 'unknown')); }
+  apiPut({ _action: 'updateRegisteredUser', oldPhone: phone, newPassword: newPass.trim(), newOwnerCode: newPass.trim() }).then(function(r) {
+    if (r.ok) { alert('تم تغيير كلمة المرور'); } else { alert('خطأ: ' + (r.error || 'unknown')); }
   });
 }
 
