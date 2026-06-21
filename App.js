@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -951,12 +952,9 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                           <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
                         </View>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => {
-                        Alert.alert('بيانات العامل', `كود العامل: ${worker.code}\nالرمز السري: ${worker.pin}\n\nاضغط موافق لنسخ الكود`, [
-                          { text: 'نسخ الكود', onPress: () => { Alert.alert('كود العامل', worker.code); } },
-                          { text: 'نسخ الرمز', onPress: () => { Alert.alert('الرمز السري', worker.pin); } },
-                          { text: 'موافق' },
-                        ]);
+                      <TouchableOpacity onPress={async () => {
+                        await Clipboard.setStringAsync(`كود العامل: ${worker.code}\nالرمز السري: ${worker.pin}`);
+                        Alert.alert('تم النسخ', `كود: ${worker.code}\nرمز: ${worker.pin}`);
                       }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
                         <Ionicons name="copy-outline" size={18} color="#2196F3" />
                       </TouchableOpacity>
@@ -983,7 +981,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>كود العامل</Text>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1565C0', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.code : ''}</Text>
-              <TouchableOpacity onPress={() => { Alert.alert('كود العامل', newWorkerCredentials ? newWorkerCredentials.code : ''); }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
+              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.code : ''); Alert.alert('تم النسخ', 'تم نسخ كود العامل'); }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
                 <Ionicons name="copy-outline" size={20} color="#1565C0" />
               </TouchableOpacity>
             </View>
@@ -993,7 +991,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>الرمز السري</Text>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#F44336', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.pin : ''}</Text>
-              <TouchableOpacity onPress={() => { Alert.alert('الرمز السري', newWorkerCredentials ? newWorkerCredentials.pin : ''); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
+              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.pin : ''); Alert.alert('تم النسخ', 'تم نسخ الرمز السري'); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
                 <Ionicons name="copy-outline" size={20} color="#F44336" />
               </TouchableOpacity>
             </View>
@@ -1002,6 +1000,17 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
           <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 20 }}>
             <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.join(', ') : ''}</Text>
           </View>
+
+          <TouchableOpacity style={{ backgroundColor: '#FF9800', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center', marginBottom: 10 }} onPress={async () => {
+            const text = `كود العامل: ${newWorkerCredentials ? newWorkerCredentials.code : ''}\nالرمز السري: ${newWorkerCredentials ? newWorkerCredentials.pin : ''}`;
+            await Clipboard.setStringAsync(text);
+            Alert.alert('تم النسخ', 'تم نسخ كود العامل والرمز السري');
+          }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="copy" size={20} color="white" />
+              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity style={{ backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center' }} onPress={onDismissCredentials}>
             <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>حسناً</Text>
