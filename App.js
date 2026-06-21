@@ -854,6 +854,11 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('multiGenerators')}>
+              <Ionicons name={workerPermissions.includes('multiGenerators') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('multiGenerators') ? '#FF9800' : '#999'} />
+              <Text style={{ fontSize: 16, color: '#333' }}>التبديل بين المولدات</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#FF9800', marginTop: 20 }]} onPress={handleConfirmCreateWorker}>
               <Text style={styles.modalButtonText}>إنشاء حساب العامل</Text>
             </TouchableOpacity>
@@ -899,6 +904,10 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('partialPayment') ? prev.filter(p => p !== 'partialPayment') : [...prev, 'partialPayment'])}>
                   <Ionicons name={editWorkerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
                   <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('multiGenerators') ? prev.filter(p => p !== 'multiGenerators') : [...prev, 'multiGenerators'])}>
+                  <Ionicons name={editWorkerPermissions.includes('multiGenerators') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('multiGenerators') ? '#FF9800' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>التبديل بين المولدات</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 20 }]} onPress={() => {
@@ -3076,7 +3085,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
@@ -3135,6 +3144,12 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
         </View>
 
         <View style={styles.bottomButtons}>
+          {generators && generators.length > 1 && workerPermissions && workerPermissions.includes('multiGenerators') && (
+            <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF9800', marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={onShowWorkerSwitchGenerator}>
+              <Ionicons name="swap-horizontal-outline" size={20} color="white" />
+              <Text style={styles.showSubscribersText}>تبديل المولد ({generators.length})</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.showSubscribersButton} onPress={onShowSubscribers}>
             <Ionicons name="people" size={20} color="white" />
             <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
@@ -3178,6 +3193,8 @@ export default function App() {
   const [currentGeneratorId, setCurrentGeneratorId] = useState(null);
   const [addGeneratorVisible, setAddGeneratorVisible] = useState(false);
   const [switchGeneratorVisible, setSwitchGeneratorVisible] = useState(false);
+  const [workerAssignedGeneratorId, setWorkerAssignedGeneratorId] = useState(null);
+  const [workerSwitchGeneratorVisible, setWorkerSwitchGeneratorVisible] = useState(false);
   const [newWorkerCredentials, setNewWorkerCredentials] = useState(null);
   const [updatesModalVisible, setUpdatesModalVisible] = useState(false);
   const [updateCategoryVisible, setUpdateCategoryVisible] = useState(false);
@@ -3288,38 +3305,27 @@ export default function App() {
       try {
         const all = await loadAllUserKeys(workerOwnerPhone);
         if (all.generators && all.generators.length > 0) {
-          const newCurrentId = all.currentGeneratorId || all.generators[0].id;
-          const oldRef = workerSyncRef.current;
-          const oldCurrentId = oldRef.currentGeneratorId;
-          if (newCurrentId !== oldCurrentId) {
-            const active = all.generators.find(g => g.id === newCurrentId) || all.generators[0];
-            if (active) {
+          const workerCurrentId = currentGeneratorId;
+          const workerActive = all.generators.find(function(g) { return g.id === workerCurrentId; }) || all.generators[0];
+          if (workerActive) {
+            const oldRef = workerSyncRef.current;
+            const oldActive = oldRef.generators.find(function(g) { return g.id === workerCurrentId; }) || oldRef.generators[0];
+            const newSubs = workerActive.subscribers || [];
+            const oldSubs = oldActive ? (oldActive.subscribers || []) : [];
+            const newPrices = workerActive.amperPrices || {};
+            const oldPrices = oldActive ? (oldActive.amperPrices || {}) : {};
+            const newExpenses = workerActive.monthlyExpenses || {};
+            const oldExpenses = oldActive ? (oldActive.monthlyExpenses || {}) : {};
+            const subsChanged = JSON.stringify(newSubs) !== JSON.stringify(oldSubs);
+            const pricesChanged = JSON.stringify(newPrices) !== JSON.stringify(oldPrices);
+            const expensesChanged = JSON.stringify(newExpenses) !== JSON.stringify(oldExpenses);
+            if (subsChanged || pricesChanged || expensesChanged) {
               setGenerators(all.generators);
-              setCurrentGeneratorId(newCurrentId);
-              setGeneratorName(active.name);
-              setSubscribers(active.subscribers || []);
-              setAmperPrices(active.amperPrices || {});
-              setMonthlyExpenses(active.monthlyExpenses || {});
-            }
-          } else {
-            const active = all.generators.find(g => g.id === newCurrentId) || all.generators[0];
-            if (active) {
-              const oldActive = oldRef.generators.find(function(g) { return g.id === newCurrentId; }) || oldRef.generators[0];
-              const newSubs = active.subscribers || [];
-              const oldSubs = oldActive ? (oldActive.subscribers || []) : [];
-              const newPrices = active.amperPrices || {};
-              const oldPrices = oldActive ? (oldActive.amperPrices || {}) : {};
-              const newExpenses = active.monthlyExpenses || {};
-              const oldExpenses = oldActive ? (oldActive.monthlyExpenses || {}) : {};
-              const subsChanged = JSON.stringify(newSubs) !== JSON.stringify(oldSubs);
-              const pricesChanged = JSON.stringify(newPrices) !== JSON.stringify(oldPrices);
-              const expensesChanged = JSON.stringify(newExpenses) !== JSON.stringify(oldExpenses);
-              if (subsChanged || pricesChanged || expensesChanged) {
-                setGenerators(all.generators);
-                setSubscribers(newSubs);
-                if (pricesChanged) setAmperPrices(newPrices);
-                if (expensesChanged) setMonthlyExpenses(newExpenses);
-              }
+              setSubscribers(newSubs);
+              if (pricesChanged) setAmperPrices(newPrices);
+              if (expensesChanged) setMonthlyExpenses(newExpenses);
+            } else {
+              setGenerators(all.generators);
             }
           }
         }
@@ -3328,7 +3334,7 @@ export default function App() {
       }
     }, 30000);
     return () => clearInterval(pollInterval);
-  }, [userRole, workerOwnerPhone]);
+  }, [userRole, workerOwnerPhone, currentGeneratorId]);
 
   const resetActivity = () => {
     lastActivity.current = Date.now();
@@ -3345,6 +3351,19 @@ export default function App() {
           setWorkerCode(userData.workerCode || '');
           setWorkerName(userData.workerName || '');
           setWorkerPermissions(userData.permissions || []);
+          const ownerData = await loadAllUserKeys(userData.phone);
+          const ownerGens = ownerData.generators || [];
+          if (ownerGens.length > 0) {
+            const savedAssignedId = userData.assignedGeneratorId;
+            const targetGen = (savedAssignedId && ownerGens.find(function(g) { return g.id === savedAssignedId; })) || ownerGens[0];
+            setGenerators(ownerGens);
+            setCurrentGeneratorId(targetGen.id);
+            setWorkerAssignedGeneratorId(targetGen.id);
+            setGeneratorName(targetGen.name);
+            setSubscribers(targetGen.subscribers || []);
+            setAmperPrices(targetGen.amperPrices || {});
+            setMonthlyExpenses(targetGen.monthlyExpenses || {});
+          }
           setScreen('workerMain');
         } else if (userData.role === 'owner') {
           setCurrentUser(userData.phone);
@@ -3767,7 +3786,7 @@ export default function App() {
   const handleCreateWorker = async (permissions) => {
     const code = generateWorkerCode(currentUser);
     const pin = generateWorkerPin();
-    const newWorker = { code, pin, permissions, createdAt: new Date().toISOString() };
+    const newWorker = { code, pin, permissions, assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
     const updated = [...workers, newWorker];
     await saveUserData(currentUser, 'workers', updated);
     setWorkers(updated);
@@ -3811,7 +3830,7 @@ export default function App() {
       if (workers) {
         const found = workers.find(w => w.code === code.toUpperCase() && w.pin === pin.toUpperCase());
         if (found) {
-          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [] };
+          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [], assignedGeneratorId: found.assignedGeneratorId || null };
         }
       }
     }
@@ -4103,7 +4122,27 @@ export default function App() {
               workerCode: code.toUpperCase(),
               workerName: name,
               permissions: result.permissions,
+              assignedGeneratorId: result.assignedGeneratorId || null,
             });
+            const ownerData = await loadAllUserKeys(result.ownerPhone);
+            const ownerGens = ownerData.generators || [];
+            const assignedId = result.assignedGeneratorId;
+            let targetGen = null;
+            if (assignedId && ownerGens.length > 0) {
+              targetGen = ownerGens.find(function(g) { return g.id === assignedId; });
+            }
+            if (!targetGen && ownerGens.length > 0) {
+              targetGen = ownerGens[0];
+            }
+            if (targetGen) {
+              setGenerators(ownerGens);
+              setCurrentGeneratorId(targetGen.id);
+              setWorkerAssignedGeneratorId(targetGen.id);
+              setGeneratorName(targetGen.name);
+              setSubscribers(targetGen.subscribers || []);
+              setAmperPrices(targetGen.amperPrices || {});
+              setMonthlyExpenses(targetGen.monthlyExpenses || {});
+            }
             setScreen('workerMain');
           }
           return result;
@@ -4126,6 +4165,10 @@ export default function App() {
           workerUpdates={workerUpdates}
           onSync={handleWorkerSync}
           workerName={workerName}
+          generators={generators}
+          workerPermissions={workerPermissions}
+          onSwitchGenerator={null}
+          onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -4144,6 +4187,54 @@ export default function App() {
           userRole={userRole}
           workerPermissions={workerPermissions}
         />
+        <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>اختر المولد</Text>
+                <TouchableOpacity onPress={() => setWorkerSwitchGeneratorVisible(false)}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+              </View>
+              {generators.map(function(gen) {
+                const isActive = gen.id === currentGeneratorId;
+                return (
+                  <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: isActive ? (darkMode ? '#2a3a4a' : '#E3F2FD') : 'transparent', borderRadius: isActive ? 8 : 0 }}                   onPress={async function() {
+                    if (isActive) { setWorkerSwitchGeneratorVisible(false); return; }
+                    try {
+                      const freshData = await loadAllUserKeys(workerOwnerPhone);
+                      const freshGens = freshData.generators || generators;
+                      const freshGen = freshGens.find(function(g) { return g.id === gen.id; }) || gen;
+                      setGenerators(freshGens);
+                      setCurrentGeneratorId(freshGen.id);
+                      setGeneratorName(freshGen.name);
+                      setSubscribers(freshGen.subscribers || []);
+                      setAmperPrices(freshGen.amperPrices || {});
+                      setMonthlyExpenses(freshGen.monthlyExpenses || {});
+                      setWorkerAssignedGeneratorId(freshGen.id);
+                    } catch (e) {
+                      setGenerators(generators);
+                      setCurrentGeneratorId(gen.id);
+                      setGeneratorName(gen.name);
+                      setSubscribers(gen.subscribers || []);
+                      setAmperPrices(gen.amperPrices || {});
+                      setMonthlyExpenses(gen.monthlyExpenses || {});
+                      setWorkerAssignedGeneratorId(gen.id);
+                    }
+                    setWorkerSwitchGeneratorVisible(false);
+                  }}>
+                    <Ionicons name={isActive ? 'radio-button-on' : 'radio-button-off'} size={22} color={isActive ? '#2196F3' : '#999'} style={{ marginLeft: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: isActive ? 'bold' : 'normal', color: darkMode ? '#fff' : '#333' }}>{gen.name}</Text>
+                      <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>{(gen.subscribers || []).length} مشترك</Text>
+                    </View>
+                    {isActive && <Ionicons name="checkmark-circle" size={22} color="#2196F3" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -4162,6 +4253,10 @@ export default function App() {
           workerUpdates={workerUpdates}
           onSync={handleWorkerSync}
           workerName={workerName}
+          generators={generators}
+          workerPermissions={workerPermissions}
+          onSwitchGenerator={null}
+          onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -4180,6 +4275,54 @@ export default function App() {
           userRole={userRole}
           workerPermissions={workerPermissions}
         />
+        <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>اختر المولد</Text>
+                <TouchableOpacity onPress={() => setWorkerSwitchGeneratorVisible(false)}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+              </View>
+              {generators.map(function(gen) {
+                const isActive = gen.id === currentGeneratorId;
+                return (
+                  <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: isActive ? (darkMode ? '#2a3a4a' : '#E3F2FD') : 'transparent', borderRadius: isActive ? 8 : 0 }}                   onPress={async function() {
+                    if (isActive) { setWorkerSwitchGeneratorVisible(false); return; }
+                    try {
+                      const freshData = await loadAllUserKeys(workerOwnerPhone);
+                      const freshGens = freshData.generators || generators;
+                      const freshGen = freshGens.find(function(g) { return g.id === gen.id; }) || gen;
+                      setGenerators(freshGens);
+                      setCurrentGeneratorId(freshGen.id);
+                      setGeneratorName(freshGen.name);
+                      setSubscribers(freshGen.subscribers || []);
+                      setAmperPrices(freshGen.amperPrices || {});
+                      setMonthlyExpenses(freshGen.monthlyExpenses || {});
+                      setWorkerAssignedGeneratorId(freshGen.id);
+                    } catch (e) {
+                      setGenerators(generators);
+                      setCurrentGeneratorId(gen.id);
+                      setGeneratorName(gen.name);
+                      setSubscribers(gen.subscribers || []);
+                      setAmperPrices(gen.amperPrices || {});
+                      setMonthlyExpenses(gen.monthlyExpenses || {});
+                      setWorkerAssignedGeneratorId(gen.id);
+                    }
+                    setWorkerSwitchGeneratorVisible(false);
+                  }}>
+                    <Ionicons name={isActive ? 'radio-button-on' : 'radio-button-off'} size={22} color={isActive ? '#2196F3' : '#999'} style={{ marginLeft: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: isActive ? 'bold' : 'normal', color: darkMode ? '#fff' : '#333' }}>{gen.name}</Text>
+                      <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>{(gen.subscribers || []).length} مشترك</Text>
+                    </View>
+                    {isActive && <Ionicons name="checkmark-circle" size={22} color="#2196F3" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
