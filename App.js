@@ -10,7 +10,13 @@ import {
   Platform,
   Modal,
   Alert,
+  Dimensions,
 } from 'react-native';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const MODAL_WIDTH = IS_TABLET ? Math.min(500, SCREEN_WIDTH * 0.7) : SCREEN_WIDTH * 0.85;
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -1034,7 +1040,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
     <Modal visible={!!newWorkerCredentials} transparent animationType="fade">
       <View style={styles.modalOverlay}>
-        <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
+        <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, alignItems: 'center' }}>
           <View style={{ backgroundColor: '#4CAF50', borderRadius: 40, width: 70, height: 70, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <Ionicons name="checkmark-circle" size={40} color="white" />
           </View>
@@ -1084,7 +1090,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
       <Modal visible={deleteGeneratorVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#F44336' }}>حذف مولد</Text>
               <TouchableOpacity onPress={() => { setDeleteGeneratorVisible(false); setDeleteGenPassword(''); setSelectedDeleteGenId(null); }}>
@@ -1127,7 +1133,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
       <Modal visible={restoreGeneratorVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4CAF50' }}>استرداد بيانات المولد</Text>
               <TouchableOpacity onPress={() => setRestoreGeneratorVisible(false)}>
@@ -4462,7 +4468,7 @@ export default function App() {
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+            <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>اختر المولد</Text>
                 <TouchableOpacity onPress={() => setWorkerSwitchGeneratorVisible(false)}>
@@ -4552,7 +4558,7 @@ export default function App() {
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+            <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>اختر المولد</Text>
                 <TouchableOpacity onPress={() => setWorkerSwitchGeneratorVisible(false)}>
@@ -4775,6 +4781,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
+    maxWidth: IS_TABLET ? 500 : '100%',
+    alignSelf: 'center',
+    width: '100%',
   },
   welcomeLogo: {
     alignItems: 'center',
@@ -4827,11 +4836,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 40,
+    maxWidth: IS_TABLET ? 500 : '100%',
+    alignSelf: 'center',
+    width: '100%',
   },
   loginContent: {
     flex: 1,
     paddingHorizontal: 30,
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    maxWidth: IS_TABLET ? 500 : '100%',
+    alignSelf: 'center',
+    width: '100%',
   },
   backBtn: {
     alignSelf: 'flex-end',
@@ -4900,13 +4915,18 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: IS_TABLET ? 'center' : 'flex-end',
+    alignItems: IS_TABLET ? 'center' : 'stretch',
   },
   modalContent: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: IS_TABLET ? 20 : 20,
+    borderTopRightRadius: IS_TABLET ? 20 : 20,
+    borderBottomLeftRadius: IS_TABLET ? 20 : 0,
+    borderBottomRightRadius: IS_TABLET ? 20 : 0,
     paddingBottom: 40,
+    width: IS_TABLET ? MODAL_WIDTH : '100%',
+    maxHeight: IS_TABLET ? '80%' : '90%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -4959,14 +4979,18 @@ const styles = StyleSheet.create({
   pickerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: IS_TABLET ? 'center' : 'flex-end',
+    alignItems: IS_TABLET ? 'center' : 'stretch',
   },
   pickerContent: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: IS_TABLET ? 20 : 20,
+    borderTopRightRadius: IS_TABLET ? 20 : 20,
+    borderBottomLeftRadius: IS_TABLET ? 20 : 0,
+    borderBottomRightRadius: IS_TABLET ? 20 : 0,
     paddingBottom: 40,
-    maxHeight: '60%',
+    maxHeight: IS_TABLET ? '60%' : '60%',
+    width: IS_TABLET ? MODAL_WIDTH : '100%',
   },
   pickerHeader: {
     flexDirection: 'row',
@@ -5678,8 +5702,8 @@ const styles = StyleSheet.create({
   partialModalContent: {
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 20,
-    width: '90%',
+    padding: IS_TABLET ? 28 : 20,
+    width: IS_TABLET ? MODAL_WIDTH : '90%',
     alignSelf: 'center',
     maxHeight: '80%',
   },
@@ -5885,7 +5909,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingBottom: 15,
-    paddingHorizontal: 16,
+    paddingHorizontal: IS_TABLET ? 30 : 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -5922,7 +5946,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: IS_TABLET ? 30 : 16,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -5995,11 +6019,11 @@ const styles = StyleSheet.create({
   },
   statCard: {
     borderRadius: 16,
-    padding: 16,
+    padding: IS_TABLET ? 20 : 16,
     alignItems: 'center',
-    minHeight: 90,
+    minHeight: IS_TABLET ? 110 : 90,
     justifyContent: 'center',
-    width: '31%',
+    width: IS_TABLET ? '23%' : '31%',
   },
   totalCard: {
     backgroundColor: '#E3F2FD',
@@ -6014,7 +6038,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFEBEE',
   },
   statNumber: {
-    fontSize: 28,
+    fontSize: IS_TABLET ? 34 : 28,
     fontWeight: 'bold',
   },
   totalNumber: {
