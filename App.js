@@ -664,7 +664,7 @@ const WorkerLoginScreen = ({ onBack, onLogin }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, onApplyUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
   const [workerModalVisible, setWorkerModalVisible] = useState(false);
@@ -674,6 +674,8 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [editWorkerPermissions, setEditWorkerPermissions] = useState([]);
   const [editWorkerAssignedGenerators, setEditWorkerAssignedGenerators] = useState([]);
+  const [deleteGenPassword, setDeleteGenPassword] = useState('');
+  const [selectedDeleteGenId, setSelectedDeleteGenId] = useState(null);
 
   useEffect(() => {
     setName(generatorName);
@@ -806,6 +808,18 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                     <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'white', alignSelf: darkMode ? 'flex-end' : 'flex-start' }} />
                   </TouchableOpacity>
                 </View>
+                {generators && generators.length > 1 && (
+                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10 }]} onPress={() => setDeleteGeneratorVisible(true)}>
+                    <Ionicons name="trash-outline" size={20} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>حذف مولد</Text>
+                  </TouchableOpacity>
+                )}
+                {deletedGenerators && deletedGenerators.length > 0 && (
+                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10 }]} onPress={() => setRestoreGeneratorVisible(true)}>
+                    <Ionicons name="refresh-outline" size={20} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>استرداد بيانات المولد ({deletedGenerators.length})</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onLogout}>
                   <Ionicons name="log-out-outline" size={20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تسجيل الخروج</Text>
@@ -1060,7 +1074,88 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+      </Modal>
+
+      <Modal visible={deleteGeneratorVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#F44336' }}>حذف مولد</Text>
+              <TouchableOpacity onPress={() => { setDeleteGeneratorVisible(false); setDeleteGenPassword(''); setSelectedDeleteGenId(null); }}>
+                <Ionicons name="close" size={28} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 12 }}>اختر المولد المراد حذفه:</Text>
+            {generators.map(function(gen) {
+              return (
+                <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: selectedDeleteGenId === gen.id ? (darkMode ? '#3a1a1a' : '#FFEBEE') : 'transparent', borderRadius: selectedDeleteGenId === gen.id ? 8 : 0 }} onPress={function() { setSelectedDeleteGenId(gen.id); }}>
+                  <Ionicons name={selectedDeleteGenId === gen.id ? 'radio-button-on' : 'radio-button-off'} size={22} color={selectedDeleteGenId === gen.id ? '#F44336' : '#999'} style={{ marginLeft: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, color: darkMode ? '#fff' : '#333' }}>{gen.name}</Text>
+                    <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>{(gen.subscribers || []).length} مشترك</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 8 }}>أدخل كلمة المرور للتأكيد:</Text>
+              <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="كلمة المرور" placeholderTextColor="#999" value={deleteGenPassword} onChangeText={setDeleteGenPassword} secureTextEntry />
+            </View>
+            <TouchableOpacity style={{ backgroundColor: '#F44336', borderRadius: 12, paddingVertical: 14, width: '100%', alignItems: 'center', marginTop: 16, opacity: selectedDeleteGenId && deleteGenPassword ? 1 : 0.5 }} disabled={!selectedDeleteGenId || !deleteGenPassword} onPress={async function() {
+              if (!selectedDeleteGenId || !deleteGenPassword) return;
+              const success = await onDeleteGenerator(selectedDeleteGenId, deleteGenPassword);
+              if (success === false) {
+                Alert.alert('خطأ', 'كلمة المرور غير صحيحة');
+              } else {
+                setDeleteGeneratorVisible(false);
+                setDeleteGenPassword('');
+                setSelectedDeleteGenId(null);
+                Alert.alert('تم', 'تم حذف المولد بنجاح. يمكنك استرداده من قائمة الاسترداد.');
+              }
+            }}>
+              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>حذف المولد</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={restoreGeneratorVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: '85%', maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4CAF50' }}>استرداد بيانات المولد</Text>
+              <TouchableOpacity onPress={() => setRestoreGeneratorVisible(false)}>
+                <Ionicons name="close" size={28} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 4 }}>المولدات المحذوفة (تُحذف نهائياً بعد شهر):</Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {deletedGenerators.map(function(dg) {
+                const daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
+                const dgData = dg.data || {};
+                const subCount = (dgData.subscribers || []).length;
+                return (
+                  <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
+                    Alert.alert('استرداد المولد', 'هل تريد استرداد "' + dg.name + '"؟', [
+                      { text: 'إلغاء', style: 'cancel' },
+                      { text: 'نعم، استرداد', onPress: function() { handleRestoreGenerator(dg.id); } },
+                    ]);
+                  }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, color: darkMode ? '#fff' : '#333', fontWeight: 'bold' }}>{dg.name}</Text>
+                      <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
+                    </View>
+                    <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
+                  </TouchableOpacity>
+                );
+              })}
+              {deletedGenerators.length === 0 && (
+                <Text style={{ fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 }}>لا توجد مولدات محذوفة</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
   </>);
 };
 
@@ -3236,6 +3331,9 @@ export default function App() {
   const [updateCategoryType, setUpdateCategoryType] = useState(null);
   const [monthlyDataVisible, setMonthlyDataVisible] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [deletedGenerators, setDeletedGenerators] = useState([]);
+  const [restoreGeneratorVisible, setRestoreGeneratorVisible] = useState(false);
+  const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -3423,6 +3521,16 @@ export default function App() {
     if (all.workers !== undefined) setWorkers(all.workers);
     if (all.darkMode !== undefined) setDarkMode(all.darkMode);
 
+    const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const savedDeleted = all.deletedGenerators || [];
+    const validDeleted = savedDeleted.filter(function(dg) {
+      return dg.deletedAt > oneMonthAgo;
+    });
+    if (validDeleted.length !== savedDeleted.length) {
+      await saveUserData(currentUser, 'deletedGenerators', validDeleted);
+    }
+    setDeletedGenerators(validDeleted);
+
     let loadedGenerators = all.generators || [];
     let loadedCurrentId = all.currentGeneratorId || null;
 
@@ -3511,6 +3619,56 @@ export default function App() {
       await saveUserData(currentUser, 'generators', updatedGenerators);
       await saveUserData(currentUser, 'currentGeneratorId', genId);
     }
+  };
+
+  const handleDeleteGenerator = async (genId, password) => {
+    const usersResult = await loadFromFile('registered_users');
+    const usersList = usersResult || [];
+    const user = usersList.find(function(u) { return u.phone === currentUser; });
+    if (!user) return false;
+    const saltedHash = await hashPassword(password, currentUser);
+    const unsaltedHash = await hashPassword(password, '');
+    if (user.password !== saltedHash && user.password !== unsaltedHash) return false;
+    if (generators.length <= 1) {
+      Alert.alert('تنبيه', 'لا يمكن حذف المولد الوحيد');
+      return false;
+    }
+    const genToDelete = generators.find(function(g) { return g.id === genId; });
+    if (!genToDelete) return false;
+    const genData = { ...genToDelete, subscribers: subscribers, amperPrices: amperPrices, monthlyExpenses: monthlyExpenses };
+    const deletedEntry = {
+      id: genToDelete.id,
+      name: genToDelete.name,
+      data: genData,
+      deletedAt: Date.now(),
+    };
+    const updatedGenerators = generators.filter(function(g) { return g.id !== genId; });
+    const updatedDeleted = [...deletedGenerators, deletedEntry];
+    setGenerators(updatedGenerators);
+    setDeletedGenerators(updatedDeleted);
+    const active = updatedGenerators[0];
+    setCurrentGeneratorId(active.id);
+    setGeneratorName(active.name);
+    setSubscribers(active.subscribers || []);
+    setAmperPrices(active.amperPrices || {});
+    setMonthlyExpenses(active.monthlyExpenses || {});
+    await saveUserData(currentUser, 'generators', updatedGenerators);
+    await saveUserData(currentUser, 'currentGeneratorId', active.id);
+    await saveUserData(currentUser, 'deletedGenerators', updatedDeleted);
+    return true;
+  };
+
+  const handleRestoreGenerator = async (genId) => {
+    const entry = deletedGenerators.find(function(dg) { return dg.id === genId; });
+    if (!entry) return;
+    const restored = entry.data || { id: entry.id, name: entry.name, subscribers: [], amperPrices: {}, monthlyExpenses: {} };
+    const updatedGenerators = [...generators, restored];
+    const updatedDeleted = deletedGenerators.filter(function(dg) { return dg.id !== genId; });
+    setGenerators(updatedGenerators);
+    setDeletedGenerators(updatedDeleted);
+    await saveUserData(currentUser, 'generators', updatedGenerators);
+    await saveUserData(currentUser, 'deletedGenerators', updatedDeleted);
+    Alert.alert('تم', 'تم استرداد المولد "' + entry.name + '" بنجاح');
   };
 
   const handleLogin = (userPhone) => {
@@ -4418,6 +4576,10 @@ export default function App() {
         newWorkerCredentials={newWorkerCredentials}
         onDismissCredentials={() => setNewWorkerCredentials(null)}
         generators={generators}
+        onDeleteGenerator={handleDeleteGenerator}
+        onRestoreGenerator={handleRestoreGenerator}
+        deletedGenerators={deletedGenerators}
+        currentGeneratorId={currentGeneratorId}
       />
       <WorkerUpdatesModal
         visible={updatesModalVisible}
