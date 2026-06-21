@@ -3476,7 +3476,7 @@ export default function App() {
     if (!currentUser || userRole === 'worker' || !settingsVisible) return;
     const pollInterval = setInterval(async () => {
       const updates = await loadUserData(currentUser, 'pending_worker_updates');
-      setPendingWorkerUpdates(updates || []);
+      setPendingWorkerUpdates(normalizeBatches(updates));
     }, 30000);
     return () => clearInterval(pollInterval);
   }, [currentUser, userRole, settingsVisible]);
@@ -3571,7 +3571,7 @@ export default function App() {
     if (!currentUser) return;
     const all = await loadAllUserKeys(currentUser);
     if (all.ownerName !== undefined) setOwnerName(all.ownerName);
-    if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(all.pending_worker_updates);
+    if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(normalizeBatches(all.pending_worker_updates));
     if (all.workers !== undefined) setWorkers(all.workers);
     if (all.darkMode !== undefined) setDarkMode(all.darkMode);
 
@@ -3975,21 +3975,21 @@ export default function App() {
   const loadPendingUpdates = async () => {
     if (!currentUser) return;
     const updates = await loadUserData(currentUser, 'pending_worker_updates');
-    if (!updates || updates.length === 0) {
-      setPendingWorkerUpdates([]);
-      return;
-    }
-    const normalized = updates.map((item, idx) => {
+    setPendingWorkerUpdates(normalizeBatches(updates));
+  };
+
+  const normalizeBatches = (data) => {
+    if (!data || data.length === 0) return [];
+    return data.map((item, idx) => {
       if (item.updates && item.id && item.number) return item;
       return {
-        id: 'legacy_' + idx,
+        id: 'legacy_' + idx + '_' + Date.now(),
         number: idx + 1,
         timestamp: item.timestamp || '',
         workerName: item.ownerName || '',
         updates: [item],
       };
     });
-    setPendingWorkerUpdates(normalized);
   };
 
   const handleExport = async () => {
