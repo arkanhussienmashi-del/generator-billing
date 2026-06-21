@@ -350,6 +350,7 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
 
 const RegisterScreen = ({ onBack, onRegister }) => {
   const [phone, setPhone] = useState('');
+  const [ownerCode, setOwnerCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -380,7 +381,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
       Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل');
       return;
     }
-    users.push({ phone: phone.trim(), password: hashedPassword });
+    users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim() || '' });
     await saveToFile('registered_users', users);
 
     await Promise.all([
@@ -419,6 +420,17 @@ const RegisterScreen = ({ onBack, onRegister }) => {
               onChangeText={(t) => setPhone(onlyDigits(t))}
               keyboardType="phone-pad"
               maxLength={11}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="اسم المستخدم / الرمز (اختياري)"
+              placeholderTextColor="#999"
+              value={ownerCode}
+              onChangeText={setOwnerCode}
             />
           </View>
 

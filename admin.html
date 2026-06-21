@@ -255,6 +255,7 @@ async function loadAll() {
     owners.push({
       phone: phone,
       name: ownerName || phone,
+      ownerCode: user.ownerCode || '',
       genName: genName,
       subscribers: subs,
       generators: gens,
@@ -294,8 +295,9 @@ function renderOwners(owners) {
     html += '<div class="owner-info">';
     html += '<div class="owner-avatar">' + (owner.name ? owner.name.charAt(0) : '?') + '</div>';
     html += '<div><div class="owner-name">' + esc(owner.name) + '</div>';
-    html += '<div class="owner-phone">' + esc(owner.phone) + '</div></div>';
-    html += '</div>';
+    html += '<div class="owner-phone">' + esc(owner.phone) + '</div>';
+    if (owner.ownerCode) html += '<div class="owner-phone" style="color:#1565c0;font-weight:600">الرمز: ' + esc(owner.ownerCode) + '</div>';
+    html += '</div></div>';
     html += '<div class="owner-badges">';
     html += '<span class="badge badge-blue">' + activeSubs.length + ' مشترك</span>';
     if (owner.workers.length > 0) html += '<span class="badge badge-purple">' + owner.workers.length + ' عامل</span>';
