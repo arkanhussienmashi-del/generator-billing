@@ -1336,7 +1336,7 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
                         </View>
                       )}
                       <View style={{ borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, marginTop: 4, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 13, color: '#666' }}>عدد التحديثات: {batch.updates.length}</Text>
+                        <Text style={{ fontSize: 13, color: '#666' }}>عدد التحديثات: {(batch.updates || []).length}</Text>
                         <Ionicons name="chevron-back" size={20} color="#999" />
                       </View>
                     </TouchableOpacity>
