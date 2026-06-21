@@ -351,6 +351,7 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
 const RegisterScreen = ({ onBack, onRegister }) => {
   const [phone, setPhone] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
+  const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -359,6 +360,18 @@ const RegisterScreen = ({ onBack, onRegister }) => {
     const phoneError = validatePhone(phone);
     if (phoneError) {
       Alert.alert('تنبيه', phoneError);
+      return;
+    }
+    if (!ownerCode.trim()) {
+      Alert.alert('تنبيه', 'يرجى إدخال الرمز');
+      return;
+    }
+    if (ownerCode.trim().length < 6) {
+      Alert.alert('تنبيه', 'الرمز يجب أن يكون 6 أحرف أو أرقام على الأقل');
+      return;
+    }
+    if (ownerCode.trim() !== confirmOwnerCode.trim()) {
+      Alert.alert('تنبيه', 'الرمز غير متطابق');
       return;
     }
     if (!password.trim()) {
@@ -427,10 +440,21 @@ const RegisterScreen = ({ onBack, onRegister }) => {
             <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="اسم المستخدم / الرمز (اختياري)"
+              placeholder="الرمز (6 أحرف أو أرقام على الأقل)"
               placeholderTextColor="#999"
               value={ownerCode}
               onChangeText={setOwnerCode}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="تأكيد الرمز"
+              placeholderTextColor="#999"
+              value={confirmOwnerCode}
+              onChangeText={setConfirmOwnerCode}
             />
           </View>
 
