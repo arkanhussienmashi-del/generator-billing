@@ -581,10 +581,10 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
   );
 };
 
-const WorkerLoginScreen = ({ onBack, onLogin }) => {
+const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
-  const [workerName, setWorkerName] = useState('');
+  const [workerName, setWorkerName] = useState(savedWorkerName || '');
 
   const handleLogin = async () => {
     if (!workerName.trim()) {
@@ -598,6 +598,9 @@ const WorkerLoginScreen = ({ onBack, onLogin }) => {
     const result = await onLogin(code.trim(), pin.trim(), workerName.trim());
     if (result.deleted) {
       Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
+    } else if (result.nameMismatch) {
+      Alert.alert('تنبيه', 'الاسم غير مطابق. اسمك المسجل هو: ' + result.savedName + '\nيرجى تسجيل الدخول بالاسم الصحيح');
+      setWorkerName(result.savedName);
     } else if (!result.success) {
       Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
     }
@@ -620,12 +623,13 @@ const WorkerLoginScreen = ({ onBack, onLogin }) => {
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, savedWorkerName ? { backgroundColor: '#f0f0f0', color: '#333' } : {}]}
               placeholder="اسمك (مطلوب)"
               placeholderTextColor="#999"
               value={workerName}
-              onChangeText={setWorkerName}
+              onChangeText={savedWorkerName ? null : setWorkerName}
               textAlign="right"
+              editable={!savedWorkerName}
             />
           </View>
 
@@ -4068,7 +4072,7 @@ export default function App() {
     }
   };
 
-  const handleWorkerLogin = async (code, pin) => {
+  const handleWorkerLogin = async (code, pin, name) => {
     const usersResult = await loadFromFile('registered_users');
     const list = usersResult || [];
     for (const user of list) {
@@ -4080,7 +4084,19 @@ export default function App() {
       if (workers) {
         const found = workers.find(w => w.code === code.toUpperCase() && w.pin === pin.toUpperCase());
         if (found) {
-          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [], assignedGeneratorId: found.assignedGeneratorId || null, assignedGenerators: found.assignedGenerators || [] };
+          if (found.workerName && found.workerName !== name) {
+            return { success: false, nameMismatch: true, savedName: found.workerName };
+          }
+          if (!found.workerName) {
+            const updatedWorkers = workers.map(function(w) {
+              if (w.code === code.toUpperCase()) {
+                return Object.assign({}, w, { workerName: name });
+              }
+              return w;
+            });
+            await saveUserData(user.phone, 'workers', updatedWorkers);
+          }
+          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [], assignedGeneratorId: found.assignedGeneratorId || null, assignedGenerators: found.assignedGenerators || [], savedName: found.workerName || name };
         }
       }
     }
@@ -4358,13 +4374,13 @@ export default function App() {
       <WorkerLoginScreen
         onBack={() => setScreen('welcome')}
         onLogin={async (code, pin, name) => {
-          const result = await handleWorkerLogin(code, pin);
+          const result = await handleWorkerLogin(code, pin, name);
           if (result.success) {
             setWorkerOwnerPhone(result.ownerPhone);
             setUserRole('worker');
             setWorkerPermissions(result.permissions);
             setWorkerCode(code.toUpperCase());
-            setWorkerName(name);
+            setWorkerName(result.savedName || name);
             setCurrentUser(result.ownerPhone);
             const assignedGens = result.assignedGenerators || [];
             setWorkerAssignedGenerators(assignedGens);
@@ -4372,7 +4388,7 @@ export default function App() {
               phone: result.ownerPhone,
               role: 'worker',
               workerCode: code.toUpperCase(),
-              workerName: name,
+              workerName: result.savedName || name,
               permissions: result.permissions,
               assignedGeneratorId: result.assignedGeneratorId || null,
               assignedGenerators: assignedGens,
