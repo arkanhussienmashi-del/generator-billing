@@ -701,7 +701,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
     setWorkerModalVisible(false);
   };
 
-  return (
+  return (<>
     <Modal visible={visible} animationType="slide" transparent={false}>
       <View style={{ flex: 1, backgroundColor: darkMode ? '#121212' : 'white' }}>
           <View style={[styles.modalHeader, { backgroundColor: '#1565C0' }]}>
@@ -1009,7 +1009,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
         </View>
       </View>
     </Modal>
-  );
+  </>);
 };
 
 const WorkerUpdatesModal = ({ visible, onClose, updates, onApplyUpdates, amperPrices }) => {
