@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -128,6 +128,15 @@ function formatNumber(num) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+const PERMISSION_LABELS = {
+  add: 'إضافة مشتركين',
+  edit: 'تعديل بيانات',
+  delete: 'حذف مشتركين',
+  amperPrice: 'تغيير الأمبير',
+  cancelPayment: 'إلغاء الدفع',
+  partialPayment: 'دفع جزئي',
+};
+
 function generateWorkerCode(ownerPhone) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const ownerSuffix = ownerPhone.slice(-4);
@@ -253,7 +262,7 @@ const OnboardingScreen = ({ onComplete }) => {
       icon: 'person-add',
       iconColor: '#F44336',
       title: 'إدارة العمال',
-      description: 'إضافة عامل جديد من الإعدادات via كود ورمز سري. يمكن تخصيص صلاحياته: إضافة مشتركين، تعديل بيانات، حذف مشتركين، تغيير الأمبير، دفع الأقساط، وإلغاء الدفعات',
+      description: 'إضافة عامل جديد من الإعدادات عن طريق كود ورمز سري. يمكن تخصيص صلاحياته: إضافة مشتركين، تعديل بيانات، حذف مشتركين، تغيير الأمبير، دفع الأقساط، وإلغاء الدفعات',
       bg: '#B71C1C',
     },
   ];
@@ -350,7 +359,6 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   const [phone, setPhone] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const handleRegister = async () => {
     const phoneError = validatePhone(phone);
@@ -378,7 +386,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
       Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل');
       return;
     }
-    users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim() });
+    users.push({ phone: phone.trim(), password: hashedPassword });
     await saveToFile('registered_users', users);
 
     await Promise.all([
@@ -428,6 +436,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               placeholderTextColor="#999"
               value={ownerCode}
               onChangeText={setOwnerCode}
+              maxLength={20}
             />
           </View>
 
@@ -439,6 +448,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               placeholderTextColor="#999"
               value={confirmOwnerCode}
               onChangeText={setConfirmOwnerCode}
+              maxLength={20}
             />
           </View>
 
@@ -563,6 +573,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              maxLength={50}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={22} color="#666" />
@@ -898,7 +909,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                     <Text style={{ fontSize: 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
                   </TouchableOpacity>
                 );
-              }) : <Text style={{ fontSize: 14, color: '#999', textAlign: 'center' }}>مولد واحد فقط - العامل يعمل عليه بال')</Text>}
+              }) : <Text style={{ fontSize: 14, color: '#999', textAlign: 'center' }}>مولد واحد فقط - العامل يعمل عليه</Text>}
             </View>
 
             <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#FF9800', marginTop: 20 }]} onPress={handleConfirmCreateWorker}>
@@ -1074,7 +1085,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
           </View>
 
           <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 20 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.join(', ') : ''}</Text>
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.map(function(p) { return PERMISSION_LABELS[p] || p; }).join('، ') : ''}</Text>
           </View>
 
           <TouchableOpacity style={{ backgroundColor: '#FF9800', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center', marginBottom: 10 }} onPress={async () => {
@@ -1630,7 +1641,8 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       meterNumber: meterNumber.trim(),
       visaNumber: visaNumber.trim(),
     };
-    if (!isPaid && amperVal !== subscriber.amper) {
+    const currentMonthAmper = getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear));
+    if (!isPaid && amperVal !== currentMonthAmper) {
       updatedSubscriber.amperHistory = [
         ...(subscriber.amperHistory || []),
         { monthKey: `${selectedMonth}_${selectedYear}`, amper: amperVal },
@@ -2046,7 +2058,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                   keyboardType="numeric"
                   textAlign="center"
                   placeholder="0"
-                  placeholderTextColor="transparent"
+                  placeholderTextColor="#999"
                 />
               </View>
             );
@@ -2424,7 +2436,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               ).map(sub => (
                 <TouchableOpacity
                   key={sub.id}
-                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
                   onPress={() => {
                     setDeletePickerVisible(false);
                     setDeletePickerSearch('');
@@ -2479,7 +2491,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               ).map(sub => (
                 <TouchableOpacity
                   key={sub.id}
-                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
                   onPress={() => {
                     setEditPickerVisible(false);
                     setEditPickerSearch('');
@@ -3077,7 +3089,14 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
     let requiredCount = 0;
     let unpaidCount = 0;
     let collectedAmount = 0;
+    let visibleCount = 0;
     subscribers.forEach(s => {
+      const addedMonth = s.addedMonth ? parseInt(s.addedMonth) : 1;
+      const addedYear = s.addedYear ? parseInt(s.addedYear) : currentYear;
+      const isBeforeAdded = (currentYear < addedYear) || (currentYear === addedYear && currentMonth < addedMonth);
+      if (isBeforeAdded) return;
+      if (isDeletedForReport(s, currentMonth, currentYear)) return;
+      visibleCount++;
       const amp = getAmperForMonth(s, currentMonth, currentYear);
       totalAmper += amp;
       const isPaid = s.paidMonths && s.paidMonths[currentMonthKey];
@@ -3098,7 +3117,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
     const totalExpenses = (parseFloat(gas) || 0) + (parseFloat(oil) || 0) +
       (parseFloat(repairs) || 0) + (parseFloat(salaries) || 0);
     const netExpected = collectedAmount - totalExpenses;
-    return { totalSubscribers: subscribers.length, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price };
+    return { totalSubscribers: visibleCount, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price };
   }, [subscribers, localAmperPrice, gas, oil, repairs, salaries, currentMonth, currentYear, currentMonthKey]);
 
   const { totalSubscribers, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price } = stats;
@@ -3191,7 +3210,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
         <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
           <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1 }]}>سعر الأميبر - شهر {currentMonth} (د.ع)</Text>
-          <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="transparent" />
+          <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
         </View>
 
         <View style={styles.statsContainer}>
@@ -3250,7 +3269,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('gas', 'كاز')}>
               <Ionicons name="add-circle" size={24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={gas ? formatNumber(gas) : ''} onChangeText={(v) => handleExpenseChange('gas', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="rgba(255,255,255,0.2)" />
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={gas ? formatNumber(gas) : ''} onChangeText={(v) => handleExpenseChange('gas', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="water" size={16} color="#2196F3" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>كاز</Text>
@@ -3260,7 +3279,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('oil', 'دهن')}>
               <Ionicons name="add-circle" size={24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={oil ? formatNumber(oil) : ''} onChangeText={(v) => handleExpenseChange('oil', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="rgba(255,255,255,0.2)" />
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={oil ? formatNumber(oil) : ''} onChangeText={(v) => handleExpenseChange('oil', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="flask" size={16} color="#9C27B0" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>دهن</Text>
@@ -3270,7 +3289,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('repairs', 'إصلاحات')}>
               <Ionicons name="add-circle" size={24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={repairs ? formatNumber(repairs) : ''} onChangeText={(v) => handleExpenseChange('repairs', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="rgba(255,255,255,0.2)" />
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={repairs ? formatNumber(repairs) : ''} onChangeText={(v) => handleExpenseChange('repairs', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="build" size={16} color="#FF5722" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>إصلاحات</Text>
@@ -3280,7 +3299,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('salaries', 'رواتب')}>
               <Ionicons name="add-circle" size={24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={salaries ? formatNumber(salaries) : ''} onChangeText={(v) => handleExpenseChange('salaries', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="rgba(255,255,255,0.2)" />
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={salaries ? formatNumber(salaries) : ''} onChangeText={(v) => handleExpenseChange('salaries', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="people" size={16} color="#607D8B" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>رواتب</Text>
@@ -3446,8 +3465,6 @@ export default function App() {
   const [workerSwitchGeneratorVisible, setWorkerSwitchGeneratorVisible] = useState(false);
   const [newWorkerCredentials, setNewWorkerCredentials] = useState(null);
   const [updatesModalVisible, setUpdatesModalVisible] = useState(false);
-  const [updateCategoryVisible, setUpdateCategoryVisible] = useState(false);
-  const [updateCategoryType, setUpdateCategoryType] = useState(null);
   const [monthlyDataVisible, setMonthlyDataVisible] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [deletedGenerators, setDeletedGenerators] = useState([]);
@@ -3531,13 +3548,13 @@ export default function App() {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser || userRole === 'worker' || !settingsVisible) return;
+    if (!currentUser || userRole === 'worker') return;
     const pollInterval = setInterval(async () => {
       const updates = await loadUserData(currentUser, 'pending_worker_updates');
       setPendingWorkerUpdates(normalizeBatches(updates));
     }, 30000);
     return () => clearInterval(pollInterval);
-  }, [currentUser, userRole, settingsVisible]);
+  }, [currentUser, userRole]);
 
   const workerSyncRef = React.useRef({ generators: generators, currentGeneratorId: currentGeneratorId });
   useEffect(() => {
@@ -3652,48 +3669,56 @@ export default function App() {
   };
 
   const handleCreateGenerator = async (name) => {
-    const newGen = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      subscribers: [],
-      amperPrices: {},
-      monthlyExpenses: {},
-    };
-    const updated = [...generators, newGen];
-    setGenerators(updated);
-    setCurrentGeneratorId(newGen.id);
-    setGeneratorName(newGen.name);
-    setSubscribers([]);
-    setAmperPrices({});
-    setMonthlyExpenses({});
-    if (currentUser) {
-      await saveUserData(currentUser, 'generators', updated);
-      await saveUserData(currentUser, 'currentGeneratorId', newGen.id);
+    try {
+      const newGen = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        subscribers: [],
+        amperPrices: {},
+        monthlyExpenses: {},
+      };
+      const updated = [...generators, newGen];
+      setGenerators(updated);
+      setCurrentGeneratorId(newGen.id);
+      setGeneratorName(newGen.name);
+      setSubscribers([]);
+      setAmperPrices({});
+      setMonthlyExpenses({});
+      if (currentUser) {
+        await saveUserData(currentUser, 'generators', updated);
+        await saveUserData(currentUser, 'currentGeneratorId', newGen.id);
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء المولد');
     }
   };
 
   const handleSwitchGenerator = async (genId) => {
-    if (genId === currentGeneratorId) return;
+    try {
+      if (genId === currentGeneratorId) return;
 
-    const updatedGenerators = generators.map(g => {
-      if (g.id === currentGeneratorId) {
-        return { ...g, subscribers, amperPrices, monthlyExpenses };
+      const updatedGenerators = generators.map(g => {
+        if (g.id === currentGeneratorId) {
+          return { ...g, subscribers, amperPrices, monthlyExpenses };
+        }
+        return g;
+      });
+
+      const target = updatedGenerators.find(g => g.id === genId);
+      if (!target) return;
+
+      setGenerators(updatedGenerators);
+      setCurrentGeneratorId(genId);
+      setGeneratorName(target.name);
+      setSubscribers(target.subscribers || []);
+      setAmperPrices(target.amperPrices || {});
+      setMonthlyExpenses(target.monthlyExpenses || {});
+      if (currentUser) {
+        await saveUserData(currentUser, 'generators', updatedGenerators);
+        await saveUserData(currentUser, 'currentGeneratorId', genId);
       }
-      return g;
-    });
-
-    const target = updatedGenerators.find(g => g.id === genId);
-    if (!target) return;
-
-    setGenerators(updatedGenerators);
-    setCurrentGeneratorId(genId);
-    setGeneratorName(target.name);
-    setSubscribers(target.subscribers || []);
-    setAmperPrices(target.amperPrices || {});
-    setMonthlyExpenses(target.monthlyExpenses || {});
-    if (currentUser) {
-      await saveUserData(currentUser, 'generators', updatedGenerators);
-      await saveUserData(currentUser, 'currentGeneratorId', genId);
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء التبديل بين المولدات');
     }
   };
 
@@ -3711,7 +3736,7 @@ export default function App() {
     }
     const genToDelete = generators.find(function(g) { return g.id === genId; });
     if (!genToDelete) return false;
-    const genData = { ...genToDelete, subscribers: subscribers, amperPrices: amperPrices, monthlyExpenses: monthlyExpenses };
+    const genData = { ...genToDelete, subscribers: genToDelete.subscribers || [], amperPrices: genToDelete.amperPrices || {}, monthlyExpenses: genToDelete.monthlyExpenses || {} };
     const deletedEntry = {
       id: genToDelete.id,
       name: genToDelete.name,
@@ -3777,7 +3802,9 @@ export default function App() {
     setMonthlyExpenses({});
     setGenerators([]);
     setCurrentGeneratorId(null);
-    setScreen('welcome');
+    setNewWorkerCredentials(null);
+    setDeletedGenerators([]);
+    setScreen('login');
   };
 
   const trackWorkerUpdate = (type, subscriberId, subscriberName, amper, monthKey, details) => {
@@ -3995,10 +4022,14 @@ export default function App() {
   };
 
   const handleDeleteBatch = async (batchId) => {
-    const remaining = pendingWorkerUpdates.filter(b => b.id !== batchId);
-    setPendingWorkerUpdates(remaining);
-    await saveUserData(currentUser, 'pending_worker_updates', remaining);
-    Alert.alert('تم', 'تم حذف التحديث');
+    try {
+      const remaining = pendingWorkerUpdates.filter(b => b.id !== batchId);
+      setPendingWorkerUpdates(remaining);
+      await saveUserData(currentUser, 'pending_worker_updates', remaining);
+      Alert.alert('تم', 'تم حذف التحديث');
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء حذف التحديث');
+    }
   };
 
   const normalizeBatches = (data) => {
@@ -4094,37 +4125,49 @@ export default function App() {
   };
 
   const handleCreateWorker = async (permissions, assignedGenerators) => {
-    const code = generateWorkerCode(currentUser);
-    const pin = generateWorkerPin();
-    const newWorker = { code, pin, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
-    const updated = [...workers, newWorker];
-    await saveUserData(currentUser, 'workers', updated);
-    setWorkers(updated);
-    setNewWorkerCredentials({ code, pin, permissions });
+    try {
+      const code = generateWorkerCode(currentUser);
+      const pin = generateWorkerPin();
+      const newWorker = { code, pin, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+      const updated = [...workers, newWorker];
+      await saveUserData(currentUser, 'workers', updated);
+      setWorkers(updated);
+      setNewWorkerCredentials({ code, pin, permissions });
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء حساب العامل');
+    }
   };
 
   const handleUpdateWorker = async (code, permissions, assignedGenerators) => {
-    const updated = workers.map(w => w.code === code ? { ...w, permissions, assignedGenerators: assignedGenerators || [] } : w);
-    await saveUserData(currentUser, 'workers', updated);
-    setWorkers(updated);
-    Alert.alert('تم', 'تم تعديل صلاحيات العامل بنجاح');
+    try {
+      const updated = workers.map(w => w.code === code ? { ...w, permissions, assignedGenerators: assignedGenerators || [] } : w);
+      await saveUserData(currentUser, 'workers', updated);
+      setWorkers(updated);
+      Alert.alert('تم', 'تم تعديل صلاحيات العامل بنجاح');
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تعديل صلاحيات العامل');
+    }
   };
 
   const handleDeleteWorker = async (code) => {
-    const deletedWorkers = await loadUserData(currentUser, 'deletedWorkers') || [];
-    const worker = workers.find(w => w.code === code);
-    if (worker) {
-      deletedWorkers.push({ code: worker.code, deletedAt: new Date().toISOString() });
-      await saveUserData(currentUser, 'deletedWorkers', deletedWorkers);
-    }
-    const filtered = workers.filter(w => w.code !== code);
-    await saveUserData(currentUser, 'workers', filtered);
-    setWorkers(filtered);
-    if (userRole === 'worker' && workerCode === code) {
-      handleLogout();
-      Alert.alert('تم الحذف', 'تم حذف حسابك من قبل صاحب المولد');
-    } else {
+    try {
+      const deletedWorkers = await loadUserData(currentUser, 'deletedWorkers') || [];
+      const worker = workers.find(w => w.code === code);
+      if (worker) {
+        deletedWorkers.push({ code: worker.code, deletedAt: new Date().toISOString() });
+        await saveUserData(currentUser, 'deletedWorkers', deletedWorkers);
+      }
+      const filtered = workers.filter(w => w.code !== code);
+      await saveUserData(currentUser, 'workers', filtered);
+      setWorkers(filtered);
+      if (userRole === 'worker' && workerCode === code) {
+        handleLogout();
+        Alert.alert('تم الحذف', 'تم حذف حسابك من قبل صاحب المولد');
+      } else {
       Alert.alert('تم', 'تم حذف العامل بنجاح');
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء حذف العامل');
     }
   };
 
@@ -4161,173 +4204,192 @@ export default function App() {
 
   const handleAddSubscriber = async (subscriber) => {
     resetActivity();
-    if (userRole === 'worker' && !workerPermissions.includes('add')) return;
-    const existing = subscribers.find(s => s.id === subscriber.id);
-    if (existing) {
-      const duplicate = subscribers.find(s => s.name.trim() === subscriber.name.trim() && s.id !== subscriber.id);
-      if (duplicate) {
-        Alert.alert('تنبيه', 'يوجد مشترك آخر بنفس الاسم');
-        return;
+    try {
+      if (userRole === 'worker' && !workerPermissions.includes('add')) return;
+      const existing = subscribers.find(s => s.id === subscriber.id);
+      if (existing) {
+        const duplicate = subscribers.find(s => s.name.trim() === subscriber.name.trim() && s.id !== subscriber.id);
+        if (duplicate) {
+          Alert.alert('تنبيه', 'يوجد مشترك آخر بنفس الاسم');
+          return;
+        }
+        const newSubs = subscribers.map(s => s.id === subscriber.id ? subscriber : s);
+        setSubscribers(newSubs);
+        if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+        if (userRole === 'worker') {
+          const now = new Date();
+          const editMonthKey = `${now.getMonth() + 1}_${now.getFullYear()}`;
+          trackWorkerUpdate('edit', subscriber.id, subscriber.name, subscriber.amper, editMonthKey, {
+            name: subscriber.name,
+            phone: subscriber.phone,
+            amper: subscriber.amper,
+            subscriberNumber: subscriber.subscriberNumber,
+            meterNumber: subscriber.meterNumber,
+            visaNumber: subscriber.visaNumber,
+          });
+        }
+      } else {
+        const duplicate = subscribers.find(s => s.name.trim() === subscriber.name.trim());
+        if (duplicate) {
+          Alert.alert('تنبيه', 'يوجد مشترك بنفس الاسم بالفعل');
+          return;
+        }
+        const newSubs = [...subscribers, subscriber];
+        setSubscribers(newSubs);
+        if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+        if (userRole === 'worker') {
+          trackWorkerUpdate('add', subscriber.id, subscriber.name, subscriber.amper, subscriber.addedMonth + '_' + subscriber.addedYear, {
+            phone: subscriber.phone,
+            addedMonth: subscriber.addedMonth,
+            addedYear: subscriber.addedYear,
+            amperHistory: subscriber.amperHistory,
+            subscriberNumber: subscriber.subscriberNumber,
+            meterNumber: subscriber.meterNumber,
+            visaNumber: subscriber.visaNumber,
+          });
+        }
       }
-      const newSubs = subscribers.map(s => s.id === subscriber.id ? subscriber : s);
-      setSubscribers(newSubs);
-      if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
-      if (userRole === 'worker') {
-        const now = new Date();
-        const editMonthKey = `${now.getMonth() + 1}_${now.getFullYear()}`;
-        trackWorkerUpdate('edit', subscriber.id, subscriber.name, subscriber.amper, editMonthKey, {
-          name: subscriber.name,
-          phone: subscriber.phone,
-          amper: subscriber.amper,
-          subscriberNumber: subscriber.subscriberNumber,
-          meterNumber: subscriber.meterNumber,
-          visaNumber: subscriber.visaNumber,
-        });
-      }
-    } else {
-      const duplicate = subscribers.find(s => s.name.trim() === subscriber.name.trim());
-      if (duplicate) {
-        Alert.alert('تنبيه', 'يوجد مشترك بنفس الاسم بالفعل');
-        return;
-      }
-      const newSubs = [...subscribers, subscriber];
-      setSubscribers(newSubs);
-      if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
-      if (userRole === 'worker') {
-        trackWorkerUpdate('add', subscriber.id, subscriber.name, subscriber.amper, subscriber.addedMonth + '_' + subscriber.addedYear, {
-          phone: subscriber.phone,
-          addedMonth: subscriber.addedMonth,
-          addedYear: subscriber.addedYear,
-          amperHistory: subscriber.amperHistory,
-          subscriberNumber: subscriber.subscriberNumber,
-          meterNumber: subscriber.meterNumber,
-          visaNumber: subscriber.visaNumber,
-        });
-      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء حفظ البيانات');
     }
   };
 
   const handleDeleteSubscriber = async (id, monthKey) => {
     resetActivity();
-    if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
-    const now = new Date();
-    const hours = now.getHours();
-    const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
-    const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
-    const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
-    const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
-    const sub = subscribers.find(s => s.id === id);
+    try {
+      if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
+      const now = new Date();
+      const hours = now.getHours();
+      const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+      const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+      const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+      const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
+      const sub = subscribers.find(s => s.id === id);
 
-    const newSubs = subscribers.map(s => {
-      if (s.id === id) {
-        return {
-          ...s,
-          deletedFromMonth: monthKey,
-          deletedAt: timestamp,
-          deletedByOwner: userRole === 'worker' ? workerName : ownerName,
-        };
+      const newSubs = subscribers.map(s => {
+        if (s.id === id) {
+          return {
+            ...s,
+            deletedFromMonth: monthKey,
+            deletedAt: timestamp,
+            deletedByOwner: userRole === 'worker' ? workerName : ownerName,
+          };
+        }
+        return s;
+      });
+      setSubscribers(newSubs);
+      if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+      if (userRole === 'worker' && sub) {
+        trackWorkerUpdate('delete', id, sub.name, sub.amper, monthKey);
       }
-      return s;
-    });
-    setSubscribers(newSubs);
-    if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
-    if (userRole === 'worker' && sub) {
-      trackWorkerUpdate('delete', id, sub.name, sub.amper, monthKey);
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء حذف المشترك');
     }
   };
 
   const handleTogglePaid = async (id, monthKey) => {
     resetActivity();
-    if (userRole === 'worker' && !workerPermissions.includes('edit')) return;
-    const sub = subscribers.find(s => s.id === id);
-    if (!sub) return;
-    const now = new Date();
-    const hours = now.getHours();
-    const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
-    const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
-    const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
-    const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
-    const isCurrentlyPaid = sub && sub.paidMonths && sub.paidMonths[monthKey];
-    const newSubs = subscribers.map(s => {
-      if (s.id === id) {
-        const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
-        paidMonths[monthKey] = !isCurrentlyPaid;
-        const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
-        paymentHistory.push({
-          monthKey,
-          action: isCurrentlyPaid ? 'cancelled' : 'paid',
-          timestamp,
-          date: now.toISOString(),
-          ownerName: userRole === 'worker' ? workerName : ownerName,
-        });
-        const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
-        if (isCurrentlyPaid) {
-          delete partialPayments[monthKey];
-        }
-        return { ...s, paidMonths, paymentHistory, partialPayments };
+    try {
+      const sub = subscribers.find(s => s.id === id);
+      if (!sub) return;
+      const isCurrentlyPaid = sub && sub.paidMonths && sub.paidMonths[monthKey];
+      if (userRole === 'worker') {
+        const requiredPerm = isCurrentlyPaid ? 'cancelPayment' : 'edit';
+        if (!workerPermissions.includes(requiredPerm)) return;
       }
-      return s;
-    });
-    setSubscribers(newSubs);
-    if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
-    if (userRole === 'worker' && sub) {
-      const monthPrice = getAmperPrice(amperPrices, monthKey);
-      const amperVal = getAmperForMonth(sub, parseInt(monthKey.split('_')[0]), parseInt(monthKey.split('_')[1]));
-      const amount = amperVal * monthPrice;
-      trackWorkerUpdate(isCurrentlyPaid ? 'cancelled' : 'paid', id, sub.name, sub.amper, monthKey, { amount });
+      const now = new Date();
+      const hours = now.getHours();
+      const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+      const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+      const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+      const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
+      const newSubs = subscribers.map(s => {
+        if (s.id === id) {
+          const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
+          paidMonths[monthKey] = !isCurrentlyPaid;
+          const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
+          paymentHistory.push({
+            monthKey,
+            action: isCurrentlyPaid ? 'cancelled' : 'paid',
+            timestamp,
+            date: now.toISOString(),
+            ownerName: userRole === 'worker' ? workerName : ownerName,
+          });
+          const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
+          if (isCurrentlyPaid) {
+            delete partialPayments[monthKey];
+          }
+          return { ...s, paidMonths, paymentHistory, partialPayments };
+        }
+        return s;
+      });
+      setSubscribers(newSubs);
+      if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+      if (userRole === 'worker' && sub) {
+        const monthPrice = getAmperPrice(amperPrices, monthKey);
+        const amperVal = getAmperForMonth(sub, parseInt(monthKey.split('_')[0]), parseInt(monthKey.split('_')[1]));
+        const amount = amperVal * monthPrice;
+        trackWorkerUpdate(isCurrentlyPaid ? 'cancelled' : 'paid', id, sub.name, sub.amper, monthKey, { amount });
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تغيير حالة الدفع');
     }
   };
 
   const handlePartialPayment = async (id, amount, monthKey) => {
     resetActivity();
-    if (userRole === 'worker' && !workerPermissions.includes('partialPayment')) return;
-    const sub = subscribers.find(s => s.id === id);
-    if (!sub) return;
-    const now = new Date();
-    const hours = now.getHours();
-    const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
-    const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
-    const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
-    const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
+    try {
+      if (userRole === 'worker' && !workerPermissions.includes('partialPayment')) return;
+      const sub = subscribers.find(s => s.id === id);
+      if (!sub) return;
+      const now = new Date();
+      const hours = now.getHours();
+      const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+      const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+      const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+      const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
 
-    const newSubs = subscribers.map(s => {
-      if (s.id === id) {
-        const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
-        const monthPayments = partialPayments[monthKey] ? [...partialPayments[monthKey]] : [];
-        monthPayments.push({
-          amount: amount,
-          timestamp,
-          date: now.toISOString(),
-          ownerName: userRole === 'worker' ? workerName : ownerName,
-        });
-        partialPayments[monthKey] = monthPayments;
-
-        const pmParts = monthKey.split('_');
-        const totalDue = getAmperForMonth(s, parseInt(pmParts[0]), parseInt(pmParts[1])) * getAmperPrice(amperPrices, monthKey);
-        const totalPaid = monthPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-        const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
-        const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
-
-        if (totalPaid >= totalDue && !paidMonths[monthKey]) {
-          paidMonths[monthKey] = true;
-          paymentHistory.push({
-            monthKey,
-            action: 'paid',
+      const newSubs = subscribers.map(s => {
+        if (s.id === id) {
+          const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
+          const monthPayments = partialPayments[monthKey] ? [...partialPayments[monthKey]] : [];
+          monthPayments.push({
+            amount: amount,
             timestamp,
             date: now.toISOString(),
             ownerName: userRole === 'worker' ? workerName : ownerName,
-            note: 'اكتمال الدفع عبر دفعات جزئية',
           });
-        }
+          partialPayments[monthKey] = monthPayments;
 
-        return { ...s, partialPayments, paidMonths, paymentHistory };
+          const pmParts = monthKey.split('_');
+          const totalDue = getAmperForMonth(s, parseInt(pmParts[0]), parseInt(pmParts[1])) * getAmperPrice(amperPrices, monthKey);
+          const totalPaid = monthPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+          const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
+          const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
+
+          if (totalPaid >= totalDue && !paidMonths[monthKey]) {
+            paidMonths[monthKey] = true;
+            paymentHistory.push({
+              monthKey,
+              action: 'paid',
+              timestamp,
+              date: now.toISOString(),
+              ownerName: userRole === 'worker' ? workerName : ownerName,
+              note: 'اكتمال الدفع عبر دفعات جزئية',
+            });
+          }
+
+          return { ...s, partialPayments, paidMonths, paymentHistory };
+        }
+        return s;
+      });
+      setSubscribers(newSubs);
+      if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+      if (userRole === 'worker' && sub) {
+        trackWorkerUpdate('partialPayment', id, sub.name, sub.amper, monthKey, { amount });
       }
-      return s;
-    });
-    setSubscribers(newSubs);
-    if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
-    if (userRole === 'worker' && sub) {
-      trackWorkerUpdate('partialPayment', id, sub.name, sub.amper, monthKey, { amount });
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء الدفع الجزئي');
     }
   };
 
@@ -4352,30 +4414,34 @@ export default function App() {
   };
 
   const handleChangeAmper = async (id, newAmper, monthKey) => {
-    if (userRole === 'worker' && !workerPermissions.includes('amperPrice')) return;
-    const sub = subscribers.find(s => s.id === id);
-    const newSubs = subscribers.map(s => {
-      if (s.id === id) {
-        const amperHistory = s.amperHistory ? [...s.amperHistory] : [];
-        const existingIndex = amperHistory.findIndex(h => h.monthKey === monthKey);
-        if (existingIndex >= 0) {
-          amperHistory[existingIndex] = { monthKey, amper: newAmper };
-        } else {
-          amperHistory.push({ monthKey, amper: newAmper });
+    try {
+      if (userRole === 'worker' && !workerPermissions.includes('amperPrice')) return;
+      const sub = subscribers.find(s => s.id === id);
+      const newSubs = subscribers.map(s => {
+        if (s.id === id) {
+          const amperHistory = s.amperHistory ? [...s.amperHistory] : [];
+          const existingIndex = amperHistory.findIndex(h => h.monthKey === monthKey);
+          if (existingIndex >= 0) {
+            amperHistory[existingIndex] = { monthKey, amper: newAmper };
+          } else {
+            amperHistory.push({ monthKey, amper: newAmper });
+          }
+          amperHistory.sort((a, b) => {
+            const [aM, aY] = a.monthKey.split('_').map(Number);
+            const [bM, bY] = b.monthKey.split('_').map(Number);
+            return aY - bY || aM - bM;
+          });
+          return { ...s, amperHistory };
         }
-        amperHistory.sort((a, b) => {
-          const [aM, aY] = a.monthKey.split('_').map(Number);
-          const [bM, bY] = b.monthKey.split('_').map(Number);
-          return aY - bY || aM - bM;
-        });
-        return { ...s, amperHistory };
+        return s;
+      });
+      setSubscribers(newSubs);
+      if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
+      if (userRole === 'worker' && sub) {
+        trackWorkerUpdate('edit', id, sub.name, newAmper, monthKey, { amper: newAmper });
       }
-      return s;
-    });
-    setSubscribers(newSubs);
-    if (currentUser) await saveUserData(currentUser, 'subscribers', newSubs);
-    if (userRole === 'worker' && sub) {
-      trackWorkerUpdate('edit', id, sub.name, newAmper, monthKey, { amper: newAmper });
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تغيير الأمبير');
     }
   };
 
@@ -4791,7 +4857,7 @@ export default function App() {
                       padding: 16,
                       borderBottomWidth: 1,
                       borderBottomColor: '#eee',
-                      flexDirection: 'row',
+                      flexDirection: 'row-reverse',
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       backgroundColor: gen.id === currentGeneratorId ? '#E3F2FD' : 'white',
@@ -4801,7 +4867,7 @@ export default function App() {
                       setSwitchGeneratorVisible(false);
                     }}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
                       <Ionicons name="flash" size={24} color={gen.id === currentGeneratorId ? '#2196F3' : '#999'} />
                       <Text style={{ fontSize: 16, color: '#333', fontWeight: gen.id === currentGeneratorId ? 'bold' : 'normal' }}>{gen.name}</Text>
                     </View>
