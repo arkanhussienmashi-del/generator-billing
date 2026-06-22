@@ -389,7 +389,7 @@ function renderOwners(owners) {
     if (activeSubs.length > 0) {
       html += '<div class="section"><div class="section-title">المشتركين - حالة الدفع (الشهر الحالي: ' + currentMonth + '/' + currentYear + ')</div>';
       html += '<div style="overflow-x:auto"><table class="sub-table"><thead><tr>';
-      html += '<th>#</th><th>الاسم</th><th>الامبير</th><th>الهاتف</th><th>رقم المشترك</th><th>رقم العداد</th><th>رقم الفيزا</th><th>تاريخ الاضافة</th><th>حالة الدفع</th>';
+      html += '<th>#</th><th>الاسم</th><th>الامبير</th><th>رقم المشترك</th><th>رقم العداد</th><th>رقم الفيزا</th><th>تاريخ الاضافة</th><th>حالة الدفع</th>';
       html += '</tr></thead><tbody>';
 
       activeSubs.forEach(function(s, si) {
@@ -400,7 +400,6 @@ function renderOwners(owners) {
         html += '<td>' + (si + 1) + '</td>';
         html += '<td><strong>' + esc(s.name) + '</strong></td>';
         html += '<td>' + esc(String(s.amper || '')) + '</td>';
-        html += '<td>' + esc(s.phone || '') + '</td>';
         html += '<td>' + esc(s.subscriberNumber || '') + '</td>';
         html += '<td>' + esc(s.meterNumber || '') + '</td>';
         html += '<td>' + esc(s.visaNumber || '') + '</td>';
