@@ -2192,8 +2192,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </TouchableOpacity>
                       <View style={styles.cardNameSection}>
                           <Text style={styles.subscriberName}>{subscriber.name}</Text>
-                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                          {!isFullyPaid && (
+                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 }}>
                               <TouchableOpacity
                                 onLongPress={() => {
                                   if (!canChangeAmperPrice) {
@@ -2207,7 +2206,6 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                               >
                                 <Text style={[styles.subscriberAmperTag]}>{currentAmper} أميبر</Text>
                               </TouchableOpacity>
-                          )}
                           {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999' }}>{subscriber.meterNumber}</Text> : null}
                         </View>
                       </View>
