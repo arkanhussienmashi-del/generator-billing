@@ -346,7 +346,7 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
   );
 };
 
-const RegisterScreen = ({ onBack, onRegister }) => {
+const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   const [phone, setPhone] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
@@ -389,7 +389,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
     ]);
 
     Alert.alert('تم', 'تم إنشاء الحساب بنجاح', [
-      { text: 'موافق', onPress: onBack }
+      { text: 'موافق', onPress: onRegisterSuccess || onBack }
     ]);
   };
 
@@ -455,7 +455,7 @@ const RegisterScreen = ({ onBack, onRegister }) => {
   );
 };
 
-const LoginScreen = ({ onBack, onRegister, onLogin }) => {
+const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -575,6 +575,10 @@ const LoginScreen = ({ onBack, onRegister, onLogin }) => {
 
           <TouchableOpacity onPress={onRegister}>
             <Text style={styles.linkText}>ليس لديك حساب؟ إنشاء حساب جديد</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: 15 }}>
+            <Text style={[styles.linkText, { color: '#FF9800' }]}>دخول العامل</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -3394,7 +3398,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
 };
 
 export default function App() {
-  const [screen, setScreen] = useState('welcome');
+  const [screen, setScreen] = useState('login');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -3439,12 +3443,7 @@ export default function App() {
     const timer = setTimeout(safeFinish, 5000);
     const init = async () => {
       try {
-        const onboardingDone = await loadFromFile('onboarding_done');
-        if (!onboardingDone) {
-          setShowOnboarding(true);
-        } else {
-          await checkLoggedIn();
-        }
+        await checkLoggedIn();
       } catch (e) {
         // silent
       }
@@ -3775,7 +3774,7 @@ export default function App() {
   const handleOnboardingComplete = async () => {
     await saveToFile('onboarding_done', true);
     setShowOnboarding(false);
-    await checkLoggedIn();
+    setScreen('login');
   };
 
   const handleLogout = async () => {
@@ -4420,8 +4419,9 @@ export default function App() {
   if (screen === 'register') {
     return (
       <RegisterScreen
-        onBack={() => setScreen('welcome')}
+        onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
+        onRegisterSuccess={() => setShowOnboarding(true)}
       />
     );
   }
@@ -4432,6 +4432,7 @@ export default function App() {
         onBack={() => setScreen('welcome')}
         onRegister={() => setScreen('register')}
         onLogin={handleLogin}
+        onWorkerLogin={() => setScreen('workerLogin')}
       />
     );
   }
@@ -4439,7 +4440,7 @@ export default function App() {
   if (screen === 'workerLogin') {
     return (
       <WorkerLoginScreen
-        onBack={() => setScreen('welcome')}
+        onBack={() => setScreen('login')}
         onLogin={async (code, pin, name) => {
           const result = await handleWorkerLogin(code, pin, name);
           if (result.success) {
