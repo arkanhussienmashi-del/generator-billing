@@ -3568,13 +3568,7 @@ export default function App() {
   };
 
   const checkLoggedIn = async () => {
-    try {
-      await deleteFile('current_user');
-    } catch (e) {
-      // silent
-    } finally {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   };
 
   const loadAllUserData = async () => {
