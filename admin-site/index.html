@@ -117,18 +117,26 @@ const API_URL = 'https://server-ten-wheat.vercel.app';
 
 let allOwners = [];
 
-const ADMIN_PASSWORD = 'admin@billing2026';
+let adminToken = null;
 
-function checkAdminPassword() {
-  var input = document.getElementById('adminPassword').value;
-  if (input === ADMIN_PASSWORD) {
-    document.getElementById('loginBox').style.display = 'none';
-    document.getElementById('adminPanel').style.display = 'block';
-    loadAll();
-  } else {
+async function checkAdminPassword() {
+  const input = document.getElementById('adminPassword').value;
+  if (!input) { alert('أدخل كلمة المرور'); return; }
+  try {
+    const r = await fetch(API_URL + '/api', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'adminLogin', password: input }) });
+    const data = await r.json();
+    if (data.ok && data.token) {
+      adminToken = data.token;
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+      loadAll();
+    } else {
+      document.getElementById('loginError').style.display = 'block';
+      document.getElementById('adminPassword').value = '';
+      document.getElementById('adminPassword').focus();
+    }
+  } catch(e) {
     document.getElementById('loginError').style.display = 'block';
-    document.getElementById('adminPassword').value = '';
-    document.getElementById('adminPassword').focus();
   }
 }
 
@@ -157,11 +165,13 @@ async function apiPost(body) {
 }
 
 async function apiPut(body) {
+  body._adminToken = adminToken;
   var r = await fetch(API_URL + '/api', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   return await r.json();
 }
 
 async function apiDelete(body) {
+  body._adminToken = adminToken;
   var r = await fetch(API_URL + '/api?_action=deleteUser', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   return await r.json();
 }

@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -44,7 +45,11 @@ async function apiRequest(method, path, body) {
 }
 
 async function saveToFile(filename, data) {
-  await apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data });
+  const result = await apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data });
+  if (result !== null) {
+    await saveLocalCache('app_' + filename, data);
+  }
+  return result;
 }
 
 async function loadFromFile(filename) {
@@ -52,9 +57,10 @@ async function loadFromFile(filename) {
   if (Array.isArray(result) && result.length > 0) {
     let val = result[0].data_value;
     if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+    await saveLocalCache('app_' + filename, val);
     return val;
   }
-  return null;
+  return await loadLocalCache('app_' + filename);
 }
 
 async function deleteFile(filename) {
@@ -62,7 +68,11 @@ async function deleteFile(filename) {
 }
 
 async function saveUserData(phone, key, data) {
-  await apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data });
+  const result = await apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data });
+  if (result !== null) {
+    await saveLocalCache('user_' + phone + '_' + key, data);
+  }
+  return result;
 }
 
 async function loadUserData(phone, key) {
@@ -70,9 +80,10 @@ async function loadUserData(phone, key) {
   if (Array.isArray(result) && result.length > 0) {
     let val = result[0].data_value;
     if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+    await saveLocalCache('user_' + phone + '_' + key, val);
     return val;
   }
-  return null;
+  return await loadLocalCache('user_' + phone + '_' + key);
 }
 
 async function loadAllUserKeys(phone) {
@@ -86,6 +97,37 @@ async function loadAllUserKeys(phone) {
     }
   }
   return map;
+}
+
+const CACHE_DIR = (FileSystem.documentDirectory || FileSystem.cacheDirectory || '') + 'cache/';
+
+async function ensureCacheDir() {
+  try {
+    const info = await FileSystem.getInfoAsync(CACHE_DIR);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+    }
+  } catch (e) {}
+}
+
+async function saveLocalCache(filename, data) {
+  try {
+    await ensureCacheDir();
+    const path = CACHE_DIR + filename.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+    await FileSystem.writeAsStringAsync(path, JSON.stringify(data));
+  } catch (e) {}
+}
+
+async function loadLocalCache(filename) {
+  try {
+    const path = CACHE_DIR + filename.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+    const info = await FileSystem.getInfoAsync(path);
+    if (!info.exists) return null;
+    const raw = await FileSystem.readAsStringAsync(path);
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
 }
 
 function getAmperForMonth(subscriber, month, year) {
@@ -165,11 +207,125 @@ async function hashPassword(password, salt) {
   );
 }
 
+const PBKDF2_ITERATIONS = 10;
+async function pbkdf2Hash(password, salt) {
+  let hash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    salt + ':' + password.trim()
+  );
+  for (let i = 0; i < PBKDF2_ITERATIONS; i++) {
+    hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      hash + ':' + salt + ':' + i
+    );
+  }
+  return hash;
+}
+
+function generateSalt() {
+  const bytes = Crypto.getRandomBytes(16);
+  return Array.from(bytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+async function hashWorkerPin(pin) {
+  const salt = generateSalt();
+  const hash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    salt + ':' + pin.trim()
+  );
+  return 'salted:' + salt + ':' + hash;
+}
+
+async function verifyWorkerPin(stored, pin) {
+  if (stored && stored.indexOf('salted:') === 0) {
+    const parts = stored.split(':');
+    const salt = parts[1];
+    const hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      salt + ':' + pin.trim()
+    );
+    return hash === parts[2];
+  }
+  return stored === pin.trim();
+}
+
+async function verifyOwnerPassword(stored, password, phone) {
+  if (stored && stored.indexOf('pbkdf2:') === 0) {
+    try {
+      const parts = stored.split(':');
+      const salt = parts[1];
+      let hash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        salt + ':' + password.trim()
+      );
+      for (let i = 0; i < PBKDF2_ITERATIONS; i++) {
+        hash = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          hash + ':' + salt + ':' + i
+        );
+      }
+      if (hash === parts[2]) return { match: true, migrated: false };
+    } catch (e) {
+      console.warn('PBKDF2 verify error:', e);
+    }
+  }
+  const saltedHash = await hashPassword(password, phone);
+  const unsaltedHash = await hashPassword(password, '');
+  if (stored === saltedHash || stored === unsaltedHash) {
+    return { match: true, migrated: true };
+  }
+  if (stored.length !== 64 && stored === password.trim()) {
+    return { match: true, migrated: true };
+  }
+  return { match: false, migrated: false };
+}
+
 function getSecureRandom(max) {
   const arr = new Uint8Array(1);
   Crypto.getRandomValues(arr);
   return arr[0] % max;
 }
+
+const LoadingOverlay = ({ visible, text }) => {
+  if (!visible) return null;
+  return (
+    <View style={loadingStyles.overlay}>
+      <View style={loadingStyles.box}>
+        <ActivityIndicator size="large" color="#1565C0" />
+        {text ? <Text style={loadingStyles.text}>{text}</Text> : null}
+      </View>
+    </View>
+  );
+};
+
+const loadingStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  box: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 30,
+    alignItems: 'center',
+    gap: 12,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  text: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});
 
 function validateName(name) {
   if (!name || name.trim().length < 2) return 'الاسم يجب أن يكون حرفين على الأقل';
@@ -359,6 +515,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   const [phone, setPhone] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
     const phoneError = validatePhone(phone);
@@ -379,31 +536,43 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
       return;
     }
 
-    const hashedPassword = await hashPassword(ownerCode.trim(), phone.trim());
-    const existing = await loadFromFile('registered_users');
-    const users = existing || [];
-    if (users.find(u => u.phone === phone.trim())) {
-      Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل');
-      return;
+    setLoading(true);
+    try {
+      const hashedPassword = await pbkdf2Hash(ownerCode.trim(), phone.trim());
+      const existing = await loadFromFile('registered_users');
+      if (existing === null) {
+        Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر. تحقق من اتصال الإنترنت وحاول مرة أخرى');
+        return;
+      }
+      const users = existing || [];
+      if (users.find(u => u.phone === phone.trim())) {
+        Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول');
+        return;
+      }
+      users.push({ phone: phone.trim(), password: hashedPassword });
+      await saveToFile('registered_users', users);
+
+      await Promise.all([
+        saveUserData(phone.trim(), 'generatorName', ''),
+        saveUserData(phone.trim(), 'amperPrices', {}),
+        saveUserData(phone.trim(), 'subscribers', []),
+        saveUserData(phone.trim(), 'monthlyExpenses', {}),
+      ]);
+
+      Alert.alert('تم', 'تم إنشاء الحساب بنجاح', [
+        { text: 'موافق', onPress: onRegisterSuccess || onBack }
+      ]);
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء الحساب');
+    } finally {
+      setLoading(false);
     }
-    users.push({ phone: phone.trim(), password: hashedPassword });
-    await saveToFile('registered_users', users);
-
-    await Promise.all([
-      saveUserData(phone.trim(), 'generatorName', ''),
-      saveUserData(phone.trim(), 'amperPrices', {}),
-      saveUserData(phone.trim(), 'subscribers', []),
-      saveUserData(phone.trim(), 'monthlyExpenses', {}),
-    ]);
-
-    Alert.alert('تم', 'تم إنشاء الحساب بنجاح', [
-      { text: 'موافق', onPress: onRegisterSuccess || onBack }
-    ]);
   };
 
   return (
     <View style={styles.loginContainer}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <LoadingOverlay visible={loading} text="جاري إنشاء الحساب..." />
       <ScrollView contentContainerStyle={styles.loginScrollContent} showsVerticalScrollIndicator={false}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Ionicons name="arrow-forward" size={24} color="white" />
@@ -471,6 +640,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     const phoneError = validatePhone(phone);
@@ -489,57 +659,56 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
       return;
     }
 
-    const usersResult = await loadFromFile('registered_users');
-    const usersList = usersResult || [];
-    const user = usersList.find(u => u.phone === phone.trim());
-    if (!user) {
-      Alert.alert('تنبيه', 'الرقم غير مسجل');
-      return;
-    }
-
-    const saltedHash = await hashPassword(password, phone.trim());
-    const unsaltedHash = await hashPassword(password, '');
-    let authenticated = false;
-    let migrated = false;
-
-    const stored = user.password;
-    if (stored === saltedHash) {
-      authenticated = true;
-    } else if (stored === unsaltedHash) {
-      authenticated = true;
-      migrated = true;
-    } else if (stored.length !== 64 && stored === password.trim()) {
-      authenticated = true;
-      migrated = true;
-    }
-
-    if (migrated) {
-      user.password = saltedHash;
-      await saveToFile('registered_users', usersList);
-    }
-
-    if (!authenticated) {
-      const newAttempts = loginAttempts + 1;
-      setLoginAttempts(newAttempts);
-      if (newAttempts >= 5) {
-        setLockUntil(Date.now() + 15 * 60 * 1000);
-        setLoginAttempts(0);
-        Alert.alert('تنبيه', 'تم حظر الحساب لمدة 15 دقيقة بسبب محاولات كثيرة');
-      } else {
-        Alert.alert('تنبيه', `رقم الهاتف أو كلمة المرور غير صحيحة (${newAttempts}/5)`);
+    setLoading(true);
+    try {
+      const usersResult = await loadFromFile('registered_users');
+      if (usersResult === null) {
+        Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر. تحقق من اتصال الإنترنت وحاول مرة أخرى');
+        return;
       }
-      return;
-    }
+      const usersList = usersResult || [];
+      const user = usersList.find(u => u.phone === phone.trim());
+      if (!user) {
+        Alert.alert('تنبيه', 'الرقم غير مسجل. يرجى إنشاء حساب جديد أولاً');
+        return;
+      }
 
-    setLoginAttempts(0);
-    setLockUntil(null);
-    await saveToFile('current_user', { phone: phone.trim(), role: 'owner' });
-    onLogin(phone.trim());
+      const verifyResult = await verifyOwnerPassword(user.password, password, phone.trim());
+
+      if (verifyResult.migrated) {
+        const newHash = await pbkdf2Hash(password.trim(), phone.trim());
+        user.password = newHash;
+        await saveToFile('registered_users', usersList);
+      }
+
+      if (!verifyResult.match) {
+        const newAttempts = loginAttempts + 1;
+        setLoginAttempts(newAttempts);
+        if (newAttempts >= 5) {
+          setLockUntil(Date.now() + 15 * 60 * 1000);
+          setLoginAttempts(0);
+          Alert.alert('تنبيه', 'تم حظر الحساب لمدة 15 دقيقة بسبب محاولات كثيرة');
+        } else {
+          Alert.alert('تنبيه', `رقم الهاتف أو كلمة المرور غير صحيحة (${newAttempts}/5)`);
+        }
+        return;
+      }
+
+      setLoginAttempts(0);
+      setLockUntil(null);
+      await saveToFile('current_user', { phone: phone.trim(), role: 'owner' });
+      onLogin(phone.trim());
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={styles.loginContainer}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <LoadingOverlay visible={loading} text="جاري تسجيل الدخول..." />
       <View style={styles.loginContent}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Ionicons name="arrow-forward" size={24} color="white" />
@@ -601,6 +770,7 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [workerName, setWorkerName] = useState(savedWorkerName || '');
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!workerName.trim()) {
@@ -611,20 +781,28 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
       Alert.alert('تنبيه', 'يرجى إدخال الكود والرمز السري');
       return;
     }
-    const result = await onLogin(code.trim(), pin.trim(), workerName.trim());
-    if (result.deleted) {
-      Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
-    } else if (result.nameMismatch) {
-      Alert.alert('تنبيه', 'الاسم غير مطابق. اسمك المسجل هو: ' + result.savedName + '\nيرجى تسجيل الدخول بالاسم الصحيح');
-      setWorkerName(result.savedName);
-    } else if (!result.success) {
-      Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
+    setLoading(true);
+    try {
+      const result = await onLogin(code.trim(), pin.trim(), workerName.trim());
+      if (result.deleted) {
+        Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
+      } else if (result.nameMismatch) {
+        Alert.alert('تنبيه', 'الاسم غير مطابق. اسمك المسجل هو: ' + result.savedName + '\nيرجى تسجيل الدخول بالاسم الصحيح');
+        setWorkerName(result.savedName);
+      } else if (!result.success) {
+        Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <View style={styles.loginContainer}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <LoadingOverlay visible={loading} text="جاري التحقق..." />
       <View style={styles.loginContent}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Ionicons name="arrow-forward" size={24} color="white" />
@@ -684,7 +862,7 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
   const [workerModalVisible, setWorkerModalVisible] = useState(false);
@@ -698,6 +876,10 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   const [selectedDeleteGenId, setSelectedDeleteGenId] = useState(null);
   const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
   const [restoreGeneratorVisible, setRestoreGeneratorVisible] = useState(false);
+  const [changePassVisible, setChangePassVisible] = useState(false);
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
 
   useEffect(() => {
     setName(generatorName);
@@ -818,6 +1000,15 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
               <View style={{ marginTop: 20, marginBottom: 10 }}>
                 <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: 16 }} />
+
+                <TouchableOpacity
+                  style={[styles.settingsInput, { backgroundColor: '#9C27B0', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }]}
+                  onPress={() => setChangePassVisible(true)}
+                >
+                  <Ionicons name="key-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تغيير رمز الحساب</Text>
+                </TouchableOpacity>
+
                 <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: 10, marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
                     <Ionicons name={darkMode ? 'moon' : 'sunny'} size={22} color={darkMode ? '#FFD700' : '#FF9800'} />
@@ -1186,10 +1377,54 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
           </View>
         </View>
       </Modal>
-  </>);
-};
 
-const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices }) => {
+      <Modal visible={changePassVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#9C27B0' }}>تغيير رمز الحساب</Text>
+              <TouchableOpacity onPress={() => { setChangePassVisible(false); setCurrentPass(''); setNewPass(''); setConfirmPass(''); }}>
+                <Ionicons name="close" size={28} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 16 }}>أدخل الرمز الحالي ثم الرمز الجديد</Text>
+
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
+            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={50} />
+
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: 12, textAlign: 'right' }}>الرمز الجديد</Text>
+            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={setNewPass} secureTextEntry maxLength={50} />
+
+            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: 12, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
+            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={setConfirmPass} secureTextEntry maxLength={50} />
+
+            <TouchableOpacity
+              style={{ backgroundColor: '#9C27B0', borderRadius: 12, paddingVertical: 14, width: '100%', alignItems: 'center', marginTop: 16, opacity: currentPass && newPass && confirmPass ? 1 : 0.5 }}
+              disabled={!currentPass || !newPass || !confirmPass}
+              onPress={async () => {
+                if (!currentPass.trim()) { Alert.alert('تنبيه', 'أدخل الرمز الحالي'); return; }
+                if (newPass.trim().length < 6) { Alert.alert('تنبيه', 'الرمز الجديد يجب أن يكون 6 أحرف على الأقل'); return; }
+                if (newPass.trim() !== confirmPass.trim()) { Alert.alert('تنبيه', 'الرمز الجديد غير متطابق'); return; }
+                if (currentPass.trim() === newPass.trim()) { Alert.alert('تنبيه', 'الرمز الجديد نفس الرمز الحالي'); return; }
+                const success = await onChangePassword(currentPass.trim(), newPass.trim());
+                if (success) {
+                  setChangePassVisible(false);
+                  setCurrentPass('');
+                  setNewPass('');
+                  setConfirmPass('');
+                  Alert.alert('تم', 'تم تغيير رمز الحساب بنجاح');
+                } else {
+                  Alert.alert('خطأ', 'الرمز الحالي غير صحيح');
+                }
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>تغيير الرمز</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+  </>);
+}; = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
 
   if (!visible) return null;
@@ -1204,10 +1439,10 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
     const partialUpdates = updates.filter(function(u) { return u && u.type === 'partialPayment'; });
     const addUpdates = updates.filter(function(u) { return u && u.type === 'add'; });
     const editUpdates = updates.filter(function(u) { return u && (u.type === 'edit' || u.type === 'restore'); });
-    var paidTotal = 0;
-    for (var i = 0; i < paidUpdates.length; i++) { paidTotal += (paidUpdates[i].details && paidUpdates[i].details.amount) ? parseFloat(paidUpdates[i].details.amount) : 0; }
-    var partialTotal = 0;
-    for (var j = 0; j < partialUpdates.length; j++) { partialTotal += (partialUpdates[j].details && partialUpdates[j].details.amount) ? parseFloat(partialUpdates[j].details.amount) : 0; }
+    let paidTotal = 0;
+    for (let i = 0; i < paidUpdates.length; i++) { paidTotal += (paidUpdates[i].details && paidUpdates[i].details.amount) ? parseFloat(paidUpdates[i].details.amount) : 0; }
+    let partialTotal = 0;
+    for (let j = 0; j < partialUpdates.length; j++) { partialTotal += (partialUpdates[j].details && partialUpdates[j].details.amount) ? parseFloat(partialUpdates[j].details.amount) : 0; }
 
     return (
       <Modal visible={visible} animationType="slide" transparent>
@@ -1245,13 +1480,13 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
                 </View>
                 {updates.map(function(u, idx) {
                   if (!u) return null;
-                  var typeLabel = '';
-                  var typeColor = '#333';
-                  var bgColor = '#f8f8f8';
-                  var borderColor = '#eee';
-                  var iconName = 'document-text';
-                  var iconColor = '#999';
-                  var detailText = '';
+                  let typeLabel = '';
+                  let typeColor = '#333';
+                  let bgColor = '#f8f8f8';
+                  let borderColor = '#eee';
+                  let iconName = 'document-text';
+                  let iconColor = '#999';
+                  let detailText = '';
                   if (u.type === 'paid') {
                     typeLabel = 'دفع اشتراك';
                     typeColor = '#2E7D32';
@@ -1309,9 +1544,9 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
                     iconColor = '#1565C0';
                     detailText = 'تم استعادة المشترك';
                   }
-                  var monthLabel = u.monthKey || '';
+                  let monthLabel = u.monthKey || '';
                   if (monthLabel && monthLabel.indexOf('_') !== -1) {
-                    var parts = monthLabel.split('_');
+                    const parts = monthLabel.split('_');
                     monthLabel = 'الشهر ' + parts[0] + '/' + parts[1];
                   }
                   return (
@@ -1359,10 +1594,10 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
                   <Text style={{ textAlign: 'center', color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد تحديثات</Text>
                 </View>
               ) : safeBatches.map(function(batch) {
-                  var updates = Array.isArray(batch.updates) ? batch.updates : [];
-                  var paidCount = 0, paidTotal = 0, partialCount = 0, partialTotal = 0, cancelledCount = 0, deletedCount = 0, addCount = 0, editCount = 0;
-                  for (var k = 0; k < updates.length; k++) {
-                    var u = updates[k];
+                  let updates = Array.isArray(batch.updates) ? batch.updates : [];
+                  let paidCount = 0, paidTotal = 0, partialCount = 0, partialTotal = 0, cancelledCount = 0, deletedCount = 0, addCount = 0, editCount = 0;
+                  for (let k = 0; k < updates.length; k++) {
+                    const u = updates[k];
                     if (!u) continue;
                     if (u.type === 'paid') { paidCount++; paidTotal += (u.details && u.details.amount) ? parseFloat(u.details.amount) : 0; }
                     else if (u.type === 'partialPayment') { partialCount++; partialTotal += (u.details && u.details.amount) ? parseFloat(u.details.amount) : 0; }
@@ -2932,7 +3167,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
                 <Text style={[styles.statLabel, styles.requiredLabel]} numberOfLines={1} adjustsFontSizeToFit>المطلوبين</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
-                <Text style={[styles.statNumber, { color: '#9C27B0' }]} numberOfLines={1} adjustsFontSizeToFit>{stats.totalAmper}</Text>
+                <Text style={[styles.statNumber, { color: '#9C27B0' }]} numberOfLines={1} adjustsFontSizeToFit>{formatNumber(stats.totalAmper)}</Text>
                 <Text style={[styles.statLabel, { color: '#9C27B0' }]} numberOfLines={1} adjustsFontSizeToFit>الأمبير</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
@@ -3169,7 +3404,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
       {!isOnline && (
         <View style={styles.offlineBanner}>
           <Ionicons name="cloud-offline-outline" size={16} color="white" />
-          <Text style={styles.offlineBannerText}>وضع عدم الاتصال - البيانات محفوظة محلياً</Text>
+          <Text style={styles.offlineBannerText}>لا يوجد اتصال بالإنترنت - البيانات قد لا تُحفظ</Text>
         </View>
       )}
       <View style={styles.header}>
@@ -3219,7 +3454,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <Text style={[styles.statLabel, styles.totalLabel]} numberOfLines={1} adjustsFontSizeToFit>عدد المشتركين</Text>
           </View>
           <View style={[styles.statCard, styles.amperCard]}>
-            <Text style={[styles.statNumber, styles.amperNumber]} numberOfLines={1} adjustsFontSizeToFit>{totalAmper}</Text>
+            <Text style={[styles.statNumber, styles.amperNumber]} numberOfLines={1} adjustsFontSizeToFit>{formatNumber(totalAmper)}</Text>
             <View style={styles.amperLabelContainer}>
               <Text style={[styles.statLabel, styles.amperLabel]} numberOfLines={1} adjustsFontSizeToFit>أميبر</Text>
               <Ionicons name="flash" size={14} color="#FF9800" />
@@ -3358,13 +3593,27 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
   const currentMonthKey = `${currentMonth}_${currentYear}`;
 
   const { totalSubscribers, paidCount, requiredCount, unpaidCount } = useMemo(() => {
-    const ts = subscribers.length;
-    const pc = subscribers.filter(s => s.paidMonths && s.paidMonths[currentMonthKey]).length;
-    const hpp = (sub) => { const pp = sub.partialPayments && sub.partialPayments[currentMonthKey]; return pp && pp.length > 0; };
-    const rc = subscribers.filter(s => !(s.paidMonths && s.paidMonths[currentMonthKey]) && hpp(s)).length;
-    const uc = subscribers.filter(s => !(s.paidMonths && s.paidMonths[currentMonthKey]) && !hpp(s)).length;
+    let ts = 0, pc = 0, rc = 0, uc = 0;
+    subscribers.forEach(s => {
+      const addedMonth = s.addedMonth ? parseInt(s.addedMonth) : 1;
+      const addedYear = s.addedYear ? parseInt(s.addedYear) : currentYear;
+      const isBeforeAdded = (currentYear < addedYear) || (currentYear === addedYear && currentMonth < addedMonth);
+      if (isBeforeAdded) return;
+      if (isDeletedForReport(s, currentMonth, currentYear)) return;
+      ts++;
+      const isPaid = s.paidMonths && s.paidMonths[currentMonthKey];
+      const pp = s.partialPayments && s.partialPayments[currentMonthKey];
+      const hasPartial = pp && pp.length > 0;
+      if (isPaid) {
+        pc++;
+      } else if (hasPartial) {
+        rc++;
+      } else {
+        uc++;
+      }
+    });
     return { totalSubscribers: ts, paidCount: pc, requiredCount: rc, unpaidCount: uc };
-  }, [subscribers, currentMonthKey]);
+  }, [subscribers, currentMonthKey, currentMonth, currentYear]);
 
   return (
     <View style={styles.mainContainer}>
@@ -3372,7 +3621,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
       {!isOnline && (
         <View style={styles.offlineBanner}>
           <Ionicons name="cloud-offline-outline" size={16} color="white" />
-          <Text style={styles.offlineBannerText}>وضع عدم الاتصال - البيانات محفوظة محلياً</Text>
+          <Text style={styles.offlineBannerText}>لا يوجد اتصال بالإنترنت - البيانات قد لا تُحفظ</Text>
         </View>
       )}
       <View style={[styles.header, { backgroundColor: '#FF9800' }]}>
@@ -3468,6 +3717,7 @@ export default function App() {
   const [monthlyDataVisible, setMonthlyDataVisible] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [deletedGenerators, setDeletedGenerators] = useState([]);
+  const [globalLoading, setGlobalLoading] = useState('');
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -3497,6 +3747,8 @@ export default function App() {
   const isFirstRender = React.useRef(true);
   const generatorsRef = React.useRef(generators);
   generatorsRef.current = generators;
+  const currentGeneratorIdRef = React.useRef(currentGeneratorId);
+  currentGeneratorIdRef.current = currentGeneratorId;
   const syncTimerRef = React.useRef(null);
 
   const defaultExpenses = { gas: '0', oil: '0', repairs: '0', salaries: '0' };
@@ -3510,8 +3762,9 @@ export default function App() {
     if (!currentGeneratorId || generatorsRef.current.length === 0) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
+      const genId = currentGeneratorIdRef.current;
       const updated = generatorsRef.current.map(g => {
-        if (g.id === currentGeneratorId) {
+        if (g.id === genId) {
           return { ...g, subscribers, amperPrices, monthlyExpenses };
         }
         return g;
@@ -3669,6 +3922,7 @@ export default function App() {
   };
 
   const handleCreateGenerator = async (name) => {
+    setGlobalLoading('جاري إنشاء المولد...');
     try {
       const newGen = {
         id: Date.now().toString(),
@@ -3690,6 +3944,8 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء المولد');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
@@ -3723,40 +3979,44 @@ export default function App() {
   };
 
   const handleDeleteGenerator = async (genId, password) => {
-    const usersResult = await loadFromFile('registered_users');
-    const usersList = usersResult || [];
-    const user = usersList.find(function(u) { return u.phone === currentUser; });
-    if (!user) return false;
-    const saltedHash = await hashPassword(password, currentUser);
-    const unsaltedHash = await hashPassword(password, '');
-    if (user.password !== saltedHash && user.password !== unsaltedHash) return false;
-    if (generators.length <= 1) {
-      Alert.alert('تنبيه', 'لا يمكن حذف المولد الوحيد');
-      return false;
+    setGlobalLoading('جاري حذف المولد...');
+    try {
+      const usersResult = await loadFromFile('registered_users');
+      const usersList = usersResult || [];
+      const user = usersList.find(function(u) { return u.phone === currentUser; });
+      if (!user) return false;
+      const verifyResult = await verifyOwnerPassword(user.password, password, currentUser);
+      if (!verifyResult.match) return false;
+      if (generators.length <= 1) {
+        Alert.alert('تنبيه', 'لا يمكن حذف المولد الوحيد');
+        return false;
+      }
+      const genToDelete = generators.find(function(g) { return g.id === genId; });
+      if (!genToDelete) return false;
+      const genData = { ...genToDelete, subscribers: genToDelete.subscribers || [], amperPrices: genToDelete.amperPrices || {}, monthlyExpenses: genToDelete.monthlyExpenses || {} };
+      const deletedEntry = {
+        id: genToDelete.id,
+        name: genToDelete.name,
+        data: genData,
+        deletedAt: Date.now(),
+      };
+      const updatedGenerators = generators.filter(function(g) { return g.id !== genId; });
+      const updatedDeleted = [...deletedGenerators, deletedEntry];
+      setGenerators(updatedGenerators);
+      setDeletedGenerators(updatedDeleted);
+      const active = updatedGenerators[0];
+      setCurrentGeneratorId(active.id);
+      setGeneratorName(active.name);
+      setSubscribers(active.subscribers || []);
+      setAmperPrices(active.amperPrices || {});
+      setMonthlyExpenses(active.monthlyExpenses || {});
+      await saveUserData(currentUser, 'generators', updatedGenerators);
+      await saveUserData(currentUser, 'currentGeneratorId', active.id);
+      await saveUserData(currentUser, 'deletedGenerators', updatedDeleted);
+      return true;
+    } finally {
+      setGlobalLoading('');
     }
-    const genToDelete = generators.find(function(g) { return g.id === genId; });
-    if (!genToDelete) return false;
-    const genData = { ...genToDelete, subscribers: genToDelete.subscribers || [], amperPrices: genToDelete.amperPrices || {}, monthlyExpenses: genToDelete.monthlyExpenses || {} };
-    const deletedEntry = {
-      id: genToDelete.id,
-      name: genToDelete.name,
-      data: genData,
-      deletedAt: Date.now(),
-    };
-    const updatedGenerators = generators.filter(function(g) { return g.id !== genId; });
-    const updatedDeleted = [...deletedGenerators, deletedEntry];
-    setGenerators(updatedGenerators);
-    setDeletedGenerators(updatedDeleted);
-    const active = updatedGenerators[0];
-    setCurrentGeneratorId(active.id);
-    setGeneratorName(active.name);
-    setSubscribers(active.subscribers || []);
-    setAmperPrices(active.amperPrices || {});
-    setMonthlyExpenses(active.monthlyExpenses || {});
-    await saveUserData(currentUser, 'generators', updatedGenerators);
-    await saveUserData(currentUser, 'currentGeneratorId', active.id);
-    await saveUserData(currentUser, 'deletedGenerators', updatedDeleted);
-    return true;
   };
 
   const handleRestoreGenerator = async (genId) => {
@@ -3782,6 +4042,24 @@ export default function App() {
     await saveToFile('onboarding_done', true);
     setShowOnboarding(false);
     setScreen('login');
+  };
+
+  const handleChangePassword = async (oldPassword, newPassword) => {
+    try {
+      const usersResult = await loadFromFile('registered_users');
+      if (!usersResult) return false;
+      const usersList = usersResult || [];
+      const user = usersList.find(function(u) { return u.phone === currentUser; });
+      if (!user) return false;
+      const verifyResult = await verifyOwnerPassword(user.password, oldPassword, currentUser);
+      if (!verifyResult.match) return false;
+      const newHash = await pbkdf2Hash(newPassword, currentUser);
+      user.password = newHash;
+      await saveToFile('registered_users', usersList);
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   const handleLogout = async () => {
@@ -3839,6 +4117,7 @@ export default function App() {
       Alert.alert('تنبيه', 'لا يوجد اتصال بالإنترنت. حاول لاحقاً');
       return;
     }
+    setGlobalLoading('جاري رفع التحديثات...');
     try {
       const existing = await loadUserData(workerOwnerPhone, 'pending_worker_updates') || [];
       const now = new Date();
@@ -3856,14 +4135,18 @@ export default function App() {
       };
       const merged = [...existing, batch];
       const result = await saveUserData(workerOwnerPhone, 'pending_worker_updates', merged);
-      if (result !== null) {
+      if (result !== undefined) {
         setWorkerUpdates([]);
         Alert.alert('تم', 'تم رفع التحديثات بنجاح');
       } else {
+        console.warn('Worker sync failed: saveUserData returned undefined');
         Alert.alert('خطأ', 'فشل رفع التحديثات');
       }
     } catch (e) {
+      console.warn('Worker sync exception:', e);
       Alert.alert('خطأ', 'فشل رفع التحديثات');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
@@ -3872,6 +4155,7 @@ export default function App() {
     const batch = pendingWorkerUpdates.find(b => b.id === batchId);
     if (!batch) return;
 
+    setGlobalLoading('جاري تطبيق التحديثات...');
     let newSubs = [...subscribers];
     for (const update of batch.updates) {
       switch (update.type) {
@@ -4018,6 +4302,7 @@ export default function App() {
     }
     setPendingWorkerUpdates(remainingBatches);
     setUpdatesModalVisible(false);
+    setGlobalLoading('');
     Alert.alert('تم', 'تم تطبيق التحديثات بنجاح');
   };
 
@@ -4125,16 +4410,20 @@ export default function App() {
   };
 
   const handleCreateWorker = async (permissions, assignedGenerators) => {
+    setGlobalLoading('جاري إنشاء حساب العامل...');
     try {
       const code = generateWorkerCode(currentUser);
       const pin = generateWorkerPin();
-      const newWorker = { code, pin, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+      const hashedPin = await hashWorkerPin(pin);
+      const newWorker = { code, pin: hashedPin, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
       const updated = [...workers, newWorker];
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
       setNewWorkerCredentials({ code, pin, permissions });
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء حساب العامل');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
@@ -4150,6 +4439,7 @@ export default function App() {
   };
 
   const handleDeleteWorker = async (code) => {
+    setGlobalLoading('جاري حذف العامل...');
     try {
       const deletedWorkers = await loadUserData(currentUser, 'deletedWorkers') || [];
       const worker = workers.find(w => w.code === code);
@@ -4168,6 +4458,8 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حذف العامل');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
@@ -4181,17 +4473,20 @@ export default function App() {
         return { success: false, deleted: true };
       }
       if (workers) {
-        const found = workers.find(w => w.code === code.toUpperCase() && w.pin === pin.toUpperCase());
-        if (found) {
+        for (const w of workers) {
+          if (w.code !== code.toUpperCase()) continue;
+          const pinMatch = await verifyWorkerPin(w.pin, pin);
+          if (!pinMatch) continue;
+          const found = w;
           if (found.workerName && found.workerName !== name) {
             return { success: false, nameMismatch: true, savedName: found.workerName };
           }
           if (!found.workerName) {
-            const updatedWorkers = workers.map(function(w) {
-              if (w.code === code.toUpperCase()) {
-                return Object.assign({}, w, { workerName: name });
+            const updatedWorkers = workers.map(function(w2) {
+              if (w2.code === code.toUpperCase()) {
+                return Object.assign({}, w2, { workerName: name });
               }
-              return w;
+              return w2;
             });
             await saveUserData(user.phone, 'workers', updatedWorkers);
           }
@@ -4546,6 +4841,7 @@ export default function App() {
   if (screen === 'workerMain' && userRole === 'worker') {
     return (
       <View style={styles.mainContainer}>
+        <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
         <WorkerMainScreen
           generatorName={generatorName}
           onShowSubscribers={() => setSubscribersVisible(true)}
@@ -4725,6 +5021,7 @@ export default function App() {
 
   return (
     <View style={styles.mainContainer}>
+      <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
       <MainScreen
         currentUser={currentUser}
         generatorName={generatorName}
@@ -4775,6 +5072,7 @@ export default function App() {
         onRestoreGenerator={handleRestoreGenerator}
         deletedGenerators={deletedGenerators}
         currentGeneratorId={currentGeneratorId}
+        onChangePassword={handleChangePassword}
       />
       <WorkerUpdatesModal
         visible={updatesModalVisible}
