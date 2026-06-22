@@ -3569,39 +3569,9 @@ export default function App() {
 
   const checkLoggedIn = async () => {
     try {
-      const userData = await loadFromFile('current_user');
-      if (userData && userData.phone) {
-        if (userData.role === 'worker') {
-          setCurrentUser(userData.phone);
-          setUserRole('worker');
-          setWorkerOwnerPhone(userData.phone);
-          setWorkerCode(userData.workerCode || '');
-          setWorkerName(userData.workerName || '');
-          setWorkerPermissions(userData.permissions || []);
-          setWorkerAssignedGenerators(userData.assignedGenerators || []);
-          const ownerData = await loadAllUserKeys(userData.phone);
-          const ownerGens = ownerData.generators || [];
-          if (ownerGens.length > 0) {
-            const savedAssignedId = userData.assignedGeneratorId;
-            const targetGen = (savedAssignedId && ownerGens.find(function(g) { return g.id === savedAssignedId; })) || ownerGens[0];
-            setGenerators(ownerGens);
-            setCurrentGeneratorId(targetGen.id);
-            setWorkerAssignedGeneratorId(targetGen.id);
-            setGeneratorName(targetGen.name);
-            setSubscribers(targetGen.subscribers || []);
-            setAmperPrices(targetGen.amperPrices || {});
-            setMonthlyExpenses(targetGen.monthlyExpenses || {});
-          }
-          setScreen('workerMain');
-        } else if (userData.role === 'owner') {
-          setCurrentUser(userData.phone);
-          setScreen('main');
-        } else {
-          await deleteFile('current_user');
-        }
-      }
-    } catch (e) {
       await deleteFile('current_user');
+    } catch (e) {
+      // silent
     } finally {
       setIsLoading(false);
     }
