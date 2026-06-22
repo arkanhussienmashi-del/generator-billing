@@ -3034,11 +3034,11 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const currentYear = now.getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
 
-  const [localAmperPrice, setLocalAmperPrice] = useState(String(amperPrices[currentMonthKey] || '0'));
-  const [gas, setGas] = useState(expenses.gas);
-  const [oil, setOil] = useState(expenses.oil);
-  const [repairs, setRepairs] = useState(expenses.repairs);
-  const [salaries, setSalaries] = useState(expenses.salaries);
+  const [localAmperPrice, setLocalAmperPrice] = useState(amperPrices[currentMonthKey] ? String(amperPrices[currentMonthKey]) : '');
+  const [gas, setGas] = useState(expenses.gas || '');
+  const [oil, setOil] = useState(expenses.oil || '');
+  const [repairs, setRepairs] = useState(expenses.repairs || '');
+  const [salaries, setSalaries] = useState(expenses.salaries || '');
   const [addExpenseVisible, setAddExpenseVisible] = useState(false);
   const [addExpenseField, setAddExpenseField] = useState(null);
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
