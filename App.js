@@ -1026,6 +1026,14 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                       }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
                         <Ionicons name="copy-outline" size={18} color="#2196F3" />
                       </TouchableOpacity>
+                      <TouchableOpacity onPress={() => {
+                        Alert.alert('حذف العامل', 'هل تريد حذف العامل "' + worker.code + '"؟', [
+                          { text: 'إلغاء', style: 'cancel' },
+                          { text: 'حذف', style: 'destructive', onPress: () => onDeleteWorker(worker.code) },
+                        ]);
+                      }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
+                        <Ionicons name="trash-outline" size={18} color="#F44336" />
+                      </TouchableOpacity>
                       <Ionicons name="chevron-back" size={24} color="#999" style={{ marginLeft: 8 }} />
                     </View>
                   ))
@@ -1170,7 +1178,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   </>);
 };
 
-const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPrices }) => {
+const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
 
   if (!visible) return null;
@@ -1401,7 +1409,17 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, amperPric
                       )}
                       <View style={{ borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, marginTop: 4, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontSize: 13, color: '#666' }}>عدد التحديثات: {updates.length}</Text>
-                        <Ionicons name="chevron-back" size={20} color="#999" />
+                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                          <TouchableOpacity onPress={function() {
+                            Alert.alert('حذف التحديث', 'هل تريد حذف هذا التحديث؟', [
+                              { text: 'إلغاء', style: 'cancel' },
+                              { text: 'حذف', style: 'destructive', onPress: function() { onDeleteBatch(batch.id); } },
+                            ]);
+                          }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 6 }}>
+                            <Ionicons name="trash-outline" size={18} color="#F44336" />
+                          </TouchableOpacity>
+                          <Ionicons name="chevron-back" size={20} color="#999" />
+                        </View>
                       </View>
                     </TouchableOpacity>
                   );
@@ -3976,6 +3994,13 @@ export default function App() {
     Alert.alert('تم', 'تم تطبيق التحديثات بنجاح');
   };
 
+  const handleDeleteBatch = async (batchId) => {
+    const remaining = pendingWorkerUpdates.filter(b => b.id !== batchId);
+    setPendingWorkerUpdates(remaining);
+    await saveUserData(currentUser, 'pending_worker_updates', remaining);
+    Alert.alert('تم', 'تم حذف التحديث');
+  };
+
   const normalizeBatches = (data) => {
     if (!data) return [];
     let d = data;
@@ -4690,6 +4715,7 @@ export default function App() {
         onClose={() => setUpdatesModalVisible(false)}
         batches={pendingWorkerUpdates}
         onApplyBatch={handleApplyBatch}
+        onDeleteBatch={handleDeleteBatch}
         amperPrices={amperPrices}
       />
       <SubscribersScreen
