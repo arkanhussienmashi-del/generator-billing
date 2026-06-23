@@ -1774,6 +1774,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
   const [subscriberNumber, setSubscriberNumber] = useState('');
   const [meterNumber, setMeterNumber] = useState('');
   const [visaNumber, setVisaNumber] = useState('');
+  const [subscriptionType, setSubscriptionType] = useState('normal');
 
   const handleSave = () => {
     const nameError = validateName(name);
@@ -1796,6 +1797,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
       subscriberNumber: subscriberNumber.trim(),
       meterNumber: meterNumber.trim(),
       visaNumber: visaNumber.trim(),
+      subscriptionType: subscriptionType,
       paid: false,
       paidMonths: {},
       paymentHistory: [],
@@ -1812,6 +1814,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
     setSubscriberNumber('');
     setMeterNumber('');
     setVisaNumber('');
+    setSubscriptionType('normal');
     onClose();
   };
 
@@ -1850,6 +1853,23 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
                 <Text style={styles.formLabel}>رقم الفيز</Text>
                 <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholder="أدخل رقم الفيز" placeholderTextColor="#999" textAlign="right" />
               </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>نوع الاشتراك</Text>
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.subscriptionTypeBtn, subscriptionType === 'normal' && styles.subscriptionTypeBtnActive]}
+                    onPress={() => setSubscriptionType('normal')}
+                  >
+                    <Text style={[styles.subscriptionTypeBtnText, subscriptionType === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.subscriptionTypeBtn, subscriptionType === 'golden' && styles.subscriptionTypeBtnActiveGold]}
+                    onPress={() => setSubscriptionType('golden')}
+                  >
+                    <Text style={[styles.subscriptionTypeBtnText, subscriptionType === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
               <TouchableOpacity style={styles.saveSubscriberButton} onPress={handleSave}>
                 <Ionicons name="checkmark-circle" size={22} color="white" />
                 <Text style={styles.saveSubscriberText}>حفظ المشترك</Text>
@@ -1868,6 +1888,7 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   const [subscriberNumber, setSubscriberNumber] = useState('');
   const [meterNumber, setMeterNumber] = useState('');
   const [visaNumber, setVisaNumber] = useState('');
+  const [subscriptionType, setSubscriptionType] = useState('normal');
 
   useEffect(() => {
     if (subscriber) {
@@ -1876,6 +1897,7 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       setSubscriberNumber(subscriber.subscriberNumber || '');
       setMeterNumber(subscriber.meterNumber || '');
       setVisaNumber(subscriber.visaNumber || '');
+      setSubscriptionType(subscriber.subscriptionType || 'normal');
     }
   }, [subscriber]);
 
@@ -1899,6 +1921,7 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       subscriberNumber: subscriberNumber.trim(),
       meterNumber: meterNumber.trim(),
       visaNumber: visaNumber.trim(),
+      subscriptionType: subscriptionType,
     };
     const currentMonthAmper = getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear));
     if (!isPaid && amperVal !== currentMonthAmper) {
@@ -1950,6 +1973,23 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>رقم الفيز</Text>
                 <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholderTextColor="#999" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>نوع الاشتراك</Text>
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.subscriptionTypeBtn, subscriptionType === 'normal' && styles.subscriptionTypeBtnActive]}
+                    onPress={() => setSubscriptionType('normal')}
+                  >
+                    <Text style={[styles.subscriptionTypeBtnText, subscriptionType === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.subscriptionTypeBtn, subscriptionType === 'golden' && styles.subscriptionTypeBtnActiveGold]}
+                    onPress={() => setSubscriptionType('golden')}
+                  >
+                    <Text style={[styles.subscriptionTypeBtnText, subscriptionType === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               <TouchableOpacity style={styles.saveSubscriberButton} onPress={handleSave}>
                 <Ionicons name="checkmark-circle" size={22} color="white" />
@@ -2504,7 +2544,10 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </TouchableOpacity>
                       )}
                       <View style={styles.cardNameSection}>
-                          <Text style={styles.subscriberName}>{subscriber.name}</Text>
+                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+                            <Text style={styles.subscriberName}>{subscriber.name}</Text>
+                            {subscriber.subscriptionType === 'golden' ? <View style={styles.goldenBadge}><Text style={styles.goldenBadgeText}>ذهبي</Text></View> : null}
+                          </View>
                           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 }}>
                               <TouchableOpacity
                                 onLongPress={() => {
@@ -4721,7 +4764,8 @@ export default function App() {
       }
       if (!isCurrentlyPaid && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const payerName = userRole === 'worker' ? workerName : ownerName;
-        const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nالأمبير: ${amperVal} × سعر الأمبير: ${formatNumber(monthPrice)} د.ع\nالمبلغ الإجمالي: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
+        const subTypeLabel = sub.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي';
+        const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nنوع الاشتراك: ${subTypeLabel}\nالأمبير: ${amperVal} × سعر الأمبير: ${formatNumber(monthPrice)} د.ع\nالمبلغ الإجمالي: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
@@ -4797,7 +4841,8 @@ export default function App() {
         const monthPayments2 = newSub2 && newSub2.partialPayments && newSub2.partialPayments[monthKey] ? newSub2.partialPayments[monthKey] : [];
         const totalPaid2 = monthPayments2.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         const payerName2 = userRole === 'worker' ? workerName : ownerName;
-        const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nالأمبير: ${amperVal2} × سعر الأمبير: ${formatNumber(pricePerAmper2)} د.ع\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
+        const subTypeLabel2 = sub.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي';
+        const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nنوع الاشتراك: ${subTypeLabel2}\nالأمبير: ${amperVal2} × سعر الأمبير: ${formatNumber(pricePerAmper2)} د.ع\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع الجزئي للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
@@ -5612,6 +5657,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+  },
+  subscriptionTypeBtn: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  subscriptionTypeBtnActive: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#2196F3',
+  },
+  subscriptionTypeBtnActiveGold: {
+    backgroundColor: '#FFF8E1',
+    borderColor: '#FFD700',
+  },
+  subscriptionTypeBtnText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  subscriptionTypeBtnTextActive: {
+    color: '#2196F3',
+    fontWeight: 'bold',
+  },
+  subscriptionTypeBtnTextActiveGold: {
+    color: '#FF8F00',
+    fontWeight: 'bold',
+  },
+  goldenBadge: {
+    backgroundColor: '#FFD700',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  goldenBadgeText: {
+    fontSize: 10,
+    color: '#5D4037',
+    fontWeight: 'bold',
   },
   saveSubscriberButton: {
     backgroundColor: '#2196F3',
