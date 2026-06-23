@@ -2024,6 +2024,18 @@ const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, monthK
             <Text style={styles.partialConfirmText}>تأكيد الدفع</Text>
           </TouchableOpacity>
 
+          {remaining > 0 && (
+            <TouchableOpacity style={[styles.partialConfirmButton, { marginTop: 8 }]} onPress={() => {
+              Alert.alert('دفع المتبقي', `هل تريد دفع المتبقي بالكامل؟\nالمبلغ: د.ع ${formatNumber(remaining)}`, [
+                { text: 'إلغاء', style: 'cancel' },
+                { text: 'نعم', onPress: () => { onConfirm(remaining); onClose(); } },
+              ]);
+            }}>
+              <Ionicons name="wallet" size={22} color="white" />
+              <Text style={styles.partialConfirmText}>دفع المتبقي كاملاً ({formatNumber(remaining)} د.ع)</Text>
+            </TouchableOpacity>
+          )}
+
           {existingPayments.length > 0 && (
             <View style={{ marginTop: 16, width: '100%' }}>
               <Text style={[styles.partialSummaryLabel, { textAlign: 'right', marginBottom: 8, fontSize: 14, fontWeight: 'bold', color: '#333' }]}>سجل الدفعات الجزئية</Text>
@@ -2395,9 +2407,15 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                     <Text style={styles.subscriberAmount}>
                       د.ع {formatNumber(getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear)) * getAmperPrice(amperPrices, `${selectedMonth}_${selectedYear}`))}    <Text style={styles.amperBlue}>{getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear))} أميبر</Text>
                     </Text>
+                    {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999', marginTop: 2 }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
                   </View>
                   {canEdit && (
-                    <TouchableOpacity style={styles.restoreButton} onPress={() => onRestoreSubscriber(subscriber.id)}>
+                    <TouchableOpacity style={styles.restoreButton} onPress={() => {
+                      Alert.alert('استعادة المشترك', `هل تريد بالتأكيد التراجع عن حذف "${subscriber.name}"؟`, [
+                        { text: 'إلغاء', style: 'cancel' },
+                        { text: 'نعم', onPress: () => onRestoreSubscriber(subscriber.id) },
+                      ]);
+                    }}>
                       <Ionicons name="refresh" size={22} color="#4CAF50" />
                     </TouchableOpacity>
                   )}
@@ -2428,57 +2446,41 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 <View key={subscriber.id}>
                   <View style={[styles.subscriberCard, isFullyPaid ? styles.paidCardBorder : styles.unpaidCardBorder]}>
                     <View style={styles.cardTopRow}>
-                      {hasPartialPayments && !isFullyPaid ? (
-                        <TouchableOpacity style={[styles.payCheckbox, { backgroundColor: '#FF9800', justifyContent: 'center', alignItems: 'center' }]} onPress={() => {
-                          setExpandedCard(null);
-                          if (!price || price === 0) {
-                            Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                      {(isFullyPaid || !hasPartialPayments) && (
+                      <TouchableOpacity style={styles.payCheckbox} onPress={() => {
+                        setExpandedCard(null);
+                        if (!price || price === 0) {
+                          Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                          return;
+                        }
+                        if (isFullyPaid) {
+                          if (!canCancelPayment) {
+                            Alert.alert('تنبيه', 'لا تملك صلاحية إلغاء الدفع');
                             return;
                           }
-                          if (!canPartialPayment) {
-                            Alert.alert('تنبيه', 'لا تملك صلاحية الدفع الجزئي');
+                          Alert.alert('إلغاء التسديد', `هل تريد إلغاء تسديد اشتراك "${subscriber.name}"؟`, [
+                            { text: 'إلغاء', style: 'cancel' },
+                            { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
+                          ]);
+                        } else {
+                          if (!canEdit) {
+                            Alert.alert('تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
                             return;
                           }
-                          setPartialPaymentSubscriber(subscriber);
-                          setPartialPaymentVisible(true);
-                        }}>
-                          <Ionicons name="wallet" size={24} color="white" />
-                        </TouchableOpacity>
-                      ) : (
-                        <TouchableOpacity style={styles.payCheckbox} onPress={() => {
-                          setExpandedCard(null);
-                          if (!price || price === 0) {
-                            Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
-                            return;
-                          }
-                          if (isFullyPaid) {
-                            if (!canCancelPayment) {
-                              Alert.alert('تنبيه', 'لا تملك صلاحية إلغاء الدفع');
-                              return;
-                            }
-                            Alert.alert('إلغاء التسديد', `هل تريد إلغاء تسديد اشتراك "${subscriber.name}"؟`, [
-                              { text: 'إلغاء', style: 'cancel' },
-                              { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
-                            ]);
-                          } else {
-                            if (!canEdit) {
-                              Alert.alert('تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
-                              return;
-                            }
-                            Alert.alert('تسديد الاشتراك', `هل تريد تسديد اشتراك "${subscriber.name}"؟`, [
-                              { text: 'إلغاء', style: 'cancel' },
-                              { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
-                            ]);
-                          }
-                        }}>
-                          {isFullyPaid ? (
-                            <View style={styles.checkboxPaid}>
-                              <Ionicons name="checkmark-circle" size={36} color="#4CAF50" />
-                            </View>
-                          ) : (
-                            <View style={styles.checkboxUnpaid} />
-                          )}
-                        </TouchableOpacity>
+                          Alert.alert('تسديد الاشتراك', `هل تريد تسديد اشتراك "${subscriber.name}"؟`, [
+                            { text: 'إلغاء', style: 'cancel' },
+                            { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
+                          ]);
+                        }
+                      }}>
+                        {isFullyPaid ? (
+                          <View style={styles.checkboxPaid}>
+                            <Ionicons name="checkmark-circle" size={36} color="#4CAF50" />
+                          </View>
+                        ) : (
+                          <View style={styles.checkboxUnpaid} />
+                        )}
+                      </TouchableOpacity>
                       )}
                       <View style={styles.cardNameSection}>
                           <Text style={styles.subscriberName}>{subscriber.name}</Text>
@@ -2496,7 +2498,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                               >
                                 <Text style={[styles.subscriberAmperTag]}>{currentAmper} أميبر</Text>
                               </TouchableOpacity>
-                          {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999' }}>{subscriber.meterNumber}</Text> : null}
+                          {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999' }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
                         </View>
                       </View>
                       <View style={styles.cardPriceSection}>
@@ -2515,6 +2517,22 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                             }}
                           >
                             <Text style={styles.partialPayButtonText}>دفع جزئي</Text>
+                          </TouchableOpacity>
+                        )}
+                        {!isFullyPaid && hasPartialPayments && canPartialPayment && (
+                          <TouchableOpacity
+                            style={styles.partialPayButton}
+                            onPress={() => {
+                              setExpandedCard(null);
+                              if (!price || price === 0) {
+                                Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                                return;
+                              }
+                              setPartialPaymentSubscriber(subscriber);
+                              setPartialPaymentVisible(true);
+                            }}
+                          >
+                            <Text style={styles.partialPayButtonText}>أكمال المتبقي</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -4682,7 +4700,7 @@ export default function App() {
       }
       if (!isCurrentlyPaid && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const payerName = userRole === 'worker' ? workerName : ownerName;
-        const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nالمبلغ: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
+        const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nالأمبير: ${amperVal} × سعر الأمبير: ${formatNumber(monthPrice)} د.ع\nالمبلغ الإجمالي: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
@@ -4751,12 +4769,14 @@ export default function App() {
       }
       if (sub && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const pmParts2 = monthKey.split('_');
-        const totalDue2 = getAmperForMonth(sub, parseInt(pmParts2[0]), parseInt(pmParts2[1])) * getAmperPrice(amperPrices, monthKey);
+        const amperVal2 = getAmperForMonth(sub, parseInt(pmParts2[0]), parseInt(pmParts2[1]));
+        const pricePerAmper2 = getAmperPrice(amperPrices, monthKey);
+        const totalDue2 = amperVal2 * pricePerAmper2;
         const newSub2 = newSubs.find(s => s.id === id);
         const monthPayments2 = newSub2 && newSub2.partialPayments && newSub2.partialPayments[monthKey] ? newSub2.partialPayments[monthKey] : [];
         const totalPaid2 = monthPayments2.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         const payerName2 = userRole === 'worker' ? workerName : ownerName;
-        const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
+        const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nالأمبير: ${amperVal2} × سعر الأمبير: ${formatNumber(pricePerAmper2)} د.ع\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع الجزئي للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
