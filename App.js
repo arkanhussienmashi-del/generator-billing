@@ -1752,7 +1752,6 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
   const [amper, setAmper] = useState('');
   const [subscriberNumber, setSubscriberNumber] = useState('');
   const [meterNumber, setMeterNumber] = useState('');
-  const [phone, setPhone] = useState('');
   const [visaNumber, setVisaNumber] = useState('');
 
   const handleSave = () => {
@@ -1775,7 +1774,6 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
       amper: amperVal,
       subscriberNumber: subscriberNumber.trim(),
       meterNumber: meterNumber.trim(),
-      phone: phone.trim(),
       visaNumber: visaNumber.trim(),
       paid: false,
       paidMonths: {},
@@ -1792,7 +1790,6 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
     setAmper('');
     setSubscriberNumber('');
     setMeterNumber('');
-    setPhone('');
     setVisaNumber('');
     onClose();
   };
@@ -1829,10 +1826,6 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
                 <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholder="أدخل رقم الجوزة" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
               </View>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>رقم الهاتف (لوتسجل فواتير واتساب)</Text>
-                <TextInput style={styles.formInput} value={phone} onChangeText={(t) => setPhone(onlyDigits(t))} placeholder="07xxxxxxxxx" placeholderTextColor="#999" keyboardType="phone-pad" maxLength={11} textAlign="right" />
-              </View>
-              <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>رقم الفيز</Text>
                 <TextInput style={styles.formInput} value={visaNumber} onChangeText={setVisaNumber} placeholder="أدخل رقم الفيز" placeholderTextColor="#999" textAlign="right" />
               </View>
@@ -1853,7 +1846,6 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   const [amper, setAmper] = useState('');
   const [subscriberNumber, setSubscriberNumber] = useState('');
   const [meterNumber, setMeterNumber] = useState('');
-  const [phone, setPhone] = useState('');
   const [visaNumber, setVisaNumber] = useState('');
 
   useEffect(() => {
@@ -1862,7 +1854,6 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       setAmper(String(subscriber.amper || ''));
       setSubscriberNumber(subscriber.subscriberNumber || '');
       setMeterNumber(subscriber.meterNumber || '');
-      setPhone(subscriber.phone || '');
       setVisaNumber(subscriber.visaNumber || '');
     }
   }, [subscriber]);
@@ -1886,7 +1877,6 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       name: name.trim(),
       subscriberNumber: subscriberNumber.trim(),
       meterNumber: meterNumber.trim(),
-      phone: phone.trim(),
       visaNumber: visaNumber.trim(),
     };
     const currentMonthAmper = getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear));
@@ -1935,10 +1925,6 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>رقم الجوزة</Text>
                 <TextInput style={styles.formInput} value={meterNumber} onChangeText={(t) => setMeterNumber(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>رقم الهاتف</Text>
-                <TextInput style={styles.formInput} value={phone} onChangeText={(t) => setPhone(onlyDigits(t))} placeholder="07xxxxxxxxx" placeholderTextColor="#999" keyboardType="phone-pad" maxLength={11} textAlign="right" />
               </View>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>رقم الفيز</Text>
@@ -2442,40 +2428,58 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 <View key={subscriber.id}>
                   <View style={[styles.subscriberCard, isFullyPaid ? styles.paidCardBorder : styles.unpaidCardBorder]}>
                     <View style={styles.cardTopRow}>
-                      <TouchableOpacity style={styles.payCheckbox} onPress={() => {
-                        setExpandedCard(null);
-                        if (!price || price === 0) {
-                          Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
-                          return;
-                        }
-                        if (isFullyPaid) {
-                          if (!canCancelPayment) {
-                            Alert.alert('تنبيه', 'لا تملك صلاحية إلغاء الدفع');
+                      {hasPartialPayments && !isFullyPaid ? (
+                        <TouchableOpacity style={[styles.payCheckbox, { backgroundColor: '#FF9800', justifyContent: 'center', alignItems: 'center' }]} onPress={() => {
+                          setExpandedCard(null);
+                          if (!price || price === 0) {
+                            Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
                             return;
                           }
-                          Alert.alert('إلغاء التسديد', `هل تريد إلغاء تسديد اشتراك "${subscriber.name}"؟`, [
-                            { text: 'إلغاء', style: 'cancel' },
-                            { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
-                          ]);
-                        } else {
-                          if (!canEdit) {
-                            Alert.alert('تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
+                          if (!canPartialPayment) {
+                            Alert.alert('تنبيه', 'لا تملك صلاحية الدفع الجزئي');
                             return;
                           }
-                          Alert.alert('تسديد الاشتراك', `هل تريد تسديد اشتراك "${subscriber.name}"؟`, [
-                            { text: 'إلغاء', style: 'cancel' },
-                            { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
-                          ]);
-                        }
-                      }}>
-                        {isFullyPaid ? (
-                          <View style={styles.checkboxPaid}>
-                            <Ionicons name="checkmark-circle" size={36} color="#4CAF50" />
-                          </View>
-                        ) : (
-                          <View style={styles.checkboxUnpaid} />
-                        )}
-                      </TouchableOpacity>
+                          setPartialPaymentSubscriber(subscriber);
+                          setPartialPaymentVisible(true);
+                        }}>
+                          <Ionicons name="wallet" size={24} color="white" />
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity style={styles.payCheckbox} onPress={() => {
+                          setExpandedCard(null);
+                          if (!price || price === 0) {
+                            Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                            return;
+                          }
+                          if (isFullyPaid) {
+                            if (!canCancelPayment) {
+                              Alert.alert('تنبيه', 'لا تملك صلاحية إلغاء الدفع');
+                              return;
+                            }
+                            Alert.alert('إلغاء التسديد', `هل تريد إلغاء تسديد اشتراك "${subscriber.name}"؟`, [
+                              { text: 'إلغاء', style: 'cancel' },
+                              { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
+                            ]);
+                          } else {
+                            if (!canEdit) {
+                              Alert.alert('تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
+                              return;
+                            }
+                            Alert.alert('تسديد الاشتراك', `هل تريد تسديد اشتراك "${subscriber.name}"؟`, [
+                              { text: 'إلغاء', style: 'cancel' },
+                              { text: 'نعم', onPress: () => onTogglePaid(subscriber.id, monthKey) },
+                            ]);
+                          }
+                        }}>
+                          {isFullyPaid ? (
+                            <View style={styles.checkboxPaid}>
+                              <Ionicons name="checkmark-circle" size={36} color="#4CAF50" />
+                            </View>
+                          ) : (
+                            <View style={styles.checkboxUnpaid} />
+                          )}
+                        </TouchableOpacity>
+                      )}
                       <View style={styles.cardNameSection}>
                           <Text style={styles.subscriberName}>{subscriber.name}</Text>
                           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 }}>
@@ -2497,7 +2501,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </View>
                       <View style={styles.cardPriceSection}>
                         <Text style={styles.cardPrice}>د.ع {formatNumber(totalDue)}</Text>
-                        {!isFullyPaid && canPartialPayment && (
+                        {!isFullyPaid && !hasPartialPayments && canPartialPayment && (
                           <TouchableOpacity
                             style={styles.partialPayButton}
                             onPress={() => {
@@ -2549,23 +2553,6 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                           </TouchableOpacity>
                         )}
                         <View style={styles.cardBottomRight}>
-                          {subscriber.phone && subscriber.phone.trim() ? (
-                            <TouchableOpacity
-                              style={{ marginRight: 8, padding: 4, backgroundColor: '#25D366', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                              onPress={() => {
-                                const pmParts3 = monthKey.split('_');
-                                const totalDue3 = currentAmper * getAmperPrice(amperPrices, monthKey);
-                                const payerName3 = userRole === 'worker' ? workerName : ownerName;
-                                const status3 = isFullyPaid ? 'مدفوع' : (totalPartialPaid > 0 ? `جزئي - وصل ${formatNumber(totalPartialPaid)}` : 'غير مدفوع');
-                                const msg3 = `إشعار دفع - ${generatorName}\n\nالعميل: ${subscriber.name}\nالشهر: ${pmParts3[0]}/${pmParts3[1]}\nالمبلغ: د.ع ${formatNumber(totalDue3)}\nالحالة: ${status3}\n\nتم بواسطة: ${payerName3}`;
-                                const phone3 = subscriber.phone.replace(/^0/, '964');
-                                Linking.openURL('https://wa.me/' + phone3 + '?text=' + encodeURIComponent(msg3)).catch(() => Alert.alert('خطأ', 'لا يمكن فتح الواتساب'));
-                              }}
-                            >
-                              <Ionicons name="logo-whatsapp" size={16} color="white" />
-                              <Text style={{ color: 'white', fontSize: 11, fontWeight: '600' }}>واتساب</Text>
-                            </TouchableOpacity>
-                          ) : null}
                           <Text style={styles.paymentDateText}>
                             {hasPartialPayments && !isFullyPaid && partialPayments.length > 0
                               ? partialPayments[partialPayments.length - 1].timestamp
@@ -4693,13 +4680,13 @@ export default function App() {
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate(isCurrentlyPaid ? 'cancelled' : 'paid', id, sub.name, sub.amper, monthKey, { amount });
       }
-      if (!isCurrentlyPaid && sub.phone && sub.phone.trim()) {
+      if (!isCurrentlyPaid && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const payerName = userRole === 'worker' ? workerName : ownerName;
         const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nالمبلغ: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
-            const phone = sub.phone.replace(/^0/, '964');
+            const phone = sub.subscriberNumber.replace(/^0/, '964');
             const url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
             Linking.openURL(url).catch(() => Alert.alert('خطأ', 'لا يمكن فتح الواتساب'));
           }},
@@ -4762,7 +4749,7 @@ export default function App() {
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate('partialPayment', id, sub.name, sub.amper, monthKey, { amount });
       }
-      if (sub && sub.phone && sub.phone.trim()) {
+      if (sub && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const pmParts2 = monthKey.split('_');
         const totalDue2 = getAmperForMonth(sub, parseInt(pmParts2[0]), parseInt(pmParts2[1])) * getAmperPrice(amperPrices, monthKey);
         const newSub2 = newSubs.find(s => s.id === id);
@@ -4773,7 +4760,7 @@ export default function App() {
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع الجزئي للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
-            const phone2 = sub.phone.replace(/^0/, '964');
+            const phone2 = sub.subscriberNumber.replace(/^0/, '964');
             const url2 = 'https://wa.me/' + phone2 + '?text=' + encodeURIComponent(msg2);
             Linking.openURL(url2).catch(() => Alert.alert('خطأ', 'لا يمكن فتح الواتساب'));
           }},
