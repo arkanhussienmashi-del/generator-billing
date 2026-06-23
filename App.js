@@ -3840,6 +3840,13 @@ export default function App() {
     const pollInterval = setInterval(async () => {
       try {
         const all = await loadAllUserKeys(workerOwnerPhone);
+        const ownerWorkers = all.workers || [];
+        const stillExists = ownerWorkers.find(function(w) { return w.code === workerCode; });
+        if (!stillExists) {
+          Alert.alert('تم الحذف', 'تم حذف حسابك من قبل صاحب المولد. سيتم تسجيل الخروج.');
+          handleLogout();
+          return;
+        }
         if (all.generators && all.generators.length > 0) {
           const workerCurrentId = currentGeneratorId;
           const workerActive = all.generators.find(function(g) { return g.id === workerCurrentId; }) || all.generators[0];
