@@ -171,8 +171,8 @@ async function apiPut(body) {
 }
 
 async function apiDelete(body) {
-  body._adminToken = adminToken;
-  var r = await fetch(API_URL + '/api?_action=deleteUser', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  var params = '_action=deleteUser&phone=' + encodeURIComponent(body.phone) + '&_adminToken=' + encodeURIComponent(adminToken);
+  var r = await fetch(API_URL + '/api?' + params, { method: 'DELETE' });
   return await r.json();
 }
 

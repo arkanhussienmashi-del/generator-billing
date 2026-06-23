@@ -219,7 +219,7 @@ async function pbkdf2Hash(password, salt) {
       hash + ':' + salt + ':' + i
     );
   }
-  return hash;
+  return 'pbkdf2:' + salt + ':' + hash;
 }
 
 function generateSalt() {
@@ -405,7 +405,7 @@ const OnboardingScreen = ({ onComplete }) => {
       iconColor: '#FF9800',
       title: 'التقارير والإحصائيات',
       description: 'عرض تقارير شاملة للمدفوعات والمطلوبين مع إمكانية البحث والتصفية',
-      bg: '#E65100',
+      bg: '#37474F',
     },
     {
       icon: 'cloud-upload',
@@ -419,7 +419,7 @@ const OnboardingScreen = ({ onComplete }) => {
       iconColor: '#F44336',
       title: 'إدارة العمال',
       description: 'إضافة عامل جديد من الإعدادات عن طريق كود ورمز سري. يمكن تخصيص صلاحياته: إضافة مشتركين، تعديل بيانات، حذف مشتركين، تغيير الأمبير، دفع الأقساط، وإلغاء الدفعات',
-      bg: '#B71C1C',
+      bg: '#4A148C',
     },
   ];
 
@@ -560,7 +560,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
       ]);
 
       Alert.alert('تم', 'تم إنشاء الحساب بنجاح', [
-        { text: 'موافق', onPress: onRegisterSuccess || onBack }
+        { text: 'موافق', onPress: function() { if (onRegisterSuccess) onRegisterSuccess(phone.trim()); else onBack(); } }
       ]);
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء الحساب');
@@ -1424,7 +1424,9 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
         </View>
       </Modal>
   </>);
-}; = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices }) => {
+};
+
+const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
 
   if (!visible) return null;
@@ -3310,7 +3312,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const [addExpenseLabel, setAddExpenseLabel] = useState('');
 
   useEffect(() => {
-    setLocalAmperPrice(String(amperPrices[currentMonthKey] || '0'));
+    setLocalAmperPrice(String(amperPrices[currentMonthKey] || ''));
     setGas(expenses.gas);
     setOil(expenses.oil);
     setRepairs(expenses.repairs);
@@ -3744,6 +3746,25 @@ export default function App() {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    if (!currentUser || userRole !== 'owner') return;
+    const checkDeleted = async () => {
+      try {
+        const usersResult = await loadFromFile('registered_users');
+        if (usersResult === null) return;
+        const usersList = usersResult || [];
+        const exists = usersList.find(function(u) { return u.phone === currentUser; });
+        if (!exists) {
+          Alert.alert('تم الحذف', 'تم حذف حسابك من قبل الإدارة. سيتم تسجيل الخروج تلقائياً.');
+          handleLogout();
+        }
+      } catch (e) {}
+    };
+    checkDeleted();
+    const interval = setInterval(checkDeleted, 60000);
+    return () => clearInterval(interval);
+  }, [currentUser, userRole]);
+
   const isFirstRender = React.useRef(true);
   const generatorsRef = React.useRef(generators);
   generatorsRef.current = generators;
@@ -3751,7 +3772,7 @@ export default function App() {
   currentGeneratorIdRef.current = currentGeneratorId;
   const syncTimerRef = React.useRef(null);
 
-  const defaultExpenses = { gas: '0', oil: '0', repairs: '0', salaries: '0' };
+  const defaultExpenses = { gas: '', oil: '', repairs: '', salaries: '' };
   const currentMonthKeyForMain = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
   const expenses = monthlyExpenses[currentMonthKeyForMain] || defaultExpenses;
   useEffect(() => {
@@ -4041,7 +4062,12 @@ export default function App() {
   const handleOnboardingComplete = async () => {
     await saveToFile('onboarding_done', true);
     setShowOnboarding(false);
-    setScreen('login');
+    if (currentUser) {
+      loadAllUserData();
+      setScreen('main');
+    } else {
+      setScreen('login');
+    }
   };
 
   const handleChangePassword = async (oldPassword, newPassword) => {
@@ -4771,7 +4797,7 @@ export default function App() {
       <RegisterScreen
         onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
-        onRegisterSuccess={() => setShowOnboarding(true)}
+        onRegisterSuccess={(registeredPhone) => { setScreen('login'); setCurrentUser(registeredPhone); setUserRole('owner'); saveToFile('current_user', { phone: registeredPhone, role: 'owner' }); setShowOnboarding(true); }}
       />
     );
   }
@@ -5688,16 +5714,16 @@ const styles = StyleSheet.create({
   },
   subscriberCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: IS_SMALL ? 12 : 16,
-    marginTop: 12,
-    borderWidth: 1.5,
+    borderRadius: 12,
+    padding: IS_SMALL ? 8 : 10,
+    marginTop: 6,
+    borderWidth: 1,
     borderColor: '#E8E8E8',
-    elevation: 3,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
   },
   paidCardBorder: {
     borderColor: '#4CAF50',
@@ -5713,7 +5739,7 @@ const styles = StyleSheet.create({
   cardTopRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   cardNameSection: {
     flex: 1,
@@ -5753,12 +5779,12 @@ const styles = StyleSheet.create({
   cardBottomLeft: {
     alignItems: 'flex-start',
   },
-  subscriberName: {
-    fontSize: IS_SMALL ? 15 : 18,
+subscriberName: {
+    fontSize: IS_SMALL ? 13 : 15,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'right',
-  },
+},
   subscriberAmperTag: {
     fontSize: IS_SMALL ? 11 : 13,
     color: '#2196F3',
@@ -5801,7 +5827,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   subscriberAmount: {
-    fontSize: 15,
+    fontSize: 13,
     color: '#666',
     textAlign: 'right',
   },
@@ -5810,27 +5836,27 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   payCheckbox: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxPaid: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxUnpaid: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#ccc',
     backgroundColor: 'white',
   },
   checkEmoji: {
-    fontSize: 30,
+    fontSize: 24,
   },
   restoreButton: {
     padding: 10,
@@ -6126,11 +6152,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  partialSubscriberName: {
-    fontSize: IS_SMALL ? 17 : 22,
+partialSubscriberName: {
+    fontSize: IS_SMALL ? 14 : 17,
     fontWeight: 'bold',
     color: '#333',
-  },
+},
   partialSubscriberAmper: {
     fontSize: 16,
     color: '#2196F3',

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const PBKDF2_ITERATIONS = 10;
 const ADMIN_PASSWORD = 'admin@billing2026';
 const ADMIN_SECRET = 'genBillingAdmin' + 'Secret' + '2026';
+const ADMIN_TOKEN_EXPIRY_HOURS = 24;
 
 function pbkdf2HashSync(password, salt) {
   let hash = crypto.createHash('sha256').update(salt + ':' + password.trim()).digest('hex');
@@ -18,7 +19,7 @@ function verifyAdminPassword(password) {
 }
 
 function signAdminToken(password) {
-  const expiry = Date.now() + 6 * 60 * 60 * 1000;
+  const expiry = Date.now() + 24 * 60 * 60 * 1000;
   const data = password + '.' + expiry;
   const sig = crypto.createHmac('sha256', ADMIN_SECRET).update(data).digest('hex');
   return expiry + '.' + sig;
@@ -27,11 +28,11 @@ function signAdminToken(password) {
 function verifyAdminToken(token) {
   if (!token) return false;
   const parts = token.split('.');
-  if (parts.length !== 3) return false;
+  if (parts.length < 2) return false;
   const expiry = parseInt(parts[0]);
   if (isNaN(expiry) || Date.now() > expiry) return false;
   const sig = crypto.createHmac('sha256', ADMIN_SECRET).update(ADMIN_PASSWORD + '.' + expiry).digest('hex');
-  return sig === parts[2];
+  return sig === parts[1];
 }
 
 let pool = null;
@@ -67,7 +68,11 @@ module.exports = async function handler(req, res) {
     const p = await getPool();
 
     if (req.method === 'GET') {
-      const { phone, key, filename, table } = req.query;
+      const { phone, key, filename, table, _ping } = req.query;
+
+      if (_ping === '1') {
+        return res.status(200).json({ ok: true, time: new Date().toISOString() });
+      }
 
       if (table === 'app_data' || filename) {
         if (!filename) {
@@ -164,17 +169,16 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      const { filename, phone, key, _action } = req.query;
-      const body = req.body;
+      const { filename, phone, key, _action, _adminToken } = req.query;
 
       if (_action === 'deleteUser') {
-        if (!body || !body._adminToken || !verifyAdminToken(body._adminToken)) {
+        if (!_adminToken || !verifyAdminToken(_adminToken)) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
-        if (!body.phone) {
+        if (!phone) {
           return res.status(400).json({ error: 'Missing phone' });
         }
-        const targetPhone = body.phone;
+        const targetPhone = phone;
         await p.query('DELETE FROM user_data WHERE phone = ?', [targetPhone]);
 
         const [appRows] = await p.query('SELECT * FROM app_data WHERE filename = ?', ['registered_users']);
