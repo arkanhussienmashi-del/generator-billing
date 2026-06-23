@@ -514,6 +514,7 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
 
 const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   const [phone, setPhone] = useState('');
+  const [ownerName, setOwnerName] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -522,6 +523,14 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
     const phoneError = validatePhone(phone);
     if (phoneError) {
       Alert.alert('تنبيه', phoneError);
+      return;
+    }
+    if (!ownerName.trim()) {
+      Alert.alert('تنبيه', 'يرجى إدخال اسم صاحب المولد');
+      return;
+    }
+    if (!/^[a-zA-Z\u0600-\u06FF\s]+$/.test(ownerName.trim())) {
+      Alert.alert('تنبيه', 'الاسم يجب أن يحتوي على حروف عربية أو إنجليزية فقط');
       return;
     }
     if (!ownerCode.trim()) {
@@ -550,7 +559,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
         Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول');
         return;
       }
-      users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim() });
+      users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim(), ownerName: ownerName.trim() });
       await saveToFile('registered_users', users);
 
       await Promise.all([
@@ -602,6 +611,18 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
             <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
+              placeholder="اسم صاحب المولد"
+              placeholderTextColor="#999"
+              value={ownerName}
+              onChangeText={setOwnerName}
+              maxLength={50}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
               placeholder="الرمز (6 أحرف أو أرقام على الأقل)"
               placeholderTextColor="#999"
               value={ownerCode}
@@ -611,7 +632,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder="تأكيد الرمز"
