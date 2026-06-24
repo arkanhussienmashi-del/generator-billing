@@ -3837,7 +3837,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
 
         <View style={styles.dateContainer}>
-          <Text style={styles.dateText}>{getCurrentDate()}</Text>
+          <Text style={[styles.dateText, { textAlign: 'right', flex: 1 }]}>{getCurrentDate()}</Text>
           {workers && workers.length > 0 && (
             <TouchableOpacity style={{ backgroundColor: '#9C27B0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }} onPress={onShowWorkerTracking}>
               <Ionicons name="person-outline" size={14} color="white" />
