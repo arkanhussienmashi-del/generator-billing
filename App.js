@@ -3809,6 +3809,11 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <TouchableOpacity style={{ backgroundColor: '#9C27B0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }} onPress={onShowWorkerTracking}>
               <Ionicons name="person-outline" size={14} color="white" />
               <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>متابعة العامل</Text>
+              {pendingUpdatesCount > 0 && (
+                <View style={{ backgroundColor: 'red', borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 4 }}>
+                  <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>{pendingUpdatesCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
         </View>
