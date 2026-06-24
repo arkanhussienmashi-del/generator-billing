@@ -1256,14 +1256,14 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 18, color: '#333', fontWeight: 'bold' }}>{worker.workerName || 'بدون اسم'}</Text>
-                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>كود: {worker.code} | الرمز: {worker.pin}</Text>
+                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>كود: {worker.code} | الرمز: {worker.plainPin || '****'}</Text>
                           <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
                         </View>
                       </View>
                       <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
                         <TouchableOpacity style={{ flex: 1, backgroundColor: '#E3F2FD', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={async () => {
-                          await Clipboard.setStringAsync(`كود: ${worker.code}\nالرمز: ${worker.pin}`);
-                          Alert.alert('تم النسخ', `كود: ${worker.code}\nالرمز: ${worker.pin}`);
+                          await Clipboard.setStringAsync(`كود: ${worker.code}\nالرمز: ${worker.plainPin || worker.pin}`);
+                          Alert.alert('تم النسخ', `كود: ${worker.code}\nالرمز: ${worker.plainPin || '****'}`);
                         }}>
                           <Ionicons name="copy-outline" size={16} color="#2196F3" />
                           <Text style={{ color: '#2196F3', fontSize: 13, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
@@ -5048,7 +5048,7 @@ export default function App() {
       const code = generateWorkerCode(currentUser);
       const pin = generateWorkerPin();
       const hashedPin = await hashWorkerPin(pin);
-      const newWorker = { code, pin: hashedPin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+      const newWorker = { code, pin: hashedPin, plainPin: pin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
       const updated = [...workers, newWorker];
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
