@@ -1931,17 +1931,17 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
               <>
               <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold', marginBottom: 8 }}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
-                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي المحصل:</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected)}</Text>
+                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي المحصل:</Text>
                 </View>
-                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي الصرفيات:</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
+                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي الصرفيات:</Text>
                 </View>
-                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#C8E6C9', paddingTop: 6, marginTop: 4 }}>
-                  <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصافي:</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#C8E6C9', paddingTop: 6, marginTop: 4 }}>
                   <Text style={{ fontSize: 15, color: totalCollected - totalExpenses >= 0 ? '#2E7D32' : '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected - totalExpenses)}</Text>
+                  <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصافي:</Text>
                 </View>
               </View>
 
@@ -1949,14 +1949,14 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                 <View style={{ marginBottom: 16 }}>
                   <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>التحصيلات ({collections.length})</Text>
                   {collections.map((c, idx) => (
-                    <View key={idx} style={{ backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{c.subscriberName}</Text>
-                        <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{c.amper} أميبر - {c.type === 'full' ? 'دفع كامل' : 'دفع جزئي'}</Text>
-                      </View>
+                    <View key={idx} style={{ backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <View style={{ alignItems: 'flex-start' }}>
                         <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(c.amount)}</Text>
                         <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{c.timestamp}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold', textAlign: 'right' }}>{c.subscriberName}</Text>
+                        <Text style={{ fontSize: 12, color: '#888', marginTop: 2, textAlign: 'right' }}>{c.amper} أميبر - {c.type === 'full' ? 'دفع كامل' : 'دفع جزئي'}</Text>
                       </View>
                     </View>
                   ))}
@@ -1967,13 +1967,13 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                 <View style={{ marginBottom: 16 }}>
                   <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>الصرفيات ({expenses.length})</Text>
                   {expenses.map((e, idx) => (
-                    <View key={idx} style={{ backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
-                      </View>
+                    <View key={idx} style={{ backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <View style={{ alignItems: 'flex-start' }}>
                         <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
                         <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{e.timestamp}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold', textAlign: 'right' }}>{e.type}</Text>
                       </View>
                     </View>
                   ))}
