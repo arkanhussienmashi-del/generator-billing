@@ -3540,7 +3540,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
       } else { unpaidCount++; }
     });
     return { activeCount, deletedCount, totalAmper, paidCount, unpaidCount, requiredCount, requiredAmount, totalExpected, totalCollected };
-  }, [subscribers, m, y, monthKey, price, subscriptionTypeFilter]);
+  }, [subscribers, m, y, monthKey, amperPrices, goldenPrices, subscriptionTypeFilter]);
 
   const monthExpenses = monthlyExpenses[monthKey] || { gas: '0', oil: '0', repairs: '0', salaries: '0' };
   const totalExpenses = (parseFloat(monthExpenses.gas) || 0) + (parseFloat(monthExpenses.oil) || 0) + (parseFloat(monthExpenses.repairs) || 0) + (parseFloat(monthExpenses.salaries) || 0);
