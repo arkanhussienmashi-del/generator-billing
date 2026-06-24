@@ -1768,6 +1768,201 @@ const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
   );
 };
 
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices }) => {
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const [selectedWorker, setSelectedWorker] = useState(null);
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+
+  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const years = [];
+  for (let yr = now.getFullYear(); yr >= now.getFullYear() - 5; yr--) years.push(String(yr));
+
+  useEffect(() => {
+    if (visible && workers.length === 1) {
+      setSelectedWorker(workers[0]);
+    }
+  }, [visible, workers]);
+
+  const filteredLogs = useMemo(() => {
+    if (!activityLog || !Array.isArray(activityLog)) return [];
+    const monthKey = `${selectedMonth}_${selectedYear}`;
+    return activityLog.filter(batch => {
+      if (selectedWorker && batch.workerCode !== selectedWorker.code) return false;
+      return (batch.updates || []).some(u => u.monthKey === monthKey);
+    });
+  }, [activityLog, selectedMonth, selectedYear, selectedWorker]);
+
+  const { collections, expenses, totalCollected, totalExpenses } = useMemo(() => {
+    const monthKey = `${selectedMonth}_${selectedYear}`;
+    let cols = [];
+    let exps = [];
+    let tc = 0;
+    let te = 0;
+    filteredLogs.forEach(batch => {
+      (batch.updates || []).forEach(u => {
+        if (u.monthKey !== monthKey) return;
+        if (u.type === 'paid') {
+          const amperVal = u.amper || 0;
+          const price = getAmperPrice(amperPrices, monthKey);
+          const amount = amperVal * price;
+          cols.push({ subscriberName: u.subscriberName, amper: amperVal, amount, timestamp: u.timestamp, type: 'full' });
+          tc += amount;
+        } else if (u.type === 'partialPayment') {
+          const amount = (u.details && u.details.amount) || 0;
+          cols.push({ subscriberName: u.subscriberName, amper: u.amper || 0, amount, timestamp: u.timestamp, type: 'partial' });
+          tc += amount;
+        } else if (u.type === 'addExpense') {
+          const expType = (u.details && u.details.expenseType) || u.subscriberName || '';
+          const amount = (u.details && u.details.amount) || 0;
+          exps.push({ type: expType, amount, timestamp: u.timestamp });
+          te += amount;
+        }
+      });
+    });
+    return { collections: cols, expenses: exps, totalCollected: tc, totalExpenses: te };
+  }, [filteredLogs, selectedMonth, selectedYear]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={{ flex: 1 }}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+      <View style={styles.subscribersOverlay}>
+        <View style={styles.subscribersContainer}>
+          <View style={styles.subscribersHeader}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons name="arrow-forward" size={26} color="white" />
+            </TouchableOpacity>
+            <Text style={styles.subscribersTitle}>متابعة العامل</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: 16 }}>
+              <View style={{ flexDirection: 'row-reverse', gap: 10, marginBottom: 16 }}>
+                <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setYearPickerVisible(true)}>
+                  <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{selectedYear}</Text>
+                  <Ionicons name="calendar-outline" size={16} color="#1565C0" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
+                  <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{monthNames[parseInt(selectedMonth) - 1]}</Text>
+                  <Ionicons name="calendar-outline" size={16} color="#1565C0" />
+                </TouchableOpacity>
+              </View>
+
+              {workers.length > 1 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.formLabel, { marginBottom: 8 }]}>اختر العامل</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row-reverse' }}>
+                    {workers.map((w, idx) => (
+                      <TouchableOpacity key={idx} style={[styles.filterTab, selectedWorker && selectedWorker.code === w.code && styles.filterTabActive, { marginLeft: 8 }]} onPress={() => setSelectedWorker(selectedWorker && selectedWorker.code === w.code ? null : w)}>
+                        <Text style={[styles.filterTabText, selectedWorker && selectedWorker.code === w.code && styles.filterTabTextActive]}>{w.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold', marginBottom: 8 }}>ملخص الشهر</Text>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي المحصل:</Text>
+                  <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي الصرفيات:</Text>
+                  <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#C8E6C9', paddingTop: 6, marginTop: 4 }}>
+                  <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصافي:</Text>
+                  <Text style={{ fontSize: 15, color: totalCollected - totalExpenses >= 0 ? '#2E7D32' : '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected - totalExpenses)}</Text>
+                </View>
+              </View>
+
+              {collections.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>التحصيلات ({collections.length})</Text>
+                  {collections.map((c, idx) => (
+                    <View key={idx} style={{ backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{c.subscriberName}</Text>
+                        <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{c.amper} أميبر - {c.type === 'full' ? 'دفع كامل' : 'دفع جزئي'}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-start' }}>
+                        <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(c.amount)}</Text>
+                        <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{c.timestamp}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {expenses.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>الصرفيات ({expenses.length})</Text>
+                  {expenses.map((e, idx) => (
+                    <View key={idx} style={{ backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-start' }}>
+                        <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+                        <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{e.timestamp}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {collections.length === 0 && expenses.length === 0 && (
+                <View style={{ alignItems: 'center', marginTop: 40 }}>
+                  <Ionicons name="document-text-outline" size={60} color="#ccc" />
+                  <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>لا توجد بيانات لهذا الشهر</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+      </Modal>
+
+      <Modal visible={monthPickerVisible} transparent animationType="fade">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>اختر الشهر</Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {monthNames.map((m, idx) => (
+                <TouchableOpacity key={idx} style={[styles.pickerItem, parseInt(selectedMonth) === idx + 1 && styles.pickerItemActive]} onPress={() => { setSelectedMonth(String(idx + 1)); setMonthPickerVisible(false); }}>
+                  <Text style={[styles.pickerItemText, parseInt(selectedMonth) === idx + 1 && styles.pickerItemTextSelected]}>{m}</Text>
+                  {parseInt(selectedMonth) === idx + 1 && <Ionicons name="checkmark" size={22} color="#2196F3" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={yearPickerVisible} transparent animationType="fade">
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>اختر السنة</Text>
+            <ScrollView>
+              {years.map((y) => (
+                <TouchableOpacity key={y} style={[styles.pickerItem, selectedYear === y && styles.pickerItemActive]} onPress={() => { setSelectedYear(y); setYearPickerVisible(false); }}>
+                  <Text style={[styles.pickerItemText, selectedYear === y && styles.pickerItemTextSelected]}>{y}</Text>
+                  {selectedYear === y && <Ionicons name="checkmark" size={22} color="#2196F3" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
 const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedYear }) => {
   const [name, setName] = useState('');
   const [amper, setAmper] = useState('');
@@ -3395,7 +3590,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount }) => {
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -3585,6 +3780,12 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <Ionicons name="people" size={20} color="white" />
             <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
           </TouchableOpacity>
+          {workers && workers.length > 0 && (
+            <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#9C27B0', marginTop: 10 }]} onPress={onShowWorkerTracking}>
+              <Ionicons name="person-outline" size={20} color="white" />
+              <Text style={styles.showSubscribersText}>متابعة العامل</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={[styles.financialSummary, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
@@ -3690,10 +3891,30 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
+  const [expenseModalVisible, setExpenseModalVisible] = useState(false);
+  const [expenseType, setExpenseType] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+
+  const handleSaveExpense = () => {
+    if (!expenseType.trim()) {
+      Alert.alert('تنبيه', 'أدخل نوع الصرفية');
+      return;
+    }
+    const parsed = parseFloat(expenseAmount.replace(/,/g, ''));
+    if (!parsed || parsed <= 0) {
+      Alert.alert('تنبيه', 'أدخل مبلغ صحيح');
+      return;
+    }
+    onAddExpense(expenseType.trim(), parsed, currentMonthKey);
+    setExpenseType('');
+    setExpenseAmount('');
+    setExpenseModalVisible(false);
+    Alert.alert('تم', 'تم تسجيل الصرفية بنجاح');
+  };
 
   const { totalSubscribers, paidCount, requiredCount, unpaidCount } = useMemo(() => {
     let ts = 0, pc = 0, rc = 0, uc = 0;
@@ -3773,6 +3994,10 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
             <Ionicons name="people" size={20} color="white" />
             <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF5722', marginTop: 10 }]} onPress={() => setExpenseModalVisible(true)}>
+            <Ionicons name="receipt-outline" size={20} color="white" />
+            <Text style={styles.showSubscribersText}>إضافة صرفية</Text>
+          </TouchableOpacity>
         </View>
 
         {workerUpdates.length > 0 && isOnline && (
@@ -3782,6 +4007,34 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      <Modal visible={expenseModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingTop: 20, paddingBottom: 30 }]}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setExpenseModalVisible(false)}>
+                <Ionicons name="close" size={28} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>إضافة صرفية</Text>
+              <View style={{ width: 30 }} />
+            </View>
+            <View style={{ padding: 16 }}>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>نوع الصرفية <Text style={styles.required}>*</Text></Text>
+                <TextInput style={styles.formInput} value={expenseType} onChangeText={setExpenseType} placeholder="مثال: دهن، كاز، صيانة" placeholderTextColor="#999" textAlign="right" />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>المبلغ <Text style={styles.required}>*</Text></Text>
+                <TextInput style={styles.formInput} value={expenseAmount} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); setExpenseAmount(raw ? formatNumber(parseInt(raw)) : ''); }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+              </View>
+              <TouchableOpacity style={[styles.saveSubscriberButton, { backgroundColor: '#FF5722' }]} onPress={handleSaveExpense}>
+                <Ionicons name="checkmark-circle" size={22} color="white" />
+                <Text style={styles.saveSubscriberText}>حفظ الصرفية</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -3807,6 +4060,8 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(true);
   const [workerUpdates, setWorkerUpdates] = useState([]);
   const [pendingWorkerUpdates, setPendingWorkerUpdates] = useState([]);
+  const [workerActivityLog, setWorkerActivityLog] = useState([]);
+  const [workerTrackingVisible, setWorkerTrackingVisible] = useState(false);
   const [workers, setWorkers] = useState([]);
   const [generators, setGenerators] = useState([]);
   const [currentGeneratorId, setCurrentGeneratorId] = useState(null);
@@ -3993,6 +4248,7 @@ export default function App() {
     const all = await loadAllUserKeys(currentUser);
     if (all.ownerName !== undefined) setOwnerName(all.ownerName);
     if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(normalizeBatches(all.pending_worker_updates));
+    if (all.worker_activity_log !== undefined) setWorkerActivityLog(all.worker_activity_log);
     if (all.workers !== undefined) setWorkers(all.workers);
     if (all.darkMode !== undefined) setDarkMode(all.darkMode);
 
@@ -4242,6 +4498,10 @@ export default function App() {
     setWorkerUpdates(prev => [...prev, update]);
   };
 
+  const handleWorkerAddExpense = (expenseType, amount, monthKey) => {
+    trackWorkerUpdate('addExpense', '', expenseType, 0, monthKey, { expenseType, amount });
+  };
+
   const handleWorkerSync = async () => {
     if (workerUpdates.length === 0) {
       Alert.alert('تنبيه', 'لا توجد تحديثات للرفع');
@@ -4269,6 +4529,9 @@ export default function App() {
       };
       const merged = [...existing, batch];
       const result = await saveUserData(workerOwnerPhone, 'pending_worker_updates', merged);
+      const existingLog = await loadUserData(workerOwnerPhone, 'worker_activity_log') || [];
+      const logBatch = { ...batch, status: 'pending' };
+      await saveUserData(workerOwnerPhone, 'worker_activity_log', [...existingLog, logBatch]);
       if (result !== undefined) {
         setWorkerUpdates([]);
         Alert.alert('تم', 'تم رفع التحديثات بنجاح');
@@ -4304,6 +4567,7 @@ export default function App() {
               subscriberNumber: update.details.subscriberNumber || '',
               meterNumber: update.details.meterNumber || '',
               visaNumber: update.details.visaNumber || '',
+              subscriptionType: update.details.subscriptionType || 'normal',
               addedMonth: update.details.addedMonth || new Date().getMonth() + 1,
               addedYear: update.details.addedYear || new Date().getFullYear(),
               paidMonths: {},
@@ -4415,11 +4679,17 @@ export default function App() {
           }
           break;
         }
+        case 'addExpense': {
+          break;
+        }
       }
     }
 
     setSubscribers(newSubs);
     const remainingBatches = pendingWorkerUpdates.filter(b => b.id !== batchId);
+    const existingLog = await loadUserData(currentUser, 'worker_activity_log') || [];
+    const updatedLog = existingLog.map(b => b.id === batchId ? { ...b, status: 'applied' } : b);
+    await saveUserData(currentUser, 'worker_activity_log', updatedLog);
     if (currentGeneratorId && generators.length > 0) {
       const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
       setGenerators(updated);
@@ -4655,6 +4925,7 @@ export default function App() {
             subscriberNumber: subscriber.subscriberNumber,
             meterNumber: subscriber.meterNumber,
             visaNumber: subscriber.visaNumber,
+            subscriptionType: subscriber.subscriptionType || 'normal',
           });
         }
       } else {
@@ -4675,6 +4946,7 @@ export default function App() {
             subscriberNumber: subscriber.subscriberNumber,
             meterNumber: subscriber.meterNumber,
             visaNumber: subscriber.visaNumber,
+            subscriptionType: subscriber.subscriptionType || 'normal',
           });
         }
       }
@@ -5027,6 +5299,7 @@ export default function App() {
           onSwitchGenerator={null}
           onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
           workerAssignedGenerators={workerAssignedGenerators}
+          onAddExpense={handleWorkerAddExpense}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -5117,6 +5390,7 @@ export default function App() {
           onSwitchGenerator={null}
           onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
           workerAssignedGenerators={workerAssignedGenerators}
+          onAddExpense={handleWorkerAddExpense}
         />
         <SubscribersScreen
           visible={subscribersVisible}
@@ -5210,6 +5484,8 @@ export default function App() {
         onShowMonthlyData={() => setMonthlyDataVisible(true)}
         darkMode={darkMode}
         pendingUpdatesCount={pendingWorkerUpdates.length}
+        onShowWorkerTracking={() => setWorkerTrackingVisible(true)}
+        workers={workers}
       />
       <SettingsScreen
         visible={settingsVisible}
@@ -5249,6 +5525,13 @@ export default function App() {
         batches={pendingWorkerUpdates}
         onApplyBatch={handleApplyBatch}
         onDeleteBatch={handleDeleteBatch}
+        amperPrices={amperPrices}
+      />
+      <WorkerTrackingScreen
+        visible={workerTrackingVisible}
+        onClose={() => setWorkerTrackingVisible(false)}
+        workers={workers}
+        activityLog={workerActivityLog}
         amperPrices={amperPrices}
       />
       <SubscribersScreen
