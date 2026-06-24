@@ -988,22 +988,6 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 <Text style={styles.settingsHint}>تعديل الصلاحيات أو حذف عامل</Text>
               </View>
 
-              {pendingWorkerUpdates.length > 0 && (
-                <View style={{ marginTop: 15 }}>
-                  <TouchableOpacity
-                    style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
-                    onPress={() => { onClose(); onShowUpdates(); }}
-                  >
-                    <Ionicons name="notifications-outline" size={20} color="white" />
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>رؤية التحديثات الجديدة</Text>
-                    <View style={{ backgroundColor: 'white', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 6 }}>
-                      <Text style={{ color: '#F44336', fontWeight: 'bold', fontSize: 13 }}>{pendingWorkerUpdates.length}</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <Text style={styles.settingsHint}>يوجد تحديثات من العامل قيد الانتظار</Text>
-                </View>
-              )}
-
               <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
 
               <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>النسخ الاحتياطي</Text>
@@ -1850,13 +1834,29 @@ const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices }) => {
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch }) => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [showRejected, setShowRejected] = useState(false);
+  const [showExpenses, setShowExpenses] = useState(false);
+  const safePending = Array.isArray(pendingWorkerUpdates) ? pendingWorkerUpdates : [];
+  const safeRejected = Array.isArray(rejectedBatches) ? rejectedBatches : [];
+  const totalPendingCollected = useMemo(() => {
+    let total = 0;
+    safePending.forEach(function(batch) {
+      (batch.updates || []).forEach(function(u) {
+        if (u && (u.type === 'paid' || u.type === 'partialPayment') && u.details && u.details.amount) {
+          total += parseFloat(u.details.amount);
+        }
+      });
+    });
+    return total;
+  }, [safePending]);
 
   useEffect(() => {
     if (visible && workers.length === 1) {
@@ -1868,39 +1868,31 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
     if (!activityLog || !Array.isArray(activityLog)) return [];
     const monthKey = `${selectedMonth}_${selectedYear}`;
     return activityLog.filter(batch => {
-      if (selectedWorker && batch.workerCode !== selectedWorker.code) return false;
+      if (selectedWorker) {
+        const bCode = batch.workerCode || '';
+        const bName = batch.workerName || '';
+        if (bCode !== selectedWorker.code && bName !== selectedWorker.workerName) return false;
+      }
       return (batch.updates || []).some(u => u.monthKey === monthKey);
     });
   }, [activityLog, selectedMonth, selectedYear, selectedWorker]);
 
-  const { collections, expenses, totalCollected, totalExpenses } = useMemo(() => {
+  const { expenses, totalExpenses } = useMemo(() => {
     const monthKey = `${selectedMonth}_${selectedYear}`;
-    let cols = [];
     let exps = [];
-    let tc = 0;
     let te = 0;
     filteredLogs.forEach(batch => {
       (batch.updates || []).forEach(u => {
         if (u.monthKey !== monthKey) return;
-        if (u.type === 'paid') {
-          const amperVal = u.amper || 0;
-          const price = getAmperPrice(amperPrices, monthKey);
-          const amount = amperVal * price;
-          cols.push({ subscriberName: u.subscriberName, amper: amperVal, amount, timestamp: u.timestamp, type: 'full' });
-          tc += amount;
-        } else if (u.type === 'partialPayment') {
-          const amount = (u.details && u.details.amount) || 0;
-          cols.push({ subscriberName: u.subscriberName, amper: u.amper || 0, amount, timestamp: u.timestamp, type: 'partial' });
-          tc += amount;
-        } else if (u.type === 'addExpense') {
+        if (u.type === 'addExpense') {
           const expType = (u.details && u.details.expenseType) || u.subscriberName || '';
           const amount = (u.details && u.details.amount) || 0;
-          exps.push({ type: expType, amount, timestamp: u.timestamp });
+          exps.push({ type: expType, amount, timestamp: u.timestamp, workerName: batch.workerName || '' });
           te += amount;
         }
       });
     });
-    return { collections: cols, expenses: exps, totalCollected: tc, totalExpenses: te };
+    return { expenses: exps, totalExpenses: te };
   }, [filteredLogs, selectedMonth, selectedYear]);
 
   if (!visible) return null;
@@ -1954,61 +1946,194 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                 </View>
               ) : (
               <>
-              <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold', marginBottom: 8 }}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي المحصل:</Text>
-                  <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 13, color: '#555' }}>إجمالي الصرفيات:</Text>
-                  <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#C8E6C9', paddingTop: 6, marginTop: 4 }}>
-                  <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصافي:</Text>
-                  <Text style={{ fontSize: 15, color: totalCollected - totalExpenses >= 0 ? '#2E7D32' : '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected - totalExpenses)}</Text>
-                </View>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
+                {totalPendingCollected > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#E8F5E9', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 13, color: '#2E7D32', fontWeight: 'bold' }}>اجمالي التحصيل:</Text>
+                    <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalPendingCollected)}</Text>
+                  </View>
+                )}
+                {totalExpenses > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 13, color: '#D32F2F', fontWeight: 'bold' }}>اجمالي الصرفيات:</Text>
+                    <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
+                  </View>
+                )}
+                {totalPendingCollected === 0 && totalExpenses === 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12 }}>
+                    <Text style={{ fontSize: 13, color: '#888' }}>لا توجد بيانات هذا الشهر</Text>
+                  </View>
+                )}
               </View>
-
-              {collections.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>التحصيلات ({collections.length})</Text>
-                  {collections.map((c, idx) => (
-                    <View key={idx} style={{ backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{c.subscriberName}</Text>
-                        <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{c.amper} أميبر - {c.type === 'full' ? 'دفع كامل' : 'دفع جزئي'}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(c.amount)}</Text>
-                        <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{c.timestamp}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
 
               {expenses.length > 0 && (
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>الصرفيات ({expenses.length})</Text>
-                  {expenses.map((e, idx) => (
-                    <View key={idx} style={{ backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
+                  <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FFCC80' }} onPress={() => setShowExpenses(!showExpenses)}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name={showExpenses ? "chevron-down" : "chevron-back"} size={18} color="#E65100" />
+                      <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصرفيات</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
+                  </TouchableOpacity>
+                  {showExpenses && expenses.map((e, idx) => (
+                    <View key={idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082' }}>
+                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
                         <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
-                        <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{e.timestamp}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 11, color: '#999' }}>{e.workerName}</Text>
+                        <Text style={{ fontSize: 11, color: '#999' }}>{e.timestamp}</Text>
                       </View>
                     </View>
                   ))}
                 </View>
               )}
 
-              {collections.length === 0 && expenses.length === 0 && (
+              {expenses.length === 0 && safePending.length === 0 && (
                 <View style={{ alignItems: 'center', marginTop: 40 }}>
                   <Ionicons name="document-text-outline" size={60} color="#ccc" />
                   <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>لا توجد بيانات لهذا الشهر</Text>
+                </View>
+              )}
+
+              {safePending.length > 0 && (
+                <View style={{ marginTop: 16, backgroundColor: '#FFF3E0', borderRadius: 12, borderWidth: 1, borderColor: '#FF9800', overflow: 'hidden' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#FF9800' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="notifications" size={20} color="white" />
+                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: 'white' }}>تحديثات العامل</Text>
+                    </View>
+                    <View style={{ backgroundColor: 'white', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
+                      <Text style={{ color: '#FF9800', fontWeight: 'bold', fontSize: 14 }}>{safePending.length}</Text>
+                    </View>
+                  </View>
+
+                  {selectedBatch ? (
+                    <View style={{ padding: 12 }}>
+                      <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 12 }} onPress={() => setSelectedBatch(null)}>
+                        <Ionicons name="arrow-forward" size={20} color="#333" />
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>رجوع للقائمة</Text>
+                      </TouchableOpacity>
+                      {(() => {
+                        const selUpdates = selectedBatch.updates || [];
+                        let selCollected = 0;
+                        let selExpenseOnly = true;
+                        for (let si = 0; si < selUpdates.length; si++) {
+                          const su = selUpdates[si];
+                          if (!su) continue;
+                          if ((su.type === 'paid' || su.type === 'partialPayment') && su.details && su.details.amount) {
+                            selCollected += parseFloat(su.details.amount);
+                            selExpenseOnly = false;
+                          } else if (su.type === 'addExpense') {
+                            selCollected += (su.details && su.details.amount) ? parseFloat(su.details.amount) : 0;
+                          }
+                        }
+                        return (
+                          <View style={{ backgroundColor: selExpenseOnly ? '#C62828' : '#1565C0', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: 6 }}>د.ع {formatNumber(selCollected)}</Text>
+                            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{selectedBatch.workerName || ''} - {selectedBatch.timestamp || ''}</Text>
+                          </View>
+                        );
+                      })()}
+                      {(selectedBatch.updates || []).map(function(u, idx) {
+                        if (!u) return null;
+                        let typeLabel = '';
+                        let typeColor = '#333';
+                        let bgColor = '#f8f8f8';
+                        let iconName = 'document-text';
+                        let iconColor = '#999';
+                        let detailText = '';
+                        if (u.type === 'paid') { typeLabel = 'دفع اشتراك'; typeColor = '#2E7D32'; bgColor = '#E8F5E9'; iconName = 'checkmark-circle'; iconColor = '#4CAF50'; detailText = 'المبلغ: ' + formatNumber((u.details && u.details.amount) ? parseFloat(u.details.amount) : 0) + ' د.ع'; }
+                        else if (u.type === 'partialPayment') { typeLabel = 'دفع جزئي'; typeColor = '#E65100'; bgColor = '#FFF3E0'; iconName = 'wallet'; iconColor = '#FF9800'; detailText = 'المبلغ: ' + formatNumber((u.details && u.details.amount) ? parseFloat(u.details.amount) : 0) + ' د.ع'; }
+                        else if (u.type === 'cancelled') { typeLabel = 'الغاء الدفع'; typeColor = '#C62828'; bgColor = '#FFEBEE'; iconName = 'close-circle'; iconColor = '#FF5722'; }
+                        else if (u.type === 'delete') { typeLabel = 'حذف'; typeColor = '#BF360C'; bgColor = '#FBE9E7'; iconName = 'trash'; iconColor = '#D84315'; }
+                        else if (u.type === 'add') { typeLabel = 'اضافة مشترك'; typeColor = '#2E7D32'; bgColor = '#E8F5E9'; iconName = 'person-add'; iconColor = '#2E7D32'; detailText = 'مشترك جديد - ' + (u.amper || '') + ' امبير'; }
+                        else if (u.type === 'edit') { typeLabel = 'تعديل'; typeColor = '#1565C0'; bgColor = '#E3F2FD'; iconName = 'create'; iconColor = '#1565C0'; }
+                        else if (u.type === 'restore') { typeLabel = 'استعادة'; typeColor = '#1565C0'; bgColor = '#E3F2FD'; iconName = 'refresh'; iconColor = '#1565C0'; }
+                        else if (u.type === 'addExpense') { typeLabel = 'صرفية'; typeColor = '#E65100'; bgColor = '#FFF3E0'; iconName = 'receipt'; iconColor = '#FF9800'; detailText = 'نوع: ' + ((u.details && u.details.expenseType) || u.subscriberName || '') + ' - المبلغ: ' + formatNumber((u.details && u.details.amount) || 0) + ' د.ع'; }
+                        let monthLabel = u.monthKey || '';
+                        if (monthLabel && monthLabel.indexOf('_') !== -1) { const p = monthLabel.split('_'); monthLabel = 'الشهر ' + p[0] + '/' + p[1]; }
+                        return (
+                          <View key={u.id || ('u' + idx)} style={{ backgroundColor: bgColor, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#eee' }}>
+                            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', flex: 1 }}>
+                                <Ionicons name={iconName} size={18} color={iconColor} />
+                                <Text style={{ fontSize: 14, fontWeight: 'bold', color: typeColor, marginRight: 6 }}>{typeLabel}</Text>
+                              </View>
+                              {monthLabel ? <Text style={{ fontSize: 12, color: '#888' }}>{monthLabel}</Text> : null}
+                            </View>
+                            <Text style={{ fontSize: 13, color: '#333', fontWeight: '600', marginTop: 6, textAlign: 'right' }}>{u.subscriberName || ''}</Text>
+                            {detailText ? <Text style={{ fontSize: 12, color: '#666', marginTop: 3, textAlign: 'right' }}>{detailText}</Text> : null}
+                          </View>
+                        );
+                      })}
+                      <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: 10, paddingVertical: 12, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }} onPress={() => { onApplyBatch(selectedBatch.id); setSelectedBatch(null); }}>
+                        <Ionicons name="checkmark-done" size={20} color="white" />
+                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تطبيق التغييرات</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={{ padding: 12 }}>
+                      {safePending.map(function(batch) {
+                        let updates = Array.isArray(batch.updates) ? batch.updates : [];
+                        let batchCollected = 0;
+                        let batchExpenseOnly = true;
+                        for (let k = 0; k < updates.length; k++) {
+                          const u = updates[k];
+                          if (!u) continue;
+                          if ((u.type === 'paid' || u.type === 'partialPayment') && u.details && u.details.amount) {
+                            batchCollected += parseFloat(u.details.amount);
+                            batchExpenseOnly = false;
+                          } else if (u.type === 'addExpense') {
+                            batchCollected += (u.details && u.details.amount) ? parseFloat(u.details.amount) : 0;
+                          }
+                        }
+                        return (
+                          <TouchableOpacity key={batch.id || 'b'} style={{ backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#FFD54F' }} onPress={() => setSelectedBatch(batch)}>
+                            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+                                <View style={{ backgroundColor: batchExpenseOnly ? '#D32F2F' : '#FF9800', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>د.ع {formatNumber(batchCollected)}</Text>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{batch.workerName || ''}</Text>
+                              </View>
+                              <Text style={{ fontSize: 11, color: '#999' }}>{batch.timestamp || ''}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                              <Text style={{ fontSize: 13, color: '#666' }}>عدد التحديثات: {updates.length}</Text>
+                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                                <TouchableOpacity onPress={(e) => { e.stopPropagation && e.stopPropagation(); Alert.alert('حذف التحديث', 'هل تريد حذف هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'حذف', style: 'destructive', onPress: () => onDeleteBatch(batch.id) }]); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 6, padding: 6 }}>
+                                  <Ionicons name="trash-outline" size={16} color="#F44336" />
+                                </TouchableOpacity>
+                                <Ionicons name="chevron-back" size={18} color="#999" />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {safeRejected.length > 0 && (
+                        <View style={{ marginTop: 12 }}>
+                          <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 8 }} onPress={() => setShowRejected(!showRejected)}>
+                            <Ionicons name={showRejected ? "chevron-down" : "chevron-forward"} size={18} color="#F44336" />
+                            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#F44336' }}>التحديثات المرفوضة ({safeRejected.length})</Text>
+                          </TouchableOpacity>
+                          {showRejected && safeRejected.map(function(batch) {
+                            return (
+                              <TouchableOpacity key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#FFCDD2' }} onPress={() => { Alert.alert('اعادة التحديث', 'هل تريد اعادة تطبيق هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', onPress: () => onReapplyBatch(batch.id) }]); }}>
+                                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
+                                  <Text style={{ fontSize: 11, color: '#999' }}>{batch.timestamp || ''}</Text>
+                                </View>
+                                <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>عدد التحديثات: {(batch.updates || []).length} - اضغط للاعادة</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
               </>
@@ -3746,7 +3871,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -3759,6 +3884,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const [oil, setOil] = useState(expenses.oil || '');
   const [repairs, setRepairs] = useState(expenses.repairs || '');
   const [salaries, setSalaries] = useState(expenses.salaries || '');
+  const [showWorkerExpenses, setShowWorkerExpenses] = useState(false);
   const [addExpenseVisible, setAddExpenseVisible] = useState(false);
   const [addExpenseField, setAddExpenseField] = useState(null);
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
@@ -4039,6 +4165,30 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           </View>
         </View>
 
+        {workerExpenses.length > 0 && (
+          <View style={[styles.expensesSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
+            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={18} color="#FF9800" />
+                <Text style={[styles.expensesTitle, darkMode && { color: '#fff' }]}>صرفيات العامل</Text>
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F' }}>د.ع {formatNumber(workerExpenses.reduce((sum, e) => sum + (e.amount || 0), 0))}</Text>
+            </TouchableOpacity>
+            {showWorkerExpenses && workerExpenses.map((e, idx) => (
+              <View key={idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082' }}>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
+                  <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#999' }}>{e.workerName}</Text>
+                  <Text style={{ fontSize: 11, color: '#999' }}>{e.timestamp}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={[styles.netExpectedContainer, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, netExpected < 0 && styles.netExpectedNegative]}>
           <Text style={[styles.netExpectedLabel, darkMode && { color: '#aaa' }]}>الصافي:</Text>
           <Text style={[styles.netExpectedValue, netExpected < 0 && styles.netExpectedValueNegative]}>
@@ -4248,6 +4398,7 @@ export default function App() {
   const [amperPrices, setAmperPrices] = useState({});
   const [goldenPrices, setGoldenPrices] = useState({});
   const [monthlyExpenses, setMonthlyExpenses] = useState({});
+  const [workerExpenses, setWorkerExpenses] = useState({});
   const [userRole, setUserRole] = useState(null);
   const [workerOwnerPhone, setWorkerOwnerPhone] = useState(null);
   const [workerPermissions, setWorkerPermissions] = useState([]);
@@ -4322,6 +4473,8 @@ export default function App() {
   generatorsRef.current = generators;
   const currentGeneratorIdRef = React.useRef(currentGeneratorId);
   currentGeneratorIdRef.current = currentGeneratorId;
+  const workerExpensesRef = React.useRef(workerExpenses);
+  workerExpensesRef.current = workerExpenses;
   const syncTimerRef = React.useRef(null);
 
   const defaultExpenses = { gas: '', oil: '', repairs: '', salaries: '' };
@@ -4338,7 +4491,7 @@ export default function App() {
       const genId = currentGeneratorIdRef.current;
       const updated = generatorsRef.current.map(g => {
         if (g.id === genId) {
-          return { ...g, subscribers, amperPrices, goldenPrices, monthlyExpenses };
+          return { ...g, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses };
         }
         return g;
       });
@@ -4393,17 +4546,19 @@ export default function App() {
       try {
         const all = await loadAllUserKeys(workerOwnerPhone);
         const ownerWorkers = all.workers || [];
-        const stillExists = ownerWorkers.find(function(w) { return w.code === workerCode; });
-        if (!stillExists) {
-          Alert.alert('تم الحذف', 'تم حذف حسابك من قبل صاحب المولد. سيتم تسجيل الخروج.');
-          handleLogout();
-          return;
-        }
-        if (stillExists) {
-          const newPerms = stillExists.permissions || [];
-          setWorkerPermissions(newPerms);
-          const newAssignedGens = stillExists.assignedGenerators || [];
-          setWorkerAssignedGenerators(newAssignedGens);
+        if (ownerWorkers.length > 0) {
+          const stillExists = ownerWorkers.find(function(w) { return w.code === workerCode; });
+          if (!stillExists) {
+            Alert.alert('تم الحذف', 'تم حذف حسابك من قبل صاحب المولد. سيتم تسجيل الخروج.');
+            handleLogout();
+            return;
+          }
+          if (stillExists) {
+            const newPerms = stillExists.permissions || [];
+            setWorkerPermissions(newPerms);
+            const newAssignedGens = stillExists.assignedGenerators || [];
+            setWorkerAssignedGenerators(newAssignedGens);
+          }
         }
         if (all.generators && all.generators.length > 0) {
           const workerCurrentId = currentGeneratorId;
@@ -4495,6 +4650,7 @@ export default function App() {
         setAmperPrices(active.amperPrices || {});
         setGoldenPrices(active.goldenPrices || {});
         setMonthlyExpenses(active.monthlyExpenses || {});
+        setWorkerExpenses(active.workerExpenses || {});
         if (!loadedCurrentId || loadedCurrentId !== active.id) {
           setCurrentGeneratorId(active.id);
           await saveUserData(currentUser, 'currentGeneratorId', active.id);
@@ -4549,7 +4705,7 @@ export default function App() {
 
       const updatedGenerators = generators.map(g => {
         if (g.id === currentGeneratorId) {
-          return { ...g, subscribers, amperPrices, goldenPrices, monthlyExpenses };
+          return { ...g, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses };
         }
         return g;
       });
@@ -4735,6 +4891,7 @@ export default function App() {
         number: batchNumber,
         timestamp: `${dateStr} - ${timeStr} ${ampm}`,
         workerName: workerName || workerCode || '',
+        workerCode: workerCode || '',
         updates: workerUpdates,
       };
       const merged = [...existing, batch];
@@ -4891,6 +5048,19 @@ export default function App() {
           break;
         }
         case 'addExpense': {
+          const monthKey = update.monthKey || '';
+          const expenseEntry = {
+            type: update.details.expenseType || update.subscriberName || '',
+            amount: update.details.amount || 0,
+            timestamp: update.timestamp,
+            date: update.date,
+            workerName: update.ownerName || '',
+          };
+          const newWorkerExpenses = { ...workerExpenses };
+          if (!newWorkerExpenses[monthKey]) newWorkerExpenses[monthKey] = [];
+          newWorkerExpenses[monthKey] = [...newWorkerExpenses[monthKey], expenseEntry];
+          setWorkerExpenses(newWorkerExpenses);
+          workerExpensesRef.current = newWorkerExpenses;
           break;
         }
       }
@@ -4901,8 +5071,9 @@ export default function App() {
     const existingLog = await loadUserData(currentUser, 'worker_activity_log') || [];
     const updatedLog = existingLog.map(b => b.id === batchId ? { ...b, status: 'applied' } : b);
     await saveUserData(currentUser, 'worker_activity_log', updatedLog);
+    const updatedWorkerExpenses = workerExpensesRef.current || workerExpenses;
     if (currentGeneratorId && generators.length > 0) {
-      const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
+      const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs, workerExpenses: updatedWorkerExpenses } : g);
       setGenerators(updated);
       await Promise.all([
         saveUserData(currentUser, 'subscribers', newSubs),
@@ -5728,6 +5899,7 @@ export default function App() {
         goldenPrices={goldenPrices}
         onSetGoldenPrice={saveGoldenPrice}
         expenses={expenses}
+        workerExpenses={(workerExpenses[currentMonthKeyForMain] || [])}
         onSetExpenses={saveExpenses}
         onLogout={handleLogout}
         isOnline={isOnline}
@@ -5772,22 +5944,17 @@ export default function App() {
         currentGeneratorId={currentGeneratorId}
         onChangePassword={handleChangePassword}
       />
-      <WorkerUpdatesModal
-        visible={updatesModalVisible}
-        onClose={() => setUpdatesModalVisible(false)}
-        batches={pendingWorkerUpdates}
-        onApplyBatch={handleApplyBatch}
-        onDeleteBatch={handleDeleteBatch}
-        amperPrices={amperPrices}
-        rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
-        onReapplyBatch={handleReapplyBatch}
-      />
       <WorkerTrackingScreen
         visible={workerTrackingVisible}
         onClose={() => setWorkerTrackingVisible(false)}
         workers={workers}
         activityLog={workerActivityLog}
         amperPrices={amperPrices}
+        pendingWorkerUpdates={pendingWorkerUpdates}
+        onApplyBatch={handleApplyBatch}
+        onDeleteBatch={handleDeleteBatch}
+        rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
+        onReapplyBatch={handleReapplyBatch}
       />
       <SubscribersScreen
         visible={subscribersVisible}
