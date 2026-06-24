@@ -2253,11 +2253,11 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   );
 };
 
-const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, monthKey, onConfirm }) => {
+const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, goldenPrices, monthKey, onConfirm }) => {
   const [amount, setAmount] = useState('');
   const pmMonth = monthKey ? monthKey.split('_')[0] : '1';
   const pmYear = monthKey ? monthKey.split('_')[1] : '2026';
-  const price = getAmperPrice(amperPrices, monthKey);
+  const price = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, subscriber ? subscriber.subscriptionType : 'normal');
   const totalDue = (subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0) * price;
   const existingPayments = (subscriber && subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
   const totalPaid = existingPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -2470,7 +2470,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions }) => {
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [searchText, setSearchText] = useState('');
@@ -2626,6 +2626,37 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             const selYear = parseInt(selectedYear);
             const isFuture = (selYear > curYear) || (selYear === curYear && selMonth > curMonth);
             if (!isFuture) return null;
+            const hasGolden = subscribers.some(s => s.subscriptionType === 'golden');
+            if (hasGolden) {
+              return (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={[styles.priceSection, { flex: 1 }]}>
+                    <Text style={styles.priceLabel}>سعر العادي - شهر {selectedMonth}</Text>
+                    <TextInput
+                      style={styles.priceInput}
+                      value={amperPrices[`${selectedMonth}_${selectedYear}`] ? formatNumber(amperPrices[`${selectedMonth}_${selectedYear}`]) : ''}
+                      onChangeText={(val) => onSaveAmperPrice(`${selectedMonth}_${selectedYear}`, onlyDigits(val))}
+                      keyboardType="numeric"
+                      textAlign="center"
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+                  <View style={[styles.priceSection, { flex: 1, borderColor: '#FFD700' }]}>
+                    <Text style={[styles.priceLabel, { color: '#FF9800' }]}>سعر الذهبي - شهر {selectedMonth}</Text>
+                    <TextInput
+                      style={[styles.priceInput, { color: '#FF9800' }]}
+                      value={goldenPrices && goldenPrices[`${selectedMonth}_${selectedYear}`] ? formatNumber(goldenPrices[`${selectedMonth}_${selectedYear}`]) : ''}
+                      onChangeText={(val) => onSaveGoldenPrice(`${selectedMonth}_${selectedYear}`, onlyDigits(val))}
+                      keyboardType="numeric"
+                      textAlign="center"
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+                </View>
+              );
+            }
             return (
               <View style={styles.priceSection}>
                 <Text style={styles.priceLabel}>سعر الأميبر - شهر {selectedMonth} (د.ع)</Text>
@@ -2733,7 +2764,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                   <View style={styles.subscriberInfo}>
                     <Text style={styles.subscriberName}>{subscriber.name}</Text>
                     <Text style={styles.subscriberAmount}>
-                      د.ع {formatNumber(getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear)) * getAmperPrice(amperPrices, `${selectedMonth}_${selectedYear}`))}    <Text style={styles.amperBlue}>{getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear))} أميبر</Text>
+                      د.ع {formatNumber(getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear)) * getPriceForSubscriber(amperPrices, goldenPrices, `${selectedMonth}_${selectedYear}`, subscriber.subscriptionType))}    <Text style={styles.amperBlue}>{getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear))} أميبر</Text>
                     </Text>
                     {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999', marginTop: 2 }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
                   </View>
@@ -2762,7 +2793,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               const historyForMonth = (subscriber.paymentHistory || []).filter(h => h.monthKey === monthKey);
               const hasMultipleActions = historyForMonth.length > 1;
               const isExpanded = expandedCard === subscriber.id;
-              const price = getAmperPrice(amperPrices, monthKey);
+          const price = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, subscriber.subscriptionType);
               const totalDue = currentAmper * price;
               const partialPayments = (subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
               const totalPartialPaid = partialPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -2987,7 +3018,9 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
         visible={partialPaymentVisible}
         onClose={() => { setPartialPaymentVisible(false); setPartialPaymentSubscriber(null); }}
         subscriber={partialPaymentSubscriber}
-        amperPrices={amperPrices}        monthKey={monthKey}
+        amperPrices={amperPrices}
+        goldenPrices={goldenPrices}
+        monthKey={monthKey}
         onConfirm={(amount) => onPartialPayment(partialPaymentSubscriber.id, amount, monthKey)}
       />
 
@@ -3128,7 +3161,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   );
 };
 
-const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
+const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -3150,7 +3183,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
 
   const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
-  const getPriceForMonth = (m, y) => getAmperPrice(amperPrices, `${m}_${y}`);
+  const getPriceForMonth = (m, y, subType) => getPriceForSubscriber(amperPrices, goldenPrices, `${m}_${y}`, subType);
 
   const filteredSubscribers = useMemo(() => {
     return subscribers.filter(sub => {
@@ -3183,7 +3216,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
         const isDeleted = isDeletedForReport(selectedSubscriber, m, selectedYear);
         if (isDeleted) return;
         const subAmper = getAmperForMonth(selectedSubscriber, m, selectedYear);
-        const mPrice = getPriceForMonth(m, selectedYear);
+        const mPrice = getPriceForMonth(m, selectedYear, selectedSubscriber.subscriptionType);
         if (!mPrice || mPrice === 0) return;
         totalDue += subAmper * mPrice;
         if (selectedSubscriber.paidMonths && selectedSubscriber.paidMonths[monthKey]) {
@@ -3335,7 +3368,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
                   const history = (selectedSubscriber.paymentHistory || []).filter(h => h.monthKey === monthKey);
                   const lastEntry = history.length > 0 ? history[history.length - 1] : null;
                   const rowAmper = getAmperForMonth(selectedSubscriber, m, selectedYear);
-                  const rowPrice = getPriceForMonth(m, selectedYear);
+                  const rowPrice = getPriceForMonth(m, selectedYear, selectedSubscriber.subscriptionType);
                   const priceNotSet = !rowPrice || rowPrice === 0;
                   const rowPartialPayments = (selectedSubscriber.partialPayments && selectedSubscriber.partialPayments[monthKey]) || [];
                   const rowPartialSum = rowPartialPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
@@ -3444,7 +3477,7 @@ const AddGeneratorInput = ({ onAdd }) => {
   );
 };
 
-const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthlyExpenses }) => {
+const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, monthlyExpenses }) => {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
@@ -3467,8 +3500,6 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
   const y = parseInt(selectedYear);
   const monthKey = `${m}_${y}`;
 
-  const price = getAmperPrice(amperPrices, monthKey);
-
   const stats = useMemo(() => {
     let activeCount = 0;
     let deletedCount = 0;
@@ -3486,7 +3517,8 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
       if (isBeforeAdded) return;
       const subAmper = getAmperForMonth(s, m, y);
       totalAmper += subAmper;
-      const monthDue = subAmper * price;
+      const subPrice = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, s.subscriptionType);
+      const monthDue = subAmper * subPrice;
       totalExpected += monthDue;
       const isPaid = s.paidMonths && s.paidMonths[monthKey];
       const pp = s.partialPayments && s.partialPayments[monthKey];
@@ -4776,7 +4808,7 @@ export default function App() {
             });
             sub.partialPayments[update.monthKey] = monthPayments;
             const pmParts = update.monthKey.split('_');
-            const totalDue = getAmperForMonth(sub, parseInt(pmParts[0]), parseInt(pmParts[1])) * getAmperPrice(amperPrices, update.monthKey);
+            const totalDue = getAmperForMonth(sub, parseInt(pmParts[0]), parseInt(pmParts[1])) * getPriceForSubscriber(amperPrices, goldenPrices, update.monthKey, sub.subscriptionType);
             const totalPaid = monthPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
             sub.paidMonths = { ...sub.paidMonths };
             sub.paymentHistory = [...(sub.paymentHistory || [])];
@@ -5188,7 +5220,7 @@ export default function App() {
       const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
       const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
       const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
-      const monthPrice = getAmperPrice(amperPrices, monthKey);
+      const monthPrice = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, sub.subscriptionType);
       const amperVal = getAmperForMonth(sub, parseInt(monthKey.split('_')[0]), parseInt(monthKey.split('_')[1]));
       const amount = amperVal * monthPrice;
       const monthName = monthKey.split('_')[0];
@@ -5262,7 +5294,7 @@ export default function App() {
           partialPayments[monthKey] = monthPayments;
 
           const pmParts = monthKey.split('_');
-          const totalDue = getAmperForMonth(s, parseInt(pmParts[0]), parseInt(pmParts[1])) * getAmperPrice(amperPrices, monthKey);
+          const totalDue = getAmperForMonth(s, parseInt(pmParts[0]), parseInt(pmParts[1])) * getPriceForSubscriber(amperPrices, goldenPrices, monthKey, s.subscriptionType);
           const totalPaid = monthPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
           const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
           const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
@@ -5291,7 +5323,7 @@ export default function App() {
       if (sub && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const pmParts2 = monthKey.split('_');
         const amperVal2 = getAmperForMonth(sub, parseInt(pmParts2[0]), parseInt(pmParts2[1]));
-        const pricePerAmper2 = getAmperPrice(amperPrices, monthKey);
+        const pricePerAmper2 = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, sub.subscriptionType);
         const totalDue2 = amperVal2 * pricePerAmper2;
         const newSub2 = newSubs.find(s => s.id === id);
         const monthPayments2 = newSub2 && newSub2.partialPayments && newSub2.partialPayments[monthKey] ? newSub2.partialPayments[monthKey] : [];
@@ -5738,6 +5770,8 @@ export default function App() {
         onRestoreSubscriber={handleRestoreSubscriber}
         onChangeAmper={handleChangeAmper}
         amperPrices={amperPrices}
+        goldenPrices={goldenPrices}
+        onSaveGoldenPrice={saveGoldenPrice}
         onSaveAmperPrice={saveAmperPrice}
         currentUser={currentUser}
         ownerName={ownerName}
@@ -5749,12 +5783,14 @@ export default function App() {
         onClose={() => setReportsVisible(false)}
         subscribers={subscribers}
         amperPrices={amperPrices}
+        goldenPrices={goldenPrices}
       />
       <MonthlyDataScreen
         visible={monthlyDataVisible}
         onClose={() => setMonthlyDataVisible(false)}
         subscribers={subscribers}
         amperPrices={amperPrices}
+        goldenPrices={goldenPrices}
         monthlyExpenses={monthlyExpenses}
       />
       {addGeneratorVisible && (
