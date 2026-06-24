@@ -1448,12 +1448,14 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   </>);
 };
 
-const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices }) => {
+const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices, rejectedBatches, onReapplyBatch }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
+  const [showRejected, setShowRejected] = useState(false);
 
   if (!visible) return null;
 
   const safeBatches = Array.isArray(batches) ? batches : [];
+  const safeRejected = Array.isArray(rejectedBatches) ? rejectedBatches : [];
 
   if (selectedBatch) {
     const updates = Array.isArray(selectedBatch.updates) ? selectedBatch.updates : [];
@@ -1695,6 +1697,41 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
                   );
                 })
               }
+
+              {safeRejected.length > 0 && (
+                <View style={{ marginTop: 20 }}>
+                  <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', marginBottom: 10 }} onPress={() => setShowRejected(!showRejected)}>
+                    <Ionicons name={showRejected ? "chevron-down" : "chevron-back"} size={20} color="#F44336" />
+                    <Text style={{ fontSize: 15, color: '#F44336', fontWeight: 'bold', marginRight: 6 }}>التحديثات المحذوفة ({safeRejected.length})</Text>
+                  </TouchableOpacity>
+                  {showRejected && safeRejected.map(function(batch) {
+                    let updates = Array.isArray(batch.updates) ? batch.updates : [];
+                    return (
+                      <View key={batch.id || 'r'} style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#FFCC80' }}>
+                        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
+                            <View style={{ backgroundColor: '#F44336', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginRight: 8 }}>
+                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>محذوف</Text>
+                            </View>
+                            <Text style={{ fontSize: 13, color: '#666' }}>{batch.workerName || ''}</Text>
+                          </View>
+                          <Text style={{ fontSize: 11, color: '#999' }}>{batch.timestamp || ''}</Text>
+                        </View>
+                        <Text style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>عدد التحديثات: {updates.length}</Text>
+                        <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: 8, padding: 8, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
+                          Alert.alert('إعادة التحديث', 'هل تريد إعادة هذه الدفعة إلى قائمة التحديثات المعلقة؟', [
+                            { text: 'إلغاء', style: 'cancel' },
+                            { text: 'نعم', onPress: () => onReapplyBatch(batch.id) },
+                          ]);
+                        }}>
+                          <Ionicons name="refresh" size={16} color="white" />
+                          <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>إعادة التحديث</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -4712,12 +4749,41 @@ export default function App() {
 
   const handleDeleteBatch = async (batchId) => {
     try {
+      const batch = pendingWorkerUpdates.find(b => b.id === batchId);
       const remaining = pendingWorkerUpdates.filter(b => b.id !== batchId);
       setPendingWorkerUpdates(remaining);
       await saveUserData(currentUser, 'pending_worker_updates', remaining);
+      if (batch) {
+        const log = await loadUserData(currentUser, 'worker_activity_log') || [];
+        log.push({ ...batch, status: 'rejected' });
+        await saveUserData(currentUser, 'worker_activity_log', log);
+        setWorkerActivityLog(log);
+      }
       Alert.alert('تم', 'تم حذف التحديث');
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حذف التحديث');
+    }
+  };
+
+  const handleReapplyBatch = async (batchId) => {
+    try {
+      const log = await loadUserData(currentUser, 'worker_activity_log') || [];
+      const batch = log.find(b => b.id === batchId);
+      if (!batch) {
+        Alert.alert('خطأ', 'الدفعة غير موجودة');
+        return;
+      }
+      const restoredBatch = { ...batch, status: 'pending', id: Date.now().toString() + Math.random().toString(36).substr(2, 5) };
+      const existing = await loadUserData(currentUser, 'pending_worker_updates') || [];
+      const updated = [...existing, restoredBatch];
+      await saveUserData(currentUser, 'pending_worker_updates', updated);
+      setPendingWorkerUpdates(updated);
+      const updatedLog = log.map(b => b.id === batchId ? { ...b, status: 'restored' } : b);
+      await saveUserData(currentUser, 'worker_activity_log', updatedLog);
+      setWorkerActivityLog(updatedLog);
+      Alert.alert('تم', 'تمت إعادة الدفعة إلى قائمة التحديثات المعلقة');
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء إعادة التحديث');
     }
   };
 
@@ -5526,6 +5592,8 @@ export default function App() {
         onApplyBatch={handleApplyBatch}
         onDeleteBatch={handleDeleteBatch}
         amperPrices={amperPrices}
+        rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
+        onReapplyBatch={handleReapplyBatch}
       />
       <WorkerTrackingScreen
         visible={workerTrackingVisible}
