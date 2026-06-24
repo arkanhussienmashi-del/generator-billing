@@ -167,6 +167,20 @@ function getAmperPrice(amperPrices, monthKey) {
   return 0;
 }
 
+function getGoldenPrice(goldenPrices, monthKey) {
+  if (goldenPrices && goldenPrices[monthKey] !== undefined) {
+    return parseFloat(goldenPrices[monthKey]) || 0;
+  }
+  return 0;
+}
+
+function getPriceForSubscriber(amperPrices, goldenPrices, monthKey, subscriptionType) {
+  if (subscriptionType === 'golden') {
+    return getGoldenPrice(goldenPrices, monthKey);
+  }
+  return getAmperPrice(amperPrices, monthKey);
+}
+
 function formatNumber(num) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -3689,7 +3703,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -3697,6 +3711,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const currentMonthKey = `${currentMonth}_${currentYear}`;
 
   const [localAmperPrice, setLocalAmperPrice] = useState(amperPrices[currentMonthKey] ? String(amperPrices[currentMonthKey]) : '');
+  const [localGoldenPrice, setLocalGoldenPrice] = useState(goldenPrices[currentMonthKey] ? String(goldenPrices[currentMonthKey]) : '');
   const [gas, setGas] = useState(expenses.gas || '');
   const [oil, setOil] = useState(expenses.oil || '');
   const [repairs, setRepairs] = useState(expenses.repairs || '');
@@ -3706,16 +3721,20 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
   const [addExpenseLabel, setAddExpenseLabel] = useState('');
 
+  const hasGoldenSubscribers = useMemo(() => subscribers.some(s => s.subscriptionType === 'golden' && !s.isDeletedForReport), [subscribers]);
+
   useEffect(() => {
     setLocalAmperPrice(String(amperPrices[currentMonthKey] || ''));
+    setLocalGoldenPrice(String(goldenPrices[currentMonthKey] || ''));
     setGas(expenses.gas);
     setOil(expenses.oil);
     setRepairs(expenses.repairs);
     setSalaries(expenses.salaries);
-  }, [amperPrices, expenses]);
+  }, [amperPrices, goldenPrices, expenses]);
 
   const stats = useMemo(() => {
     const price = parseFloat(localAmperPrice) || 0;
+    const gPrice = parseFloat(localGoldenPrice) || 0;
     let totalAmper = 0;
     let paidCount = 0;
     let requiredCount = 0;
@@ -3731,12 +3750,13 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
       visibleCount++;
       const amp = getAmperForMonth(s, currentMonth, currentYear);
       totalAmper += amp;
+      const subPrice = s.subscriptionType === 'golden' ? gPrice : price;
       const isPaid = s.paidMonths && s.paidMonths[currentMonthKey];
       const pp = s.partialPayments && s.partialPayments[currentMonthKey];
       const hasPartial = pp && pp.length > 0;
       if (isPaid) {
         paidCount++;
-        collectedAmount += amp * price;
+        collectedAmount += amp * subPrice;
       } else if (hasPartial) {
         requiredCount++;
         const ppSum = pp.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
@@ -3745,12 +3765,19 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         unpaidCount++;
       }
     });
-    const expectedAmount = totalAmper * price;
+    const expectedAmount = totalAmper * price + subscribers.filter(s => {
+      if (s.subscriptionType !== 'golden') return false;
+      const addedMonth = s.addedMonth ? parseInt(s.addedMonth) : 1;
+      const addedYear = s.addedYear ? parseInt(s.addedYear) : currentYear;
+      if ((currentYear < addedYear) || (currentYear === addedYear && currentMonth < addedMonth)) return false;
+      if (isDeletedForReport(s, currentMonth, currentYear)) return false;
+      return true;
+    }).reduce((sum, s) => sum + getAmperForMonth(s, currentMonth, currentYear) * gPrice, 0);
     const totalExpenses = (parseFloat(gas) || 0) + (parseFloat(oil) || 0) +
       (parseFloat(repairs) || 0) + (parseFloat(salaries) || 0);
     const netExpected = collectedAmount - totalExpenses;
     return { totalSubscribers: visibleCount, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price };
-  }, [subscribers, localAmperPrice, gas, oil, repairs, salaries, currentMonth, currentYear, currentMonthKey]);
+  }, [subscribers, localAmperPrice, localGoldenPrice, gas, oil, repairs, salaries, currentMonth, currentYear, currentMonthKey]);
 
   const { totalSubscribers, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price } = stats;
 
@@ -3763,6 +3790,12 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
     const clean = onlyDigits(val);
     setLocalAmperPrice(clean);
     onSetAmperPrice(currentMonthKey, clean);
+  };
+
+  const handleGoldenPriceChange = (val) => {
+    const clean = onlyDigits(val);
+    setLocalGoldenPrice(clean);
+    onSetGoldenPrice(currentMonthKey, clean);
   };
 
   const handleExpenseChange = (field, val) => {
@@ -3851,10 +3884,23 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           )}
         </View>
 
-        <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
-          <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1 }]}>سعر الأميبر - شهر {currentMonth} (د.ع)</Text>
-          <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
-        </View>
+        {hasGoldenSubscribers ? (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
+              <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1, fontSize: 12 }]}>سعر الاشتراك العادي - شهر {currentMonth}</Text>
+              <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
+            </View>
+            <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 10, borderColor: '#FFD700' }]}>
+              <Text style={[styles.priceLabel, { color: '#FF9800' }, { marginBottom: 0, flex: 1, fontSize: 12 }]}>سعر الاشتراك الذهبي - شهر {currentMonth}</Text>
+              <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#FFD700', borderColor: '#444' }, { flex: 1, color: '#FF9800' }]} value={localGoldenPrice ? formatNumber(localGoldenPrice) : ''} onChangeText={handleGoldenPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
+            <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1 }]}>سعر الأميبر - شهر {currentMonth} (د.ع)</Text>
+            <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
+          </View>
+        )}
 
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, styles.totalCard]}>
@@ -4157,6 +4203,7 @@ export default function App() {
   const [reportsVisible, setReportsVisible] = useState(false);
   const [subscribers, setSubscribers] = useState([]);
   const [amperPrices, setAmperPrices] = useState({});
+  const [goldenPrices, setGoldenPrices] = useState({});
   const [monthlyExpenses, setMonthlyExpenses] = useState({});
   const [userRole, setUserRole] = useState(null);
   const [workerOwnerPhone, setWorkerOwnerPhone] = useState(null);
@@ -4248,14 +4295,14 @@ export default function App() {
       const genId = currentGeneratorIdRef.current;
       const updated = generatorsRef.current.map(g => {
         if (g.id === genId) {
-          return { ...g, subscribers, amperPrices, monthlyExpenses };
+          return { ...g, subscribers, amperPrices, goldenPrices, monthlyExpenses };
         }
         return g;
       });
       setGenerators(updated);
       saveUserData(currentUser, 'generators', updated);
     }, 3000);
-  }, [subscribers, amperPrices, monthlyExpenses]);
+  }, [subscribers, amperPrices, goldenPrices, monthlyExpenses]);
 
   useEffect(() => {
     if (userRole === 'worker' && screen === 'main') {
@@ -4319,15 +4366,19 @@ export default function App() {
             const oldSubs = oldActive ? (oldActive.subscribers || []) : [];
             const newPrices = workerActive.amperPrices || {};
             const oldPrices = oldActive ? (oldActive.amperPrices || {}) : {};
+            const newGoldenPrices = workerActive.goldenPrices || {};
+            const oldGoldenPrices = oldActive ? (oldActive.goldenPrices || {}) : {};
             const newExpenses = workerActive.monthlyExpenses || {};
             const oldExpenses = oldActive ? (oldActive.monthlyExpenses || {}) : {};
             const subsChanged = JSON.stringify(newSubs) !== JSON.stringify(oldSubs);
             const pricesChanged = JSON.stringify(newPrices) !== JSON.stringify(oldPrices);
+            const goldenPricesChanged = JSON.stringify(newGoldenPrices) !== JSON.stringify(oldGoldenPrices);
             const expensesChanged = JSON.stringify(newExpenses) !== JSON.stringify(oldExpenses);
-            if (subsChanged || pricesChanged || expensesChanged) {
+            if (subsChanged || pricesChanged || goldenPricesChanged || expensesChanged) {
               setGenerators(all.generators);
               setSubscribers(newSubs);
               if (pricesChanged) setAmperPrices(newPrices);
+              if (goldenPricesChanged) setGoldenPrices(newGoldenPrices);
               if (expensesChanged) setMonthlyExpenses(newExpenses);
             } else {
               setGenerators(all.generators);
@@ -4393,6 +4444,7 @@ export default function App() {
         setGeneratorName(active.name);
         setSubscribers(active.subscribers || []);
         setAmperPrices(active.amperPrices || {});
+        setGoldenPrices(active.goldenPrices || {});
         setMonthlyExpenses(active.monthlyExpenses || {});
         if (!loadedCurrentId || loadedCurrentId !== active.id) {
           setCurrentGeneratorId(active.id);
@@ -4402,6 +4454,7 @@ export default function App() {
     } else {
       if (all.generatorName !== undefined) setGeneratorName(all.generatorName);
       if (all.amperPrices !== undefined) setAmperPrices(all.amperPrices);
+      if (all.goldenPrices !== undefined) setGoldenPrices(all.goldenPrices);
       if (all.subscribers !== undefined) setSubscribers(all.subscribers);
       if (all.monthlyExpenses !== undefined) setMonthlyExpenses(all.monthlyExpenses);
     }
@@ -4428,6 +4481,7 @@ export default function App() {
       setGeneratorName(newGen.name);
       setSubscribers([]);
       setAmperPrices({});
+      setGoldenPrices({});
       setMonthlyExpenses({});
       if (currentUser) {
         await saveUserData(currentUser, 'generators', updated);
@@ -4446,7 +4500,7 @@ export default function App() {
 
       const updatedGenerators = generators.map(g => {
         if (g.id === currentGeneratorId) {
-          return { ...g, subscribers, amperPrices, monthlyExpenses };
+          return { ...g, subscribers, amperPrices, goldenPrices, monthlyExpenses };
         }
         return g;
       });
@@ -4484,7 +4538,7 @@ export default function App() {
       }
       const genToDelete = generators.find(function(g) { return g.id === genId; });
       if (!genToDelete) return false;
-      const genData = { ...genToDelete, subscribers: genToDelete.subscribers || [], amperPrices: genToDelete.amperPrices || {}, monthlyExpenses: genToDelete.monthlyExpenses || {} };
+      const genData = { ...genToDelete, subscribers: genToDelete.subscribers || [], amperPrices: genToDelete.amperPrices || {}, goldenPrices: genToDelete.goldenPrices || {}, monthlyExpenses: genToDelete.monthlyExpenses || {} };
       const deletedEntry = {
         id: genToDelete.id,
         name: genToDelete.name,
@@ -4500,8 +4554,8 @@ export default function App() {
       setGeneratorName(active.name);
       setSubscribers(active.subscribers || []);
       setAmperPrices(active.amperPrices || {});
+      setGoldenPrices(active.goldenPrices || {});
       setMonthlyExpenses(active.monthlyExpenses || {});
-      await saveUserData(currentUser, 'generators', updatedGenerators);
       await saveUserData(currentUser, 'currentGeneratorId', active.id);
       await saveUserData(currentUser, 'deletedGenerators', updatedDeleted);
       return true;
@@ -4513,7 +4567,7 @@ export default function App() {
   const handleRestoreGenerator = async (genId) => {
     const entry = deletedGenerators.find(function(dg) { return dg.id === genId; });
     if (!entry) return;
-    const restored = entry.data || { id: entry.id, name: entry.name, subscribers: [], amperPrices: {}, monthlyExpenses: {} };
+    const restored = entry.data || { id: entry.id, name: entry.name, subscribers: [], amperPrices: {}, goldenPrices: {}, monthlyExpenses: {} };
     const updatedGenerators = [...generators, restored];
     const updatedDeleted = deletedGenerators.filter(function(dg) { return dg.id !== genId; });
     setGenerators(updatedGenerators);
@@ -4572,6 +4626,7 @@ export default function App() {
     setGeneratorName('');
     setOwnerName('');
     setAmperPrices({});
+    setGoldenPrices({});
     setSubscribers([]);
     setMonthlyExpenses({});
     setGenerators([]);
@@ -4940,6 +4995,12 @@ export default function App() {
     const newPrices = { ...amperPrices, [monthKey]: price };
     setAmperPrices(newPrices);
     if (currentUser) await saveUserData(currentUser, 'amperPrices', newPrices);
+  };
+
+  const saveGoldenPrice = async (monthKey, price) => {
+    const newPrices = { ...goldenPrices, [monthKey]: price };
+    setGoldenPrices(newPrices);
+    if (currentUser) await saveUserData(currentUser, 'goldenPrices', newPrices);
   };
 
   const saveExpenses = async (exp) => {
@@ -5392,6 +5453,7 @@ export default function App() {
               setGeneratorName(targetGen.name);
               setSubscribers(targetGen.subscribers || []);
               setAmperPrices(targetGen.amperPrices || {});
+              setGoldenPrices(targetGen.goldenPrices || {});
               setMonthlyExpenses(targetGen.monthlyExpenses || {});
             }
             setScreen('workerMain');
@@ -5464,17 +5526,19 @@ export default function App() {
                       setCurrentGeneratorId(freshGen.id);
                       setGeneratorName(freshGen.name);
                       setSubscribers(freshGen.subscribers || []);
-                      setAmperPrices(freshGen.amperPrices || {});
-                      setMonthlyExpenses(freshGen.monthlyExpenses || {});
-                      setWorkerAssignedGeneratorId(freshGen.id);
+                       setAmperPrices(freshGen.amperPrices || {});
+                       setGoldenPrices(freshGen.goldenPrices || {});
+                       setMonthlyExpenses(freshGen.monthlyExpenses || {});
+                       setWorkerAssignedGeneratorId(freshGen.id);
                     } catch (e) {
                       setGenerators(generators);
                       setCurrentGeneratorId(gen.id);
                       setGeneratorName(gen.name);
                       setSubscribers(gen.subscribers || []);
-                      setAmperPrices(gen.amperPrices || {});
-                      setMonthlyExpenses(gen.monthlyExpenses || {});
-                      setWorkerAssignedGeneratorId(gen.id);
+                       setAmperPrices(gen.amperPrices || {});
+                       setGoldenPrices(gen.goldenPrices || {});
+                       setMonthlyExpenses(gen.monthlyExpenses || {});
+                       setWorkerAssignedGeneratorId(gen.id);
                     }
                     setWorkerSwitchGeneratorVisible(false);
                   }}>
@@ -5555,17 +5619,19 @@ export default function App() {
                       setCurrentGeneratorId(freshGen.id);
                       setGeneratorName(freshGen.name);
                       setSubscribers(freshGen.subscribers || []);
-                      setAmperPrices(freshGen.amperPrices || {});
-                      setMonthlyExpenses(freshGen.monthlyExpenses || {});
-                      setWorkerAssignedGeneratorId(freshGen.id);
+                       setAmperPrices(freshGen.amperPrices || {});
+                       setGoldenPrices(freshGen.goldenPrices || {});
+                       setMonthlyExpenses(freshGen.monthlyExpenses || {});
+                       setWorkerAssignedGeneratorId(freshGen.id);
                     } catch (e) {
                       setGenerators(generators);
                       setCurrentGeneratorId(gen.id);
                       setGeneratorName(gen.name);
                       setSubscribers(gen.subscribers || []);
-                      setAmperPrices(gen.amperPrices || {});
-                      setMonthlyExpenses(gen.monthlyExpenses || {});
-                      setWorkerAssignedGeneratorId(gen.id);
+                       setAmperPrices(gen.amperPrices || {});
+                       setGoldenPrices(gen.goldenPrices || {});
+                       setMonthlyExpenses(gen.monthlyExpenses || {});
+                       setWorkerAssignedGeneratorId(gen.id);
                     }
                     setWorkerSwitchGeneratorVisible(false);
                   }}>
@@ -5597,6 +5663,8 @@ export default function App() {
         subscribers={subscribers}
         amperPrices={amperPrices}
         onSetAmperPrice={saveAmperPrice}
+        goldenPrices={goldenPrices}
+        onSetGoldenPrice={saveGoldenPrice}
         expenses={expenses}
         onSetExpenses={saveExpenses}
         onLogout={handleLogout}
