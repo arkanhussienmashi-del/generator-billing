@@ -3465,16 +3465,16 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
     let totalExpected = 0;
     let totalCollected = 0;
     subscribers.forEach(s => {
-      if ((s.subscriptionType || 'normal') !== subscriptionTypeFilter) return;
       const addedMonth = s.addedMonth ? parseInt(s.addedMonth) : 1;
       const addedYear = s.addedYear ? parseInt(s.addedYear) : new Date().getFullYear();
       const isBeforeAdded = (y < addedYear) || (y === addedYear && m < addedMonth);
       if (isBeforeAdded) return;
+      const subAmper = getAmperForMonth(s, m, y);
+      totalAmper += subAmper;
+      if ((s.subscriptionType || 'normal') !== subscriptionTypeFilter) return;
       const isDeleted = isDeletedForReport(s, m, y);
       if (isDeleted) { deletedCount++; return; }
       activeCount++;
-      const subAmper = getAmperForMonth(s, m, y);
-      totalAmper += subAmper;
       const monthDue = subAmper * price;
       totalExpected += monthDue;
       const isPaid = s.paidMonths && s.paidMonths[monthKey];
