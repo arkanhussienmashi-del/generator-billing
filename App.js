@@ -3119,6 +3119,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedSubscriberId, setSelectedSubscriberId] = useState(null);
+  const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState('normal');
   const foundSub = selectedSubscriberId ? subscribers.find(s => s.id === selectedSubscriberId) : null;
   const selectedSubscriber = foundSub || null;
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
@@ -3129,6 +3130,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
       setSearchText('');
       setSelectedSubscriberId(null);
       setSelectedMonth('all');
+      setSubscriptionTypeFilter('normal');
     }
   }, [visible]);
 
@@ -3138,6 +3140,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
 
   const filteredSubscribers = useMemo(() => {
     return subscribers.filter(sub => {
+      if ((sub.subscriptionType || 'normal') !== subscriptionTypeFilter) return false;
       if (!sub.name.includes(searchText)) return false;
       if (sub.deletedFromMonth) {
         const delParts = sub.deletedFromMonth.split('_');
@@ -3149,7 +3152,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
       }
       return true;
     });
-  }, [subscribers, searchText, selectedYear, selectedMonth]);
+  }, [subscribers, searchText, selectedYear, selectedMonth, subscriptionTypeFilter]);
 
   const monthsToShow = selectedMonth === 'all' ? months : [selectedMonth];
 
@@ -3203,6 +3206,21 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices }) => {
               <TouchableOpacity style={styles.reportsDropdown} onPress={() => setMonthPickerVisible(true)}>
                 <Text style={styles.reportsDropdownText}>{selectedMonth === 'all' ? 'كل الأشهر' : selectedMonth}</Text>
                 <Ionicons name="calendar" size={20} color="#2196F3" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnActive, { flex: 1 }]}
+                onPress={() => { setSubscriptionTypeFilter('normal'); setSelectedSubscriberId(null); }}
+              >
+                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnActiveGold, { flex: 1 }]}
+                onPress={() => { setSubscriptionTypeFilter('golden'); setSelectedSubscriberId(null); }}
+              >
+                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
               </TouchableOpacity>
             </View>
 
@@ -3416,6 +3434,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
+  const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState('normal');
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
 
@@ -3425,6 +3444,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
     if (visible) {
       setSelectedYear(String(now.getFullYear()));
       setSelectedMonth(String(now.getMonth() + 1));
+      setSubscriptionTypeFilter('normal');
     }
   }, [visible]);
 
@@ -3445,6 +3465,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
     let totalExpected = 0;
     let totalCollected = 0;
     subscribers.forEach(s => {
+      if ((s.subscriptionType || 'normal') !== subscriptionTypeFilter) return;
       const addedMonth = s.addedMonth ? parseInt(s.addedMonth) : 1;
       const addedYear = s.addedYear ? parseInt(s.addedYear) : new Date().getFullYear();
       const isBeforeAdded = (y < addedYear) || (y === addedYear && m < addedMonth);
@@ -3469,7 +3490,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
       } else { unpaidCount++; }
     });
     return { activeCount, deletedCount, totalAmper, paidCount, unpaidCount, requiredCount, requiredAmount, totalExpected, totalCollected };
-  }, [subscribers, m, y, monthKey, price]);
+  }, [subscribers, m, y, monthKey, price, subscriptionTypeFilter]);
 
   const monthExpenses = monthlyExpenses[monthKey] || { gas: '0', oil: '0', repairs: '0', salaries: '0' };
   const totalExpenses = (parseFloat(monthExpenses.gas) || 0) + (parseFloat(monthExpenses.oil) || 0) + (parseFloat(monthExpenses.repairs) || 0) + (parseFloat(monthExpenses.salaries) || 0);
@@ -3501,6 +3522,21 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
               <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
                 <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{m}/{selectedYear}</Text>
                 <Ionicons name="chevron-down" size={16} color="#1565C0" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnActive, { flex: 1 }]}
+                onPress={() => setSubscriptionTypeFilter('normal')}
+              >
+                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnActiveGold, { flex: 1 }]}
+                onPress={() => setSubscriptionTypeFilter('golden')}
+              >
+                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
               </TouchableOpacity>
             </View>
 
