@@ -3442,8 +3442,9 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
 
   useEffect(() => {
     if (visible) {
-      setSelectedYear(String(now.getFullYear()));
-      setSelectedMonth(String(now.getMonth() + 1));
+      const n = new Date();
+      setSelectedYear(String(n.getFullYear()));
+      setSelectedMonth(String(n.getMonth() + 1));
       setSubscriptionTypeFilter('normal');
     }
   }, [visible]);
@@ -3471,22 +3472,25 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, monthly
       if (isBeforeAdded) return;
       const subAmper = getAmperForMonth(s, m, y);
       totalAmper += subAmper;
-      if ((s.subscriptionType || 'normal') !== subscriptionTypeFilter) return;
-      const isDeleted = isDeletedForReport(s, m, y);
-      if (isDeleted) { deletedCount++; return; }
-      activeCount++;
       const monthDue = subAmper * price;
       totalExpected += monthDue;
       const isPaid = s.paidMonths && s.paidMonths[monthKey];
       const pp = s.partialPayments && s.partialPayments[monthKey];
       if (isPaid) {
-        paidCount++;
         totalCollected += monthDue;
       } else if (pp && pp.length > 0) {
-        requiredCount++;
         const ppSum = pp.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         totalCollected += ppSum;
         requiredAmount += monthDue - ppSum;
+      }
+      if ((s.subscriptionType || 'normal') !== subscriptionTypeFilter) return;
+      const isDeleted = isDeletedForReport(s, m, y);
+      if (isDeleted) { deletedCount++; return; }
+      activeCount++;
+      if (isPaid) {
+        paidCount++;
+      } else if (pp && pp.length > 0) {
+        requiredCount++;
       } else { unpaidCount++; }
     });
     return { activeCount, deletedCount, totalAmper, paidCount, unpaidCount, requiredCount, requiredAmount, totalExpected, totalCollected };
@@ -5162,7 +5166,7 @@ export default function App() {
       if (!isCurrentlyPaid && sub.subscriberNumber && sub.subscriberNumber.trim()) {
         const payerName = userRole === 'worker' ? workerName : ownerName;
         const subTypeLabel = sub.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي';
-        const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nنوع الاشتراك: ${subTypeLabel}\nالأمبير: ${amperVal} × سعر الأمبير: ${formatNumber(monthPrice)} د.ع\nالمبلغ الإجمالي: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
+        const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nنوع الاشتراك: ${subTypeLabel}\nعدد الأمبير: ${amperVal}\nسعر الامبير لهذا الشهر: ${formatNumber(monthPrice)} د.ع\nالمبلغ الإجمالي: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
@@ -5239,7 +5243,7 @@ export default function App() {
         const totalPaid2 = monthPayments2.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         const payerName2 = userRole === 'worker' ? workerName : ownerName;
         const subTypeLabel2 = sub.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي';
-        const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nنوع الاشتراك: ${subTypeLabel2}\nالأمبير: ${amperVal2} × سعر الأمبير: ${formatNumber(pricePerAmper2)} د.ع\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
+        const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nنوع الاشتراك: ${subTypeLabel2}\nعدد الأمبير: ${amperVal2}\nسعر الامبير لهذا الشهر: ${formatNumber(pricePerAmper2)} د.ع\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
         Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع الجزئي للمشترك على الواتساب؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
