@@ -1905,21 +1905,32 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                 </TouchableOpacity>
               </View>
 
-              {workers.length > 1 && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={[styles.formLabel, { marginBottom: 8 }]}>اختر العامل</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row-reverse' }}>
-                    {workers.map((w, idx) => (
-                      <TouchableOpacity key={idx} style={[styles.filterTab, selectedWorker && selectedWorker.code === w.code && styles.filterTabActive, { marginLeft: 8 }]} onPress={() => setSelectedWorker(selectedWorker && selectedWorker.code === w.code ? null : w)}>
-                        <Text style={[styles.filterTabText, selectedWorker && selectedWorker.code === w.code && styles.filterTabTextActive]}>{w.workerName || w.name || w.code}</Text>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={[styles.formLabel, { marginBottom: 10, fontWeight: 'bold' }]}>اختر العامل</Text>
+                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 10 }}>
+                  {workers.map((w, idx) => {
+                    const isSelected = selectedWorker && selectedWorker.code === w.code;
+                    return (
+                      <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
+                        <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="person" size={18} color={isSelected ? '#FF9800' : 'white'} />
+                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: 'bold', color: isSelected ? 'white' : '#333' }}>{w.workerName || 'بدون اسم'}</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                    );
+                  })}
                 </View>
-              )}
+              </View>
 
+              {!selectedWorker ? (
+                <View style={{ alignItems: 'center', marginTop: 40 }}>
+                  <Ionicons name="person-outline" size={60} color="#ccc" />
+                  <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>اختر عامل لعرض بياناته</Text>
+                </View>
+              ) : (
+              <>
               <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold', marginBottom: 8 }}>ملخص الشهر</Text>
+                <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold', marginBottom: 8 }}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
                 <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ fontSize: 13, color: '#555' }}>إجمالي المحصل:</Text>
                   <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected)}</Text>
@@ -1974,6 +1985,8 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                   <Ionicons name="document-text-outline" size={60} color="#ccc" />
                   <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>لا توجد بيانات لهذا الشهر</Text>
                 </View>
+              )}
+              </>
               )}
             </View>
           </ScrollView>
