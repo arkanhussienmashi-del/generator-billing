@@ -178,6 +178,7 @@ const PERMISSION_LABELS = {
   amperPrice: 'تغيير الأمبير',
   cancelPayment: 'إلغاء الدفع',
   partialPayment: 'دفع جزئي',
+  addExpense: 'إضافة صرفية',
 };
 
 function generateWorkerCode(ownerPhone) {
@@ -1106,6 +1107,11 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('addExpense')}>
+              <Ionicons name={workerPermissions.includes('addExpense') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('addExpense') ? '#4CAF50' : '#999'} />
+              <Text style={{ fontSize: 16, color: '#333' }}>إضافة صرفية</Text>
+            </TouchableOpacity>
+
             <View style={{ marginTop: 16, marginBottom: 8 }}>
               <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10, textAlign: 'right' }}>المولدات المسموح بها:</Text>
               {generators && generators.length > 1 ? generators.map(function(gen) {
@@ -1170,6 +1176,10 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('partialPayment') ? prev.filter(p => p !== 'partialPayment') : [...prev, 'partialPayment'])}>
                   <Ionicons name={editWorkerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
                   <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('addExpense') ? prev.filter(p => p !== 'addExpense') : [...prev, 'addExpense'])}>
+                  <Ionicons name={editWorkerPermissions.includes('addExpense') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('addExpense') ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: 16, color: '#333' }}>إضافة صرفية</Text>
                 </TouchableOpacity>
 
                 <View style={{ marginTop: 16, marginBottom: 8 }}>
@@ -4072,10 +4082,12 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
             <Ionicons name="people" size={20} color="white" />
             <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF5722', marginTop: 10 }]} onPress={() => setExpenseModalVisible(true)}>
-            <Ionicons name="receipt-outline" size={20} color="white" />
-            <Text style={styles.showSubscribersText}>إضافة صرفية</Text>
-          </TouchableOpacity>
+          {workerPermissions.includes('addExpense') && (
+            <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF5722', marginTop: 10 }]} onPress={() => setExpenseModalVisible(true)}>
+              <Ionicons name="receipt-outline" size={20} color="white" />
+              <Text style={styles.showSubscribersText}>إضافة صرفية</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {workerUpdates.length > 0 && isOnline && (
