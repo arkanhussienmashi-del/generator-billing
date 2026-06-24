@@ -4399,6 +4399,12 @@ export default function App() {
           handleLogout();
           return;
         }
+        if (stillExists) {
+          const newPerms = stillExists.permissions || [];
+          setWorkerPermissions(newPerms);
+          const newAssignedGens = stillExists.assignedGenerators || [];
+          setWorkerAssignedGenerators(newAssignedGens);
+        }
         if (all.generators && all.generators.length > 0) {
           const workerCurrentId = currentGeneratorId;
           const workerActive = all.generators.find(function(g) { return g.id === workerCurrentId; }) || all.generators[0];
