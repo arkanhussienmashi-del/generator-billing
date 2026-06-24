@@ -1931,15 +1931,15 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
               <>
               <View style={{ backgroundColor: '#E8F5E9', borderRadius: 12, padding: 16, marginBottom: 16 }}>
                 <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold', marginBottom: 8 }}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected)}</Text>
                   <Text style={{ fontSize: 13, color: '#555' }}>إجمالي المحصل:</Text>
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
                   <Text style={{ fontSize: 13, color: '#555' }}>إجمالي الصرفيات:</Text>
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#C8E6C9', paddingTop: 6, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#C8E6C9', paddingTop: 6, marginTop: 4 }}>
                   <Text style={{ fontSize: 15, color: totalCollected - totalExpenses >= 0 ? '#2E7D32' : '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalCollected - totalExpenses)}</Text>
                   <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصافي:</Text>
                 </View>
