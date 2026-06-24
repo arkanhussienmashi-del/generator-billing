@@ -1813,10 +1813,6 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
 
-  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-  const years = [];
-  for (let yr = now.getFullYear(); yr >= now.getFullYear() - 5; yr--) years.push(String(yr));
-
   useEffect(() => {
     if (visible && workers.length === 1) {
       setSelectedWorker(workers[0]);
@@ -1878,14 +1874,14 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
           </View>
           <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
             <View style={{ padding: 16 }}>
-              <View style={{ flexDirection: 'row-reverse', gap: 10, marginBottom: 16 }}>
-                <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setYearPickerVisible(true)}>
-                  <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{selectedYear}</Text>
-                  <Ionicons name="calendar-outline" size={16} color="#1565C0" />
+              <View style={styles.dateSelectors}>
+                <TouchableOpacity style={styles.dateDropdown} onPress={() => setMonthPickerVisible(true)}>
+                  <Text style={styles.dateDropdownText}>{selectedMonth}</Text>
+                  <Ionicons name="calendar" size={20} color="#2196F3" />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
-                  <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{monthNames[parseInt(selectedMonth) - 1]}</Text>
-                  <Ionicons name="calendar-outline" size={16} color="#1565C0" />
+                <TouchableOpacity style={styles.dateDropdown} onPress={() => setYearPickerVisible(true)}>
+                  <Text style={styles.dateDropdownText}>{selectedYear}</Text>
+                  <Ionicons name="calendar" size={20} color="#2196F3" />
                 </TouchableOpacity>
               </View>
 
@@ -1965,37 +1961,8 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
       </View>
       </Modal>
 
-      <Modal visible={monthPickerVisible} transparent animationType="fade">
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerContent}>
-            <Text style={styles.pickerTitle}>اختر الشهر</Text>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {monthNames.map((m, idx) => (
-                <TouchableOpacity key={idx} style={[styles.pickerItem, parseInt(selectedMonth) === idx + 1 && styles.pickerItemActive]} onPress={() => { setSelectedMonth(String(idx + 1)); setMonthPickerVisible(false); }}>
-                  <Text style={[styles.pickerItemText, parseInt(selectedMonth) === idx + 1 && styles.pickerItemTextSelected]}>{m}</Text>
-                  {parseInt(selectedMonth) === idx + 1 && <Ionicons name="checkmark" size={22} color="#2196F3" />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={yearPickerVisible} transparent animationType="fade">
-        <View style={styles.pickerOverlay}>
-          <View style={styles.pickerContent}>
-            <Text style={styles.pickerTitle}>اختر السنة</Text>
-            <ScrollView>
-              {years.map((y) => (
-                <TouchableOpacity key={y} style={[styles.pickerItem, selectedYear === y && styles.pickerItemActive]} onPress={() => { setSelectedYear(y); setYearPickerVisible(false); }}>
-                  <Text style={[styles.pickerItemText, selectedYear === y && styles.pickerItemTextSelected]}>{y}</Text>
-                  {selectedYear === y && <Ionicons name="checkmark" size={22} color="#2196F3" />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <MonthPickerModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
+      <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
     </View>
   );
 };
