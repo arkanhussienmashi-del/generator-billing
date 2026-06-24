@@ -1262,11 +1262,11 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                       </View>
                       <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
                         <TouchableOpacity style={{ flex: 1, backgroundColor: '#E3F2FD', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={async () => {
-                          await Clipboard.setStringAsync(worker.code);
-                          Alert.alert('تم النسخ', `كود العامل: ${worker.code}`);
+                          await Clipboard.setStringAsync(`كود: ${worker.code}\nالرمز: ${worker.pin}`);
+                          Alert.alert('تم النسخ', `كود: ${worker.code}\nالرمز: ${worker.pin}`);
                         }}>
                           <Ionicons name="copy-outline" size={16} color="#2196F3" />
-                          <Text style={{ color: '#2196F3', fontSize: 13, fontWeight: 'bold' }}>نسخ الكود</Text>
+                          <Text style={{ color: '#2196F3', fontSize: 13, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFF3E0', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
                           setSelectedWorker(worker);
