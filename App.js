@@ -4692,6 +4692,7 @@ export default function App() {
             if (update.details.subscriberNumber !== undefined) sub.subscriberNumber = update.details.subscriberNumber;
             if (update.details.meterNumber !== undefined) sub.meterNumber = update.details.meterNumber;
             if (update.details.visaNumber !== undefined) sub.visaNumber = update.details.visaNumber;
+            if (update.details.subscriptionType !== undefined) sub.subscriptionType = update.details.subscriptionType;
             if (update.details.amper !== undefined) {
               sub.amperHistory = [...(sub.amperHistory || [])];
               const existingIdx = sub.amperHistory.findIndex(h => h.monthKey === update.monthKey);
