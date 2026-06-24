@@ -792,26 +792,18 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
 const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
-  const [workerName, setWorkerName] = useState(savedWorkerName || '');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!workerName.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسمك');
-      return;
-    }
     if (!code.trim() || !pin.trim()) {
       Alert.alert('تنبيه', 'يرجى إدخال الكود والرمز السري');
       return;
     }
     setLoading(true);
     try {
-      const result = await onLogin(code.trim(), pin.trim(), workerName.trim());
+      const result = await onLogin(code.trim(), pin.trim());
       if (result.deleted) {
         Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
-      } else if (result.nameMismatch) {
-        Alert.alert('تنبيه', 'الاسم غير مطابق. اسمك المسجل هو: ' + result.savedName + '\nيرجى تسجيل الدخول بالاسم الصحيح');
-        setWorkerName(result.savedName);
       } else if (!result.success) {
         Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
       }
@@ -837,19 +829,6 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
         </View>
 
         <View style={styles.loginCard}>
-          <View style={styles.inputContainer}>
-            <Ionicons name="person-outline" size={22} color="#666" style={styles.inputIcon} />
-            <TextInput
-              style={[styles.input, savedWorkerName ? { backgroundColor: '#f0f0f0', color: '#333' } : {}]}
-              placeholder="اسمك (مطلوب)"
-              placeholderTextColor="#999"
-              value={workerName}
-              onChangeText={savedWorkerName ? null : setWorkerName}
-              textAlign="right"
-              editable={!savedWorkerName}
-            />
-          </View>
-
           <View style={styles.inputContainer}>
             <Ionicons name="key-outline" size={22} color="#666" style={styles.inputIcon} />
             <TextInput
@@ -895,6 +874,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [editWorkerPermissions, setEditWorkerPermissions] = useState([]);
   const [editWorkerAssignedGenerators, setEditWorkerAssignedGenerators] = useState([]);
+  const [newWorkerName, setNewWorkerName] = useState('');
   const [deleteGenPassword, setDeleteGenPassword] = useState('');
   const [selectedDeleteGenId, setSelectedDeleteGenId] = useState(null);
   const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
@@ -924,13 +904,18 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   };
 
   const handleConfirmCreateWorker = () => {
+    if (!newWorkerName.trim()) {
+      Alert.alert('تنبيه', 'يرجى إدخال اسم العامل');
+      return;
+    }
     if (workerPermissions.length === 0) {
       Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل');
       return;
     }
-    onCreateWorker(workerPermissions, workerAssignedGenerators);
+    onCreateWorker(newWorkerName.trim(), workerPermissions, workerAssignedGenerators);
     setWorkerPermissions([]);
     setWorkerAssignedGenerators([]);
+    setNewWorkerName('');
     setWorkerModalVisible(false);
   };
 
@@ -1069,13 +1054,24 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => { setWorkerModalVisible(false); setWorkerPermissions([]); }}>
+              <TouchableOpacity onPress={() => { setWorkerModalVisible(false); setWorkerPermissions([]); setNewWorkerName(''); }}>
                 <Ionicons name="close" size={28} color="#333" />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>صلاحيات العامل</Text>
+              <Text style={styles.modalTitle}>إضافة عامل جديد</Text>
             </View>
 
-            <Text style={{ color: '#666', marginBottom: 20, textAlign: 'center' }}>اختر الصلاحيات التي تريدها للعامل:</Text>
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, color: '#333', marginBottom: 6, textAlign: 'right', fontWeight: 'bold' }}>اسم العامل <Text style={{ color: '#F44336' }}>*</Text></Text>
+              <TextInput
+                style={[styles.formInput, { textAlign: 'right' }]}
+                placeholder="أدخل اسم العامل"
+                placeholderTextColor="#999"
+                value={newWorkerName}
+                onChangeText={setNewWorkerName}
+              />
+            </View>
+
+            <Text style={{ color: '#666', marginBottom: 10, paddingHorizontal: 16, textAlign: 'center' }}>اختر الصلاحيات التي تريدها للعامل:</Text>
 
             <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('add')}>
               <Ionicons name={workerPermissions.includes('add') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('add') ? '#4CAF50' : '#999'} />
@@ -1245,8 +1241,8 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                           <Ionicons name="person" size={20} color="white" />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 16, color: '#333', fontWeight: 'bold' }}>كود: {worker.code}</Text>
-                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>الرمز: {worker.pin}</Text>
+                          <Text style={{ fontSize: 18, color: '#333', fontWeight: 'bold' }}>{worker.workerName || 'بدون اسم'}</Text>
+                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>كود: {worker.code} | الرمز: {worker.pin}</Text>
                           <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
                         </View>
                       </View>
@@ -1267,7 +1263,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                           <Text style={{ color: '#FF9800', fontSize: 13, fontWeight: 'bold' }}>تعديل الصلاحيات</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFEBEE', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
-                          Alert.alert('حذف العامل', `هل تريد حذف العامل "${worker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
+                          Alert.alert('حذف العامل', `هل تريد حذف العامل "${worker.workerName || worker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
                             { text: 'إلغاء', style: 'cancel' },
                             { text: 'نعم، حذف', style: 'destructive', onPress: () => onDeleteWorker(worker.code) },
                           ]);
@@ -1293,6 +1289,13 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             <Ionicons name="checkmark-circle" size={40} color="white" />
           </View>
           <Text style={{ fontSize: 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: 8 }}>تم إنشاء حساب العامل</Text>
+
+          {newWorkerCredentials && newWorkerCredentials.workerName && (
+            <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>اسم العامل</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FF9800', textAlign: 'center' }}>{newWorkerCredentials.workerName}</Text>
+            </View>
+          )}
 
           <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
             <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>كود العامل</Text>
@@ -1908,7 +1911,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row-reverse' }}>
                     {workers.map((w, idx) => (
                       <TouchableOpacity key={idx} style={[styles.filterTab, selectedWorker && selectedWorker.code === w.code && styles.filterTabActive, { marginLeft: 8 }]} onPress={() => setSelectedWorker(selectedWorker && selectedWorker.code === w.code ? null : w)}>
-                        <Text style={[styles.filterTabText, selectedWorker && selectedWorker.code === w.code && styles.filterTabTextActive]}>{w.name}</Text>
+                        <Text style={[styles.filterTabText, selectedWorker && selectedWorker.code === w.code && styles.filterTabTextActive]}>{w.workerName || w.name || w.code}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -4043,7 +4046,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           </TouchableOpacity>
         </View>
         <Text style={styles.headerTitle}>{generatorName || 'واجهة العامل'}</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 2 }}>{workerName}</Text>
+        {workerName ? <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold', marginTop: 4 }}>{workerName}</Text> : null}
         <View style={{ width: 40 }} />
       </View>
 
@@ -4933,17 +4936,17 @@ export default function App() {
     if (currentUser) await saveUserData(currentUser, 'monthlyExpenses', updated);
   };
 
-  const handleCreateWorker = async (permissions, assignedGenerators) => {
+  const handleCreateWorker = async (workerNameInput, permissions, assignedGenerators) => {
     setGlobalLoading('جاري إنشاء حساب العامل...');
     try {
       const code = generateWorkerCode(currentUser);
       const pin = generateWorkerPin();
       const hashedPin = await hashWorkerPin(pin);
-      const newWorker = { code, pin: hashedPin, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+      const newWorker = { code, pin: hashedPin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
       const updated = [...workers, newWorker];
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
-      setNewWorkerCredentials({ code, pin, permissions });
+      setNewWorkerCredentials({ code, pin, permissions, workerName: workerNameInput });
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء إنشاء حساب العامل');
     } finally {
@@ -4987,7 +4990,7 @@ export default function App() {
     }
   };
 
-  const handleWorkerLogin = async (code, pin, name) => {
+  const handleWorkerLogin = async (code, pin) => {
     const usersResult = await loadFromFile('registered_users');
     const list = usersResult || [];
     for (const user of list) {
@@ -5001,20 +5004,7 @@ export default function App() {
           if (w.code !== code.toUpperCase()) continue;
           const pinMatch = await verifyWorkerPin(w.pin, pin);
           if (!pinMatch) continue;
-          const found = w;
-          if (found.workerName && found.workerName !== name) {
-            return { success: false, nameMismatch: true, savedName: found.workerName };
-          }
-          if (!found.workerName) {
-            const updatedWorkers = workers.map(function(w2) {
-              if (w2.code === code.toUpperCase()) {
-                return Object.assign({}, w2, { workerName: name });
-              }
-              return w2;
-            });
-            await saveUserData(user.phone, 'workers', updatedWorkers);
-          }
-          return { success: true, ownerPhone: user.phone, permissions: found.permissions || [], assignedGeneratorId: found.assignedGeneratorId || null, assignedGenerators: found.assignedGenerators || [], savedName: found.workerName || name };
+          return { success: true, ownerPhone: user.phone, permissions: w.permissions || [], assignedGeneratorId: w.assignedGeneratorId || null, assignedGenerators: w.assignedGenerators || [], savedName: w.workerName || '' };
         }
       }
     }
@@ -5352,14 +5342,14 @@ export default function App() {
     return (
       <WorkerLoginScreen
         onBack={() => setScreen('login')}
-        onLogin={async (code, pin, name) => {
-          const result = await handleWorkerLogin(code, pin, name);
+        onLogin={async (code, pin) => {
+          const result = await handleWorkerLogin(code, pin);
           if (result.success) {
             setWorkerOwnerPhone(result.ownerPhone);
             setUserRole('worker');
             setWorkerPermissions(result.permissions);
             setWorkerCode(code.toUpperCase());
-            setWorkerName(result.savedName || name);
+            setWorkerName(result.savedName);
             setCurrentUser(result.ownerPhone);
             const assignedGens = result.assignedGenerators || [];
             setWorkerAssignedGenerators(assignedGens);
