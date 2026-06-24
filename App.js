@@ -3838,6 +3838,12 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
         <View style={styles.dateContainer}>
           <Text style={styles.dateText}>{getCurrentDate()}</Text>
+          {workers && workers.length > 0 && (
+            <TouchableOpacity style={{ backgroundColor: '#9C27B0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }} onPress={onShowWorkerTracking}>
+              <Ionicons name="person-outline" size={14} color="white" />
+              <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>متابعة العامل</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
@@ -3879,12 +3885,6 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <Ionicons name="people" size={20} color="white" />
             <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
           </TouchableOpacity>
-          {workers && workers.length > 0 && (
-            <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#9C27B0', marginTop: 10 }]} onPress={onShowWorkerTracking}>
-              <Ionicons name="person-outline" size={20} color="white" />
-              <Text style={styles.showSubscribersText}>متابعة العامل</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         <View style={[styles.financialSummary, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
@@ -7021,7 +7021,9 @@ partialSubscriberName: {
     borderRadius: 12,
     padding: 14,
     marginTop: 16,
+    flexDirection: 'row-reverse',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   dateText: {
     fontSize: 18,
