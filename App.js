@@ -1229,36 +1229,43 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   </View>
                 ) : (
                   workers.map((worker, index) => (
-                    <View key={index} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-                      <TouchableOpacity style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }} onPress={() => {
-                        setSelectedWorker(worker);
-                        setEditWorkerPermissions(worker.permissions || []);
-                        setEditWorkerAssignedGenerators(worker.assignedGenerators || []);
-                      }}>
+                    <View key={index} style={{ borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 12 }}>
+                      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                         <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="person" size={20} color="white" />
                         </View>
-                        <View>
+                        <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 16, color: '#333', fontWeight: 'bold' }}>كود: {worker.code}</Text>
                           <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>الرمز: {worker.pin}</Text>
                           <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
                         </View>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={async () => {
-                        await Clipboard.setStringAsync(`كود العامل: ${worker.code}\nالرمز السري: ${worker.pin}`);
-                        Alert.alert('تم النسخ', `كود: ${worker.code}\nرمز: ${worker.pin}`);
-                      }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
-                        <Ionicons name="copy-outline" size={18} color="#2196F3" />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => {
-                        Alert.alert('حذف العامل', 'هل تريد حذف العامل "' + worker.code + '"؟', [
-                          { text: 'إلغاء', style: 'cancel' },
-                          { text: 'حذف', style: 'destructive', onPress: () => onDeleteWorker(worker.code) },
-                        ]);
-                      }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
-                        <Ionicons name="trash-outline" size={18} color="#F44336" />
-                      </TouchableOpacity>
-                      <Ionicons name="chevron-back" size={24} color="#999" style={{ marginLeft: 8 }} />
+                      </View>
+                      <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                        <TouchableOpacity style={{ flex: 1, backgroundColor: '#E3F2FD', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={async () => {
+                          await Clipboard.setStringAsync(worker.code);
+                          Alert.alert('تم النسخ', `كود العامل: ${worker.code}`);
+                        }}>
+                          <Ionicons name="copy-outline" size={16} color="#2196F3" />
+                          <Text style={{ color: '#2196F3', fontSize: 13, fontWeight: 'bold' }}>نسخ الكود</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFF3E0', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
+                          setSelectedWorker(worker);
+                          setEditWorkerPermissions(worker.permissions || []);
+                          setEditWorkerAssignedGenerators(worker.assignedGenerators || []);
+                        }}>
+                          <Ionicons name="create-outline" size={16} color="#FF9800" />
+                          <Text style={{ color: '#FF9800', fontSize: 13, fontWeight: 'bold' }}>تعديل الصلاحيات</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFEBEE', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
+                          Alert.alert('حذف العامل', `هل تريد حذف العامل "${worker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
+                            { text: 'إلغاء', style: 'cancel' },
+                            { text: 'نعم، حذف', style: 'destructive', onPress: () => onDeleteWorker(worker.code) },
+                          ]);
+                        }}>
+                          <Ionicons name="trash-outline" size={16} color="#F44336" />
+                          <Text style={{ color: '#F44336', fontSize: 13, fontWeight: 'bold' }}>حذف العامل</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))
                 )}
