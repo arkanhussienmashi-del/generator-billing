@@ -2000,13 +2000,17 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
   );
 };
 
-const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedYear }) => {
+const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedYear, defaultSubscriptionType }) => {
   const [name, setName] = useState('');
   const [amper, setAmper] = useState('');
   const [subscriberNumber, setSubscriberNumber] = useState('');
   const [meterNumber, setMeterNumber] = useState('');
   const [visaNumber, setVisaNumber] = useState('');
-  const [subscriptionType, setSubscriptionType] = useState('normal');
+  const [subscriptionType, setSubscriptionType] = useState(defaultSubscriptionType || 'normal');
+
+  useEffect(() => {
+    if (visible) setSubscriptionType(defaultSubscriptionType || 'normal');
+  }, [visible, defaultSubscriptionType]);
 
   const handleSave = () => {
     const nameError = validateName(name);
@@ -2457,6 +2461,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [searchText, setSearchText] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState('normal');
   const [addSubscriberVisible, setAddSubscriberVisible] = useState(false);
   const [partialPaymentVisible, setPartialPaymentVisible] = useState(false);
   const [partialPaymentSubscriber, setPartialPaymentSubscriber] = useState(null);
@@ -2480,6 +2485,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
     } else {
       setSearchText('');
       setActiveFilter('all');
+      setSubscriptionTypeFilter('normal');
       setExpandedCard(null);
     }
   }, [visible]);
@@ -2521,8 +2527,8 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   };
 
   const { visibleSubscribers, deletedForMonth, visibleCount, paidCount, requiredCount, unpaidCount, filteredSubscribers, filteredDeleted } = useMemo(() => {
-    const vs = subscribers.filter(sub => isVisibleForMonth(sub, parseInt(selectedMonth), parseInt(selectedYear)));
-    const df = subscribers.filter(sub => isDeletedForReport(sub, selectedMonth, selectedYear));
+    const vs = subscribers.filter(sub => isVisibleForMonth(sub, parseInt(selectedMonth), parseInt(selectedYear)) && (sub.subscriptionType || 'normal') === subscriptionTypeFilter);
+    const df = subscribers.filter(sub => isDeletedForReport(sub, selectedMonth, selectedYear) && (sub.subscriptionType || 'normal') === subscriptionTypeFilter);
     const vc = vs.length;
     const pc = vs.filter(s => isPaid(s)).length;
     const rc = vs.filter(s => !isPaid(s) && hasPartialPayments(s)).length;
@@ -2542,7 +2548,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
         (sub.meterNumber && sub.meterNumber.includes(searchText));
     });
     return { visibleSubscribers: vs, deletedForMonth: df, visibleCount: vc, paidCount: pc, requiredCount: rc, unpaidCount: uc, filteredSubscribers: fs, filteredDeleted: fd };
-  }, [subscribers, selectedMonth, selectedYear, searchText, activeFilter, monthKey]);
+  }, [subscribers, selectedMonth, selectedYear, searchText, activeFilter, monthKey, subscriptionTypeFilter]);
 
   const filters = [
     { id: 'total', label: 'الإجمالي اشتراك', count: visibleCount },
@@ -2579,6 +2585,21 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             <TouchableOpacity style={styles.dateDropdown} onPress={() => setYearPickerVisible(true)}>
               <Text style={styles.dateDropdownText}>{selectedYear}</Text>
               <Ionicons name="calendar" size={20} color="#2196F3" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnActive, { flex: 1 }]}
+              onPress={() => setSubscriptionTypeFilter('normal')}
+            >
+              <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnActiveGold, { flex: 1 }]}
+              onPress={() => setSubscriptionTypeFilter('golden')}
+            >
+              <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
             </TouchableOpacity>
           </View>
 
@@ -2945,6 +2966,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
         onSave={(subscriber) => onSaveSubscriber(subscriber)}
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
+        defaultSubscriptionType={subscriptionTypeFilter}
       />
 
       <PartialPaymentModal
