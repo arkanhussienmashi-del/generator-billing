@@ -1256,14 +1256,25 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 18, color: '#333', fontWeight: 'bold' }}>{worker.workerName || 'بدون اسم'}</Text>
-                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>كود: {worker.code} | الرمز: {worker.plainPin || '****'}</Text>
+                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>كود: {worker.code} | الرمز: {worker.plainPin || 'أعد إنشاء العامل'}</Text>
                           <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
                         </View>
                       </View>
-                      <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                      <View style={{ flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' }}>
+                        {!worker.plainPin && (
+                          <TouchableOpacity style={{ backgroundColor: '#E8F5E9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }} onPress={() => {
+                            Alert.alert('تغيير الرمز', `سيتم إنشاء رمز جديد للعامل "${worker.workerName || worker.code}"\nهل أنت متأكد؟`, [
+                              { text: 'إلغاء', style: 'cancel' },
+                              { text: 'نعم، تغيير', onPress: () => handleResetWorkerPin(worker.code) },
+                            ]);
+                          }}>
+                            <Ionicons name="key-outline" size={16} color="#4CAF50" />
+                            <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: 'bold' }}>تغيير الرمز</Text>
+                          </TouchableOpacity>
+                        )}
                         <TouchableOpacity style={{ flex: 1, backgroundColor: '#E3F2FD', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={async () => {
-                          await Clipboard.setStringAsync(`كود: ${worker.code}\nالرمز: ${worker.plainPin || worker.pin}`);
-                          Alert.alert('تم النسخ', `كود: ${worker.code}\nالرمز: ${worker.plainPin || '****'}`);
+                          await Clipboard.setStringAsync(`كود: ${worker.code}\nالرمز: ${worker.plainPin || 'غير متوفر - قم بتغيير الرمز'}`);
+                          Alert.alert('تم النسخ', `كود: ${worker.code}\nالرمز: ${worker.plainPin || 'غير متوفر'}`);
                         }}>
                           <Ionicons name="copy-outline" size={16} color="#2196F3" />
                           <Text style={{ color: '#2196F3', fontSize: 13, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
@@ -5068,6 +5079,19 @@ export default function App() {
       Alert.alert('تم', 'تم تعديل صلاحيات العامل بنجاح');
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تعديل صلاحيات العامل');
+    }
+  };
+
+  const handleResetWorkerPin = async (workerCode) => {
+    try {
+      const newPin = generateWorkerPin();
+      const hashedPin = await hashWorkerPin(newPin);
+      const updated = workers.map(w => w.code === workerCode ? { ...w, pin: hashedPin, plainPin: newPin } : w);
+      await saveUserData(currentUser, 'workers', updated);
+      setWorkers(updated);
+      Alert.alert('تم تغيير الرمز', `الرمز الجديد: ${newPin}\nشاركه مع العامل فوراً!`);
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تغيير الرمز');
     }
   };
 
