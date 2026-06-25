@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "generator-billing",
-    "slug": "generator-billing",
+    "name": "مولدي",
+    "slug": "mawledy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,6 +11,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.essam.mowldey",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -23,6 +24,11 @@
     },
     "plugins": [
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d5d85716-a626-4455-ad42-8a6394888511"
+      }
+    }
   }
 }

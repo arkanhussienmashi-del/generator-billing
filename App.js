@@ -405,7 +405,7 @@ const OnboardingScreen = ({ onComplete }) => {
     {
       icon: 'flash',
       iconColor: '#FFD700',
-      title: 'نظام جباية المولدات',
+      title: 'مولدي',
       description: 'تطبيق متكامل لإدارة المشتركين في المولدات الكهربائية وتبسيط عمليات الجباية',
       bg: '#1565C0',
     },
@@ -506,7 +506,7 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
       <View style={styles.welcomeContent}>
         <View style={styles.welcomeLogo}>
           <Ionicons name="flash" size={80} color="#FFD700" />
-          <Text style={styles.welcomeTitle}>نظام الجباية</Text>
+          <Text style={styles.welcomeTitle}>مولدي</Text>
           <Text style={styles.welcomeSubtitle}>نظام جباية المولدات الأهلية</Text>
         </View>
 
@@ -1039,6 +1039,25 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>استرداد بيانات المولد ({deletedGenerators.length})</Text>
                   </TouchableOpacity>
                 )}
+                <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: 12 }} />
+
+                <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>سياسة الخصوصية والشروط</Text>
+
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#607D8B', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/privacy-policy')}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>سياسة الخصوصية</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#607D8B', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/terms-of-service')}>
+                  <Ionicons name="document-text-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>شروط الخدمة</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/delete-account-data-request')}>
+                  <Ionicons name="trash-outline" size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>حذف الحساب والبيانات</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onLogout}>
                   <Ionicons name="log-out-outline" size={20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تسجيل الخروج</Text>
@@ -4017,7 +4036,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             )}
           </TouchableOpacity>
         </View>
-        <Text style={styles.headerTitle}>{generatorName || 'نظام الجباية'}</Text>
+        <Text style={styles.headerTitle}>{generatorName || 'مولدي'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -5165,7 +5184,7 @@ export default function App() {
       }
       await Sharing.shareAsync(filePath, {
         mimeType: 'application/json',
-        dialogTitle: 'تصدير بيانات نظام الجباية',
+        dialogTitle: 'تصدير بيانات مولدي',
       });
     } catch (e) {
       Alert.alert('خطأ', 'فشل التصدير');
