@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Linking,
   AppState,
+  BackHandler,
 } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -935,7 +936,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   };
 
   return (<>
-    <Modal visible={visible} animationType="slide" transparent={false}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
       <View style={{ flex: 1, backgroundColor: darkMode ? '#121212' : 'white' }}>
           <View style={[styles.modalHeader, { backgroundColor: '#1565C0' }]}>
             <TouchableOpacity onPress={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }]}>
@@ -1854,7 +1855,7 @@ const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch, currentUser }) => {
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch, currentUser, fullScreen }) => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
@@ -1944,11 +1945,9 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
     return { expenses: exps, totalExpenses: te };
   }, [filteredLogs, selectedMonth, selectedYear]);
 
-  if (!visible) return null;
+  if (!visible && !fullScreen) return null;
 
-  return (
-    <View style={{ flex: 1 }}>
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+  const trackingModalContent = (
       <View style={styles.subscribersOverlay}>
         <View style={styles.subscribersContainer}>
           <View style={styles.subscribersHeader}>
@@ -2191,10 +2190,18 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
           </ScrollView>
         </View>
       </View>
-      </Modal>
+  );
 
-      <MonthPickerModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
-      <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
+  if (fullScreen) {
+    return trackingModalContent;
+  }
+  return (
+    <View style={{ flex: 1 }}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+      {trackingModalContent}
+    </Modal>
+    <MonthPickerModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
+    <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
     </View>
   );
 };
@@ -2655,7 +2662,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen }) => {
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [searchText, setSearchText] = useState('');
@@ -2761,10 +2768,9 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   const paginatedSubscribers = filteredSubscribers.slice(0, displayCount);
   const hasMore = filteredSubscribers.length > displayCount;
 
-  if (!visible) return null;
+  if (!visible && !fullScreen) return null;
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
+  const screenContent = (
       <View style={styles.subscribersOverlay}>
         <View style={styles.subscribersContainer}>
         <View style={styles.subscribersHeader}>
@@ -3342,11 +3348,17 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
       )}
 
       </View>
+  );
+
+  if (fullScreen) return screenContent;
+  return (
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+      {screenContent}
     </Modal>
   );
 };
 
-const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices }) => {
+const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, fullScreen }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -3415,10 +3427,9 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
     return { totalDue, totalPaid, totalRemaining: totalDue - totalPaid };
   }, [selectedSubscriber, monthsToShow, selectedYear, amperPrices]);
 
-  if (!visible) return null;
+  if (!visible && !fullScreen) return null;
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
+  const screenContent = (<>
       <View style={styles.reportsOverlay}>
         <View style={styles.reportsContainer}>
           <View style={styles.subscribersHeader}>
@@ -3584,6 +3595,12 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
 
       <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
       <MonthPickerAllModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
+  </>);
+
+  if (fullScreen) return screenContent;
+  return (
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+      {screenContent}
     </Modal>
   );
 };
@@ -3662,13 +3679,14 @@ const AddGeneratorInput = ({ onAdd }) => {
   );
 };
 
-const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, monthlyExpenses }) => {
+const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses }) => {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState('normal');
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [showWorkerExpenses, setShowWorkerExpenses] = useState(false);
 
   const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
@@ -3700,11 +3718,12 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
       const addedYear = s.addedYear ? parseInt(s.addedYear) : new Date().getFullYear();
       const isBeforeAdded = (y < addedYear) || (y === addedYear && m < addedMonth);
       if (isBeforeAdded) return;
+      const isDeleted = isDeletedForReport(s, m, y);
       const subAmper = getAmperForMonth(s, m, y);
-      totalAmper += subAmper;
+      if (isDeleted) { deletedCount++; } else { totalAmper += subAmper; }
       const subPrice = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, s.subscriptionType);
       const monthDue = subAmper * subPrice;
-      totalExpected += monthDue;
+      if (!isDeleted) { totalExpected += monthDue; }
       const isPaid = s.paidMonths && s.paidMonths[monthKey];
       const pp = s.partialPayments && s.partialPayments[monthKey];
       if (isPaid) {
@@ -3715,8 +3734,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
         requiredAmount += monthDue - ppSum;
       }
       if ((s.subscriptionType || 'normal') !== subscriptionTypeFilter) return;
-      const isDeleted = isDeletedForReport(s, m, y);
-      if (isDeleted) { deletedCount++; return; }
+      if (isDeleted) return;
       activeCount++;
       if (isPaid) {
         paidCount++;
@@ -3728,7 +3746,9 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   }, [subscribers, m, y, monthKey, amperPrices, goldenPrices, subscriptionTypeFilter]);
 
   const monthExpenses = monthlyExpenses[monthKey] || { gas: '0', oil: '0', repairs: '0', salaries: '0' };
-  const totalExpenses = (parseFloat(monthExpenses.gas) || 0) + (parseFloat(monthExpenses.oil) || 0) + (parseFloat(monthExpenses.repairs) || 0) + (parseFloat(monthExpenses.salaries) || 0);
+  const monthWorkerExpenses = (workerExpenses && workerExpenses[monthKey]) || [];
+  const workerExpensesTotal = monthWorkerExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  const totalExpenses = (parseFloat(monthExpenses.gas) || 0) + (parseFloat(monthExpenses.oil) || 0) + (parseFloat(monthExpenses.repairs) || 0) + (parseFloat(monthExpenses.salaries) || 0) + workerExpensesTotal;
   const netProfit = stats.totalCollected - totalExpenses;
 
   const years = [];
@@ -3737,7 +3757,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { flex: 1, paddingTop: 40 }]}>
           <View style={styles.modalHeader}>
@@ -3808,19 +3828,19 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
               <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: 12 }} />
 
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Ionicons name="cash" size={22} color="#1565C0" />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
-              </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1 }]}>
-                <Text style={{ fontSize: 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
-              </View>
-
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
                 <Ionicons name="wallet" size={22} color="#4CAF50" />
                 <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المبلغ المستوفى من المشتركين</Text>
               </View>
               <View style={[styles.settingsInput, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1 }]}>
                 <Text style={{ fontSize: 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
+                <Ionicons name="cash" size={22} color="#1565C0" />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
+              </View>
+              <View style={[styles.settingsInput, { backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1 }]}>
+                <Text style={{ fontSize: 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
               </View>
 
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
@@ -3863,6 +3883,25 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
                     <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.salaries) || 0)}</Text>
                   </View>
                 </View>
+                {monthWorkerExpenses.length > 0 && (
+                  <TouchableOpacity style={styles.expenseRow} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
+                    <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={20} color="#FF9800" />
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: 8 }}>د.ع {formatNumber(workerExpensesTotal)}</Text>
+                    <View style={[styles.expenseLabelContainer, { flex: 1 }]}>
+                      <Ionicons name="person" size={16} color="#FF9800" />
+                      <Text style={[styles.expenseLabel]}>صرفيات العامل</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                {showWorkerExpenses && monthWorkerExpenses.map((e, idx) => (
+                  <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flex: 1 }}>
+                      <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.label || 'صرفية'}</Text>
+                      <Text style={{ fontSize: 11, color: '#999' }}>({e.workerName || ''})</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+                  </View>
+                ))}
               </View>
 
               <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 14, padding: 14, backgroundColor: '#FFEBEE', borderRadius: 10 }}>
@@ -4058,16 +4097,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
       )}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.menuButton} onPress={onOpenSettings}>
-            <Ionicons name="settings-outline" size={26} color="white" />
-            {pendingUpdatesCount > 0 && (
-              <View style={{ position: 'absolute', top: -4, left: -4, backgroundColor: '#F44336', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
-                <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>{pendingUpdatesCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        <View style={{ width: 40 }} />
         <Text style={styles.headerTitle}>{generatorName || 'مولدي'}</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -4091,17 +4121,6 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
         <View style={styles.dateContainer}>
           <Text style={[styles.dateText, { textAlign: 'right', flex: 1 }]}>{getCurrentDate()}</Text>
-          {workers && workers.length > 0 && (
-            <TouchableOpacity style={{ backgroundColor: '#9C27B0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }} onPress={onShowWorkerTracking}>
-              <Ionicons name="person-outline" size={14} color="white" />
-              <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>متابعة العامل</Text>
-              {pendingUpdatesCount > 0 && (
-                <View style={{ backgroundColor: 'red', borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 4 }}>
-                  <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>{pendingUpdatesCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
         </View>
 
         {hasGoldenSubscribers ? (
@@ -4148,15 +4167,6 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           </View>
         </View>
 
-        <View style={styles.bottomButtons}>
-          <TouchableOpacity style={styles.reportsButton} onPress={onShowReports}>
-            <Text style={styles.reportsButtonText}>التقارير</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.showSubscribersButton} onPress={onShowSubscribers}>
-            <Ionicons name="people" size={20} color="white" />
-            <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
-          </TouchableOpacity>
-        </View>
 
         <View style={[styles.financialSummary, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
           <View style={styles.summaryRow}>
@@ -4474,6 +4484,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [deletedGenerators, setDeletedGenerators] = useState([]);
   const [globalLoading, setGlobalLoading] = useState('');
+  const [activeTab, setActiveTab] = useState('home');
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -5682,6 +5693,23 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    const onBackPress = () => {
+      if (showOnboarding) return false;
+      if (screen === 'welcome' || screen === 'login' || screen === 'register' || screen === 'workerLogin') return false;
+      if (addGeneratorVisible) { setAddGeneratorVisible(false); return true; }
+      if (switchGeneratorVisible) { setSwitchGeneratorVisible(false); return true; }
+      if (workerSwitchGeneratorVisible) { setWorkerSwitchGeneratorVisible(false); return true; }
+      if (monthlyDataVisible) { setMonthlyDataVisible(false); return true; }
+      if (updatesModalVisible) { setUpdatesModalVisible(false); return true; }
+      if (settingsVisible) { setSettingsVisible(false); setActiveTab('home'); return true; }
+      if (activeTab !== 'home') { setActiveTab('home'); return true; }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [showOnboarding, screen, activeTab, settingsVisible, addGeneratorVisible, switchGeneratorVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible]);
+
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
@@ -5971,34 +5999,89 @@ export default function App() {
   return (
     <View style={styles.mainContainer}>
       <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
-      <MainScreen
-        currentUser={currentUser}
-        generatorName={generatorName}
-        onOpenSettings={() => setSettingsVisible(true)}
-        onShowSubscribers={() => setSubscribersVisible(true)}
-        onShowReports={() => setReportsVisible(true)}
-        subscribers={subscribers}
-        amperPrices={amperPrices}
-        onSetAmperPrice={saveAmperPrice}
-        goldenPrices={goldenPrices}
-        onSetGoldenPrice={saveGoldenPrice}
-        expenses={expenses}
-        workerExpenses={(workerExpenses[currentMonthKeyForMain] || [])}
-        onSetExpenses={saveExpenses}
-        onLogout={handleLogout}
-        isOnline={isOnline}
-        generators={generators}
-        onAddGenerator={() => setAddGeneratorVisible(true)}
-        onSwitchGenerator={() => setSwitchGeneratorVisible(true)}
-        onShowMonthlyData={() => setMonthlyDataVisible(true)}
-        darkMode={darkMode}
-        pendingUpdatesCount={pendingWorkerUpdates.length}
-        onShowWorkerTracking={() => setWorkerTrackingVisible(true)}
-        workers={workers}
-      />
+
+      {activeTab === 'home' && (
+        <MainScreen
+          currentUser={currentUser}
+          generatorName={generatorName}
+          onOpenSettings={() => { setSettingsVisible(true); setActiveTab('more'); }}
+          onShowSubscribers={() => { setSubscribersVisible(true); setActiveTab('subscribers'); }}
+          onShowReports={() => { setReportsVisible(true); setActiveTab('reports'); }}
+          subscribers={subscribers}
+          amperPrices={amperPrices}
+          onSetAmperPrice={saveAmperPrice}
+          goldenPrices={goldenPrices}
+          onSetGoldenPrice={saveGoldenPrice}
+          expenses={expenses}
+          workerExpenses={(workerExpenses[currentMonthKeyForMain] || [])}
+          onSetExpenses={saveExpenses}
+          onLogout={handleLogout}
+          isOnline={isOnline}
+          generators={generators}
+          onAddGenerator={() => setAddGeneratorVisible(true)}
+          onSwitchGenerator={() => setSwitchGeneratorVisible(true)}
+          onShowMonthlyData={() => setMonthlyDataVisible(true)}
+          darkMode={darkMode}
+          pendingUpdatesCount={pendingWorkerUpdates.length}
+          onShowWorkerTracking={() => { setWorkerTrackingVisible(true); setActiveTab('workers'); }}
+          workers={workers}
+        />
+      )}
+
+      {activeTab === 'subscribers' && (
+        <SubscribersScreen
+          fullScreen
+          visible={true}
+          onClose={() => setActiveTab('home')}
+          subscribers={subscribers}
+          onSaveSubscriber={handleAddSubscriber}
+          onDeleteSubscriber={handleDeleteSubscriber}
+          onTogglePaid={handleTogglePaid}
+          onPartialPayment={handlePartialPayment}
+          onRestoreSubscriber={handleRestoreSubscriber}
+          onChangeAmper={handleChangeAmper}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          onSaveGoldenPrice={saveGoldenPrice}
+          onSaveAmperPrice={saveAmperPrice}
+          currentUser={currentUser}
+          ownerName={ownerName}
+          userRole={userRole}
+          workerPermissions={workerPermissions}
+        />
+      )}
+
+      {activeTab === 'reports' && (
+        <ReportsScreen
+          fullScreen
+          visible={true}
+          onClose={() => setActiveTab('home')}
+          subscribers={subscribers}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+        />
+      )}
+
+      {activeTab === 'workers' && (
+        <WorkerTrackingScreen
+          fullScreen
+          visible={true}
+          onClose={() => setActiveTab('home')}
+          workers={workers}
+          activityLog={workerActivityLog}
+          amperPrices={amperPrices}
+          pendingWorkerUpdates={pendingWorkerUpdates}
+          onApplyBatch={handleApplyBatch}
+          onDeleteBatch={handleDeleteBatch}
+          rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
+          onReapplyBatch={handleReapplyBatch}
+          currentUser={currentUser}
+        />
+      )}
+
       <SettingsScreen
-        visible={settingsVisible}
-        onClose={() => setSettingsVisible(false)}
+        visible={activeTab === 'more' || settingsVisible}
+        onClose={() => { setSettingsVisible(false); setActiveTab('home'); }}
         generatorName={generatorName}
         onSaveGeneratorName={saveGeneratorName}
         ownerName={ownerName}
@@ -6028,45 +6111,6 @@ export default function App() {
         currentGeneratorId={currentGeneratorId}
         onChangePassword={handleChangePassword}
       />
-      <WorkerTrackingScreen
-        visible={workerTrackingVisible}
-        onClose={() => setWorkerTrackingVisible(false)}
-        workers={workers}
-        activityLog={workerActivityLog}
-        amperPrices={amperPrices}
-        pendingWorkerUpdates={pendingWorkerUpdates}
-        onApplyBatch={handleApplyBatch}
-        onDeleteBatch={handleDeleteBatch}
-        rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
-        onReapplyBatch={handleReapplyBatch}
-        currentUser={currentUser}
-      />
-      <SubscribersScreen
-        visible={subscribersVisible}
-        onClose={() => setSubscribersVisible(false)}
-        subscribers={subscribers}
-        onSaveSubscriber={handleAddSubscriber}
-        onDeleteSubscriber={handleDeleteSubscriber}
-        onTogglePaid={handleTogglePaid}
-        onPartialPayment={handlePartialPayment}
-        onRestoreSubscriber={handleRestoreSubscriber}
-        onChangeAmper={handleChangeAmper}
-        amperPrices={amperPrices}
-        goldenPrices={goldenPrices}
-        onSaveGoldenPrice={saveGoldenPrice}
-        onSaveAmperPrice={saveAmperPrice}
-        currentUser={currentUser}
-        ownerName={ownerName}
-        userRole={userRole}
-        workerPermissions={workerPermissions}
-      />
-      <ReportsScreen
-        visible={reportsVisible}
-        onClose={() => setReportsVisible(false)}
-        subscribers={subscribers}
-        amperPrices={amperPrices}
-        goldenPrices={goldenPrices}
-      />
       <MonthlyDataScreen
         visible={monthlyDataVisible}
         onClose={() => setMonthlyDataVisible(false)}
@@ -6074,6 +6118,7 @@ export default function App() {
         amperPrices={amperPrices}
         goldenPrices={goldenPrices}
         monthlyExpenses={monthlyExpenses}
+        workerExpenses={workerExpenses}
       />
       {addGeneratorVisible && (
         <Modal visible={addGeneratorVisible} animationType="slide" transparent>
@@ -6142,6 +6187,34 @@ export default function App() {
           </View>
         </Modal>
       )}
+
+      <View style={styles.tabBar}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
+          <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
+          <Text style={[styles.tabLabel, { color: activeTab === 'home' ? '#2196F3' : '#999' }]}>الرئيسية</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('subscribers')}>
+          <Ionicons name={activeTab === 'subscribers' ? 'people' : 'people-outline'} size={24} color={activeTab === 'subscribers' ? '#2196F3' : '#999'} />
+          <Text style={[styles.tabLabel, { color: activeTab === 'subscribers' ? '#2196F3' : '#999' }]}>المشتركين</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('workers')}>
+          <Ionicons name={activeTab === 'workers' ? 'briefcase' : 'briefcase-outline'} size={24} color={activeTab === 'workers' ? '#2196F3' : '#999'} />
+          <Text style={[styles.tabLabel, { color: activeTab === 'workers' ? '#2196F3' : '#999' }]}>العمال</Text>
+          {pendingWorkerUpdates.length > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{pendingWorkerUpdates.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('reports')}>
+          <Ionicons name={activeTab === 'reports' ? 'bar-chart' : 'bar-chart-outline'} size={24} color={activeTab === 'reports' ? '#2196F3' : '#999'} />
+          <Text style={[styles.tabLabel, { color: activeTab === 'reports' ? '#2196F3' : '#999' }]}>التقارير</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => { setSettingsVisible(true); setActiveTab('more'); }}>
+          <Ionicons name={activeTab === 'more' ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline'} size={24} color={activeTab === 'more' ? '#2196F3' : '#999'} />
+          <Text style={[styles.tabLabel, { color: activeTab === 'more' ? '#2196F3' : '#999' }]}>المزيد</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -7645,5 +7718,48 @@ partialSubscriberName: {
     color: '#2196F3',
     fontSize: IS_SMALL ? 13 : 16,
     fontWeight: '700',
+  },
+  tabBar: {
+    flexDirection: 'row-reverse',
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 6,
+    paddingTop: 6,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  tabLabel: {
+    fontSize: IS_SMALL ? 9 : 11,
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -2,
+    left: '50%',
+    marginLeft: 6,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
