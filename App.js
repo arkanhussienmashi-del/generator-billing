@@ -3934,6 +3934,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const [repairs, setRepairs] = useState(expenses.repairs || '');
   const [salaries, setSalaries] = useState(expenses.salaries || '');
   const [addExpenseVisible, setAddExpenseVisible] = useState(false);
+  const [showWorkerExpenses, setShowWorkerExpenses] = useState(false);
   const [addExpenseField, setAddExpenseField] = useState(null);
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
   const [addExpenseLabel, setAddExpenseLabel] = useState('');
@@ -4218,10 +4219,19 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>رواتب</Text>
             </View>
           </View>
-          {workerExpenses.length > 0 && workerExpenses.map((e, idx) => (
+          {workerExpenses.length > 0 && (
+            <TouchableOpacity style={styles.expenseRow} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
+              <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={20} color="#FF9800" />
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: 8 }}>د.ع {formatNumber(workerExpenses.reduce((s, e) => s + (e.amount || 0), 0))}</Text>
+              <View style={[styles.expenseLabelContainer, { flex: 1 }]}>
+                <Ionicons name="person" size={16} color="#FF9800" />
+                <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>صرفيات العامل</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          {showWorkerExpenses && workerExpenses.map((e, idx) => (
             <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flex: 1 }}>
-                <Ionicons name="person" size={14} color="#FF9800" />
                 <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
                 <Text style={{ fontSize: 11, color: '#999' }}>({e.workerName})</Text>
               </View>
@@ -4474,12 +4484,15 @@ export default function App() {
     const timer = setTimeout(safeFinish, 5000);
     const init = async () => {
       try {
-        const onboardingDone = await loadLocalCache('app_onboarding_done');
-        if (!onboardingDone) {
+        const result = await Promise.race([
+          loadLocalCache('app_onboarding_done'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ]);
+        if (!result) {
           setShowOnboarding(true);
         }
       } catch (e) {
-        // silent
+        setShowOnboarding(true);
       }
       clearTimeout(timer);
       safeFinish();
