@@ -76,7 +76,32 @@ async function deleteFile(filename) {
 async function saveUserData(phone, key, data) {
   await saveLocalCache('user_' + phone + '_' + key, data);
   const result = await apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data });
+  if (result === null) {
+    const pending = await loadLocalCache('pending_sync_' + phone) || [];
+    const existing = pending.findIndex(function(p) { return p.key === key; });
+    if (existing >= 0) { pending[existing] = { key: key, data: data, timestamp: Date.now() }; }
+    else { pending.push({ key: key, data: data, timestamp: Date.now() }); }
+    await saveLocalCache('pending_sync_' + phone, pending);
+  } else {
+    const pending = await loadLocalCache('pending_sync_' + phone) || [];
+    if (pending.length > 0) {
+      const cleaned = pending.filter(function(p) { return p.key !== key; });
+      await saveLocalCache('pending_sync_' + phone, cleaned);
+    }
+  }
   return result;
+}
+
+async function syncPendingChanges(phone) {
+  const pending = await loadLocalCache('pending_sync_' + phone) || [];
+  if (pending.length === 0) return;
+  const remaining = [];
+  for (var i = 0; i < pending.length; i++) {
+    var op = pending[i];
+    var result = await apiRequest('POST', '/api', { _table: 'user_data', phone: phone, data_key: op.key, data_value: op.data });
+    if (result === null) { remaining.push(op); }
+  }
+  await saveLocalCache('pending_sync_' + phone, remaining);
 }
 
 async function loadUserData(phone, key) {
@@ -4687,6 +4712,7 @@ export default function App() {
 
   const loadAllUserData = async () => {
     if (!currentUser) return;
+    await syncPendingChanges(currentUser);
     const all = await loadAllUserKeys(currentUser);
     if (all.ownerName !== undefined) setOwnerName(all.ownerName);
     if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(normalizeBatches(all.pending_worker_updates));
