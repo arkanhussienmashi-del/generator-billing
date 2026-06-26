@@ -5154,7 +5154,6 @@ export default function App() {
   };
 
   const handleDeleteBatch = async (batchId) => {
-    setGlobalLoading('جاري حذف الدفعة...');
     try {
       const batch = pendingWorkerUpdates.find(b => b.id === batchId);
       const remaining = pendingWorkerUpdates.filter(b => b.id !== batchId);
@@ -5169,13 +5168,10 @@ export default function App() {
       Alert.alert('تم', 'تم حذف التحديث');
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حذف التحديث');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handleReapplyBatch = async (batchId) => {
-    setGlobalLoading('جاري إعادة التحديث...');
     try {
       const log = await loadUserData(currentUser, 'worker_activity_log') || [];
       const batch = log.find(b => b.id === batchId);
@@ -5194,8 +5190,6 @@ export default function App() {
       Alert.alert('تم', 'تمت إعادة الدفعة إلى قائمة التحديثات المعلقة');
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء إعادة التحديث');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
@@ -5224,7 +5218,6 @@ export default function App() {
   };
 
   const handleExport = async () => {
-    setGlobalLoading('جاري التصدير...');
     try {
       const filePath = await exportUserData(currentUser);
       if (!filePath) {
@@ -5237,19 +5230,16 @@ export default function App() {
       });
     } catch (e) {
       Alert.alert('خطأ', 'فشل التصدير');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handleImport = async () => {
-    setGlobalLoading('جاري الاستيراد...');
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'application/json',
         copyToCacheDirectory: true,
       });
-      if (result.canceled) { setGlobalLoading(''); return; }
+      if (result.canceled) return;
       const fileUri = result.assets[0].uri;
       const importResult = await importUserData(fileUri);
       if (importResult.success) {
@@ -5264,8 +5254,6 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'فشل الاستيراد');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
@@ -5399,7 +5387,6 @@ export default function App() {
 
   const handleAddSubscriber = async (subscriber) => {
     resetActivity();
-    setGlobalLoading('جاري حفظ البيانات...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('add')) return;
       const existing = subscribers.find(s => s.id === subscriber.id);
@@ -5449,14 +5436,11 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حفظ البيانات');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handleDeleteSubscriber = async (id, monthKey) => {
     resetActivity();
-    setGlobalLoading('جاري حذف المشترك...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
       const now = new Date();
@@ -5485,14 +5469,11 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حذف المشترك');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handleTogglePaid = async (id, monthKey) => {
     resetActivity();
-    setGlobalLoading('جاري تغيير حالة الدفع...');
     try {
       const sub = subscribers.find(s => s.id === id);
       if (!sub) return;
@@ -5552,14 +5533,11 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تغيير حالة الدفع');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handlePartialPayment = async (id, amount, monthKey) => {
     resetActivity();
-    setGlobalLoading('جاري تسجيل الدفعة...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('partialPayment')) return;
       const sub = subscribers.find(s => s.id === id);
@@ -5632,13 +5610,10 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء الدفع الجزئي');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handleRestoreSubscriber = async (id) => {
-    setGlobalLoading('جاري استرداد المشترك...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
       const sub = subscribers.find(s => s.id === id);
@@ -5659,13 +5634,10 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء استرداد المشترك');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
   const handleChangeAmper = async (id, newAmper, monthKey) => {
-    setGlobalLoading('جاري تغيير الأمبير...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('amperPrice')) return;
       const sub = subscribers.find(s => s.id === id);
@@ -5694,8 +5666,6 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تغيير الأمبير');
-    } finally {
-      setGlobalLoading('');
     }
   };
 
