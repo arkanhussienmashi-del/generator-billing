@@ -13,6 +13,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Linking,
+  AppState,
 } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -1853,7 +1854,7 @@ const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch }) => {
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch, currentUser }) => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
@@ -1863,11 +1864,40 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showRejected, setShowRejected] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
+  const [viewedBatches, setViewedBatches] = useState([]);
+
+  const markBatchViewed = async (batchId) => {
+    if (viewedBatches.indexOf(batchId) >= 0) return;
+    setViewedBatches(function(prev) { return [...prev, batchId]; });
+    try {
+      const existingLog = await loadUserData(currentUser, 'worker_activity_log') || [];
+      const updatedLog = existingLog.map(function(l) { return l.id === batchId ? { ...l, viewed: true } : l; });
+      await saveUserData(currentUser, 'worker_activity_log', updatedLog);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (visible) {
+      const viewed = [];
+      (pendingWorkerUpdates || []).forEach(function(b) {
+        const logEntry = (activityLog || []).find(function(l) { return l.id === b.id; });
+        if (logEntry && logEntry.viewed) viewed.push(b.id);
+      });
+      setViewedBatches(viewed);
+    }
+  }, [visible, pendingWorkerUpdates, activityLog]);
   const safePending = Array.isArray(pendingWorkerUpdates) ? pendingWorkerUpdates : [];
   const safeRejected = Array.isArray(rejectedBatches) ? rejectedBatches : [];
   const totalPendingCollected = useMemo(() => {
     let total = 0;
-    safePending.forEach(function(batch) {
+    const allBatches = Array.isArray(activityLog) ? activityLog : [];
+    allBatches.forEach(function(batch) {
+      if (batch.status === 'rejected') return;
+      if (selectedWorker) {
+        const bCode = batch.workerCode || '';
+        const bName = batch.workerName || '';
+        if (bCode !== selectedWorker.code && bName !== selectedWorker.workerName) return;
+      }
       (batch.updates || []).forEach(function(u) {
         if (u && (u.type === 'paid' || u.type === 'partialPayment') && u.details && u.details.amount) {
           total += parseFloat(u.details.amount);
@@ -1875,7 +1905,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
       });
     });
     return total;
-  }, [safePending]);
+  }, [activityLog, selectedWorker]);
 
   useEffect(() => {
     if (visible && workers.length === 1) {
@@ -2110,7 +2140,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                           }
                         }
                         return (
-                          <TouchableOpacity key={batch.id || 'b'} style={{ backgroundColor: 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#FFD54F' }} onPress={() => setSelectedBatch(batch)}>
+                          <TouchableOpacity key={batch.id || 'b'} style={{ backgroundColor: viewedBatches.indexOf(batch.id) >= 0 ? '#E8F5E9' : 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1.5, borderColor: viewedBatches.indexOf(batch.id) >= 0 ? '#4CAF50' : '#FFD54F' }} onPress={() => { setSelectedBatch(batch); markBatchViewed(batch.id); }}>
                             <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
                                 <View style={{ backgroundColor: batchExpenseOnly ? '#D32F2F' : '#FF9800', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -3903,7 +3933,6 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const [oil, setOil] = useState(expenses.oil || '');
   const [repairs, setRepairs] = useState(expenses.repairs || '');
   const [salaries, setSalaries] = useState(expenses.salaries || '');
-  const [showWorkerExpenses, setShowWorkerExpenses] = useState(false);
   const [addExpenseVisible, setAddExpenseVisible] = useState(false);
   const [addExpenseField, setAddExpenseField] = useState(null);
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
@@ -3961,13 +3990,15 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
       if (isDeletedForReport(s, currentMonth, currentYear)) return false;
       return true;
     }).reduce((sum, s) => sum + getAmperForMonth(s, currentMonth, currentYear) * gPrice, 0);
-    const totalExpenses = (parseFloat(gas) || 0) + (parseFloat(oil) || 0) +
+    const ownerExpenses = (parseFloat(gas) || 0) + (parseFloat(oil) || 0) +
       (parseFloat(repairs) || 0) + (parseFloat(salaries) || 0);
+    const workerExpensesTotal = (workerExpenses || []).reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+    const totalExpenses = ownerExpenses + workerExpensesTotal;
     const netExpected = collectedAmount - totalExpenses;
-    return { totalSubscribers: visibleCount, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price };
-  }, [subscribers, localAmperPrice, localGoldenPrice, gas, oil, repairs, salaries, currentMonth, currentYear, currentMonthKey]);
+    return { totalSubscribers: visibleCount, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, workerExpensesTotal, netExpected, price };
+  }, [subscribers, localAmperPrice, localGoldenPrice, gas, oil, repairs, salaries, currentMonth, currentYear, currentMonthKey, workerExpenses]);
 
-  const { totalSubscribers, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, netExpected, price } = stats;
+  const { totalSubscribers, totalAmper, paidCount, requiredCount, unpaidCount, collectedAmount, expectedAmount, totalExpenses, workerExpensesTotal, netExpected, price } = stats;
 
   const getCurrentDate = () => {
     const now = new Date();
@@ -4138,9 +4169,14 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
 
         <View style={[styles.expensesSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
-          <View style={styles.expensesHeader}>
-            <Ionicons name="wallet-outline" size={24} color="#4CAF50" />
-            <Text style={[styles.expensesTitle, darkMode && { color: '#fff' }]}>الصرفيات</Text>
+          <View style={[styles.expensesHeader, { justifyContent: 'space-between', flexDirection: 'row-reverse' }]}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="wallet-outline" size={24} color="#4CAF50" />
+              <Text style={[styles.expensesTitle, darkMode && { color: '#fff' }]}>الصرفيات</Text>
+            </View>
+            {totalExpenses > 0 && (
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F' }}>د.ع {formatNumber(totalExpenses)}</Text>
+            )}
           </View>
           <View style={styles.expenseRow}>
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('gas', 'كاز')}>
@@ -4182,31 +4218,17 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>رواتب</Text>
             </View>
           </View>
+          {workerExpenses.length > 0 && workerExpenses.map((e, idx) => (
+            <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flex: 1 }}>
+                <Ionicons name="person" size={14} color="#FF9800" />
+                <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
+                <Text style={{ fontSize: 11, color: '#999' }}>({e.workerName})</Text>
+              </View>
+              <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+            </View>
+          ))}
         </View>
-
-        {workerExpenses.length > 0 && (
-          <View style={[styles.expensesSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={18} color="#FF9800" />
-                <Text style={[styles.expensesTitle, darkMode && { color: '#fff' }]}>صرفيات العامل</Text>
-              </View>
-              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F' }}>د.ع {formatNumber(workerExpenses.reduce((sum, e) => sum + (e.amount || 0), 0))}</Text>
-            </TouchableOpacity>
-            {showWorkerExpenses && workerExpenses.map((e, idx) => (
-              <View key={idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082' }}>
-                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
-                  <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: '#999' }}>{e.workerName}</Text>
-                  <Text style={{ fontSize: 11, color: '#999' }}>{e.timestamp}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
 
         <View style={[styles.netExpectedContainer, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, netExpected < 0 && styles.netExpectedNegative]}>
           <Text style={[styles.netExpectedLabel, darkMode && { color: '#aaa' }]}>الصافي:</Text>
@@ -4404,7 +4426,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
 };
 
 export default function App() {
-  const [screen, setScreen] = useState('login');
+  const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -4452,7 +4474,10 @@ export default function App() {
     const timer = setTimeout(safeFinish, 5000);
     const init = async () => {
       try {
-        await checkLoggedIn();
+        const onboardingDone = await loadLocalCache('app_onboarding_done');
+        if (!onboardingDone) {
+          setShowOnboarding(true);
+        }
       } catch (e) {
         // silent
       }
@@ -4473,9 +4498,8 @@ export default function App() {
     const checkDeleted = async () => {
       try {
         const usersResult = await loadFromFile('registered_users');
-        if (usersResult === null) return;
-        const usersList = usersResult || [];
-        const exists = usersList.find(function(u) { return u.phone === currentUser; });
+        if (!usersResult || !Array.isArray(usersResult) || usersResult.length === 0) return;
+        const exists = usersResult.find(function(u) { return u.phone === currentUser; });
         if (!exists) {
           Alert.alert('تم الحذف', 'تم حذف حسابك من قبل الإدارة. سيتم تسجيل الخروج تلقائياً.');
           handleLogout();
@@ -4542,7 +4566,10 @@ export default function App() {
         handleLogout();
       }
     }, 60000);
-    return () => clearInterval(interval);
+    const appSub = AppState.addEventListener('change', function(state) {
+      if (state === 'active') lastActivity.current = Date.now();
+    });
+    return () => { clearInterval(interval); appSub.remove(); };
   }, [currentUser]);
 
   useEffect(() => {
@@ -4810,12 +4837,7 @@ export default function App() {
   const handleOnboardingComplete = async () => {
     await saveToFile('onboarding_done', true);
     setShowOnboarding(false);
-    if (currentUser) {
-      loadAllUserData();
-      setScreen('main');
-    } else {
-      setScreen('login');
-    }
+    setScreen('welcome');
   };
 
   const handleChangePassword = async (oldPassword, newPassword) => {
@@ -5648,7 +5670,7 @@ export default function App() {
       <RegisterScreen
         onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
-        onRegisterSuccess={(registeredPhone) => { setScreen('login'); setCurrentUser(registeredPhone); setUserRole('owner'); saveToFile('current_user', { phone: registeredPhone, role: 'owner' }); setShowOnboarding(true); }}
+        onRegisterSuccess={(registeredPhone) => { setCurrentUser(registeredPhone); setUserRole('owner'); saveToFile('current_user', { phone: registeredPhone, role: 'owner' }); setShowOnboarding(true); }}
       />
     );
   }
@@ -5974,6 +5996,7 @@ export default function App() {
         onDeleteBatch={handleDeleteBatch}
         rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
         onReapplyBatch={handleReapplyBatch}
+        currentUser={currentUser}
       />
       <SubscribersScreen
         visible={subscribersVisible}
