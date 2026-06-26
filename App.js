@@ -3978,7 +3978,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
   const [addExpenseLabel, setAddExpenseLabel] = useState('');
 
-  const hasGoldenSubscribers = useMemo(() => subscribers.some(s => s.subscriptionType === 'golden' && !s.isDeletedForReport), [subscribers]);
+  const hasGoldenSubscribers = useMemo(() => subscribers.some(s => s.subscriptionType === 'golden' && !isDeletedForReport(s, currentMonth, currentYear)), [subscribers, currentMonth, currentYear]);
 
   useEffect(() => {
     setLocalAmperPrice(String(amperPrices[currentMonthKey] || ''));
