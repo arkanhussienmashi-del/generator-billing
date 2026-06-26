@@ -832,7 +832,7 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   return (
     <View style={styles.loginContainer}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
-      <LoadingOverlay visible={loading} text="جاري التحقق..." />
+      <LoadingOverlay visible={loading} text="جاري تسجيل الدخول بصفة عامل..." />
       <View style={styles.loginContent}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Ionicons name="arrow-forward" size={24} color="white" />
