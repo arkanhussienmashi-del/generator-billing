@@ -48,10 +48,8 @@ async function apiRequest(method, path, body) {
 }
 
 async function saveToFile(filename, data) {
+  await saveLocalCache('app_' + filename, data);
   const result = await apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data });
-  if (result !== null) {
-    await saveLocalCache('app_' + filename, data);
-  }
   return result;
 }
 
@@ -68,13 +66,16 @@ async function loadFromFile(filename) {
 
 async function deleteFile(filename) {
   await apiRequest('DELETE', `/api?table=app_data&filename=${encodeURIComponent(filename)}`);
+  try {
+    const path = CACHE_DIR + ('app_' + filename).replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+    const info = await FileSystem.getInfoAsync(path);
+    if (info.exists) await FileSystem.deleteAsync(path);
+  } catch (e) {}
 }
 
 async function saveUserData(phone, key, data) {
+  await saveLocalCache('user_' + phone + '_' + key, data);
   const result = await apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data });
-  if (result !== null) {
-    await saveLocalCache('user_' + phone + '_' + key, data);
-  }
   return result;
 }
 
@@ -92,11 +93,21 @@ async function loadUserData(phone, key) {
 async function loadAllUserKeys(phone) {
   const result = await apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}`);
   const map = {};
-  if (Array.isArray(result)) {
+  if (Array.isArray(result) && result.length > 0) {
     for (const row of result) {
       let val = row.data_value;
       if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
       map[row.data_key] = val;
+      await saveLocalCache('user_' + phone + '_' + row.data_key, val);
+    }
+  }
+  if (Object.keys(map).length === 0) {
+    const localKeys = ['subscribers', 'generators', 'currentGeneratorId', 'amperPrices', 'goldenPrices', 'monthlyExpenses', 'workerExpenses', 'generatorName', 'ownerName', 'workers', 'deletedWorkers', 'pending_worker_updates', 'worker_activity_log', 'darkMode', 'deletedGenerators'];
+    for (const key of localKeys) {
+      const cached = await loadLocalCache('user_' + phone + '_' + key);
+      if (cached !== null && cached !== undefined) {
+        map[key] = cached;
+      }
     }
   }
   return map;
