@@ -497,22 +497,22 @@ const OnboardingScreen = ({ onComplete }) => {
   return (
     <View style={{ flex: 1, backgroundColor: slides[currentSlide].bg }}>
       <StatusBar backgroundColor={slides[currentSlide].bg} barStyle="light-content" />
-      <View style={{ flex: 1, justifyContent: 'space-between', padding: 30, paddingTop: 60 }}>
-        <View style={{ alignItems: 'center', marginTop: 40 }}>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 80, width: 160, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 40 }}>
+      <View style={{ flex: 1, justifyContent: 'space-between', padding: IS_SMALL ? 20 : 30, paddingTop: IS_SMALL ? 40 : 60 }}>
+        <View style={{ alignItems: 'center', marginTop: IS_SMALL ? 24 : 40 }}>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: IS_SMALL ? 60 : IS_TABLET ? 90 : 80, width: IS_SMALL ? 120 : IS_TABLET ? 180 : 160, height: IS_SMALL ? 120 : IS_TABLET ? 180 : 160, justifyContent: 'center', alignItems: 'center', marginBottom: IS_SMALL ? 24 : 40 }}>
             <Ionicons name={slides[currentSlide].icon} size={80} color={slides[currentSlide].iconColor} />
           </View>
-          <Text style={{ color: 'white', fontSize: 26, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>{slides[currentSlide].title}</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16, textAlign: 'center', lineHeight: 28 }}>{slides[currentSlide].description}</Text>
+          <Text style={{ color: 'white', fontSize: IS_SMALL ? 22 : IS_TABLET ? 32 : 26, fontWeight: 'bold', textAlign: 'center', marginBottom: IS_SMALL ? 10 : 16 }}>{slides[currentSlide].title}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: IS_SMALL ? 14 : 16, textAlign: 'center', lineHeight: IS_SMALL ? 22 : 28 }}>{slides[currentSlide].description}</Text>
         </View>
 
         <View>
-          <View style={{ flexDirection: 'row-reverse', justifyContent: 'center', marginBottom: 40 }}>
+          <View style={{ flexDirection: 'row-reverse', justifyContent: 'center', marginBottom: IS_SMALL ? 24 : 40 }}>
             {slides.map((_, index) => (
               <View
                 key={index}
                 style={{
-                  width: currentSlide === index ? 28 : 10,
+                  width: currentSlide === index ? (IS_SMALL ? 22 : 28) : 10,
                   height: 10,
                   borderRadius: 5,
                   backgroundColor: currentSlide === index ? 'white' : 'rgba(255,255,255,0.4)',
@@ -523,17 +523,17 @@ const OnboardingScreen = ({ onComplete }) => {
           </View>
 
           <TouchableOpacity
-            style={{ backgroundColor: 'white', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 16 }}
+            style={{ backgroundColor: 'white', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 12 : 16, alignItems: 'center', marginBottom: IS_SMALL ? 10 : 16 }}
             onPress={handleNext}
           >
-            <Text style={{ color: slides[currentSlide].bg, fontSize: 18, fontWeight: 'bold' }}>
+            <Text style={{ color: slides[currentSlide].bg, fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold' }}>
               {currentSlide === slides.length - 1 ? 'ابدأ الآن' : 'التالي'}
             </Text>
           </TouchableOpacity>
 
           {currentSlide < slides.length - 1 && (
-            <TouchableOpacity onPress={handleSkip} style={{ alignItems: 'center', paddingVertical: 12 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>تخطي</Text>
+            <TouchableOpacity onPress={handleSkip} style={{ alignItems: 'center', paddingVertical: IS_SMALL ? 8 : 12 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: IS_SMALL ? 14 : 16 }}>تخطي</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -548,7 +548,7 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
       <View style={styles.welcomeContent}>
         <View style={styles.welcomeLogo}>
-          <Ionicons name="flash" size={80} color="#FFD700" />
+          <Ionicons name="flash" size={IS_SMALL ? 60 : IS_TABLET ? 100 : 80} color="#FFD700" />
           <Text style={styles.welcomeTitle}>مولدي</Text>
           <Text style={styles.welcomeSubtitle}>نظام جباية المولدات الأهلية</Text>
         </View>
@@ -561,8 +561,8 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
           <Text style={styles.welcomeRegisterText}>إنشاء حساب جديد</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.welcomeRegisterBtn, { backgroundColor: '#FF9800', marginTop: 15 }]} onPress={onWorkerLogin}>
-          <Ionicons name="person-outline" size={20} color="white" style={{ marginLeft: 8 }} />
+        <TouchableOpacity style={[styles.welcomeRegisterBtn, { backgroundColor: '#FF9800', marginTop: IS_SMALL ? 12 : IS_TABLET ? 20 : 15 }]} onPress={onWorkerLogin}>
+          <Ionicons name="person-outline" size={IS_SMALL ? 16 : IS_TABLET ? 24 : 20} color="white" style={{ marginLeft: IS_SMALL ? 6 : IS_TABLET ? 10 : 8 }} />
           <Text style={styles.welcomeRegisterText}>دخول العامل</Text>
         </TouchableOpacity>
       </View>
@@ -837,7 +837,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
             <Text style={styles.linkText}>ليس لديك حساب؟ إنشاء حساب جديد</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: 15 }}>
+          <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: IS_SMALL ? 10 : IS_TABLET ? 20 : 15 }}>
             <Text style={[styles.linkText, { color: '#FF9800' }]}>دخول العامل</Text>
           </TouchableOpacity>
         </View>
@@ -980,8 +980,8 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
       <View style={{ flex: 1, backgroundColor: darkMode ? '#121212' : 'white' }}>
           <View style={[styles.modalHeader, { backgroundColor: '#1565C0' }]}>
-            <TouchableOpacity onPress={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }]}>
-              <Ionicons name="arrow-forward" size={28} color="white" />
+            <TouchableOpacity onPress={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: IS_SMALL ? 36 : 40, height: IS_SMALL ? 36 : 40, alignItems: 'center', justifyContent: 'center' }]}>
+              <Ionicons name="arrow-forward" size={IS_SMALL ? 24 : 28} color="white" />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: 'white' }]}>الإعدادات</Text>
             <TouchableOpacity onPress={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
@@ -1017,16 +1017,16 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
 
               <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>إدارة العمال</Text>
-              <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#FF9800', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={() => setWorkerModalVisible(true)}>
-                <Ionicons name="person-add-outline" size={20} color="white" />
-                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>إضافة عامل</Text>
+              <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#FF9800', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => setWorkerModalVisible(true)}>
+                <Ionicons name="person-add-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>إضافة عامل</Text>
               </TouchableOpacity>
               <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>إنشاء كود ورمز سري جديد للعامل</Text>
 
-              <View style={{ marginTop: 10 }}>
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={() => setEditWorkerVisible(true)}>
-                  <Ionicons name="create-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تعديل بيانات العامل</Text>
+              <View style={{ marginTop: IS_SMALL ? 6 : 10 }}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => setEditWorkerVisible(true)}>
+                  <Ionicons name="create-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تعديل بيانات العامل</Text>
                 </TouchableOpacity>
                 <Text style={styles.settingsHint}>تعديل الصلاحيات أو حذف عامل</Text>
               </View>
@@ -1034,76 +1034,76 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
 
               <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>النسخ الاحتياطي</Text>
-              <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onExport}>
-                  <Ionicons name="cloud-upload-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تصدير</Text>
+              <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 6 : 10 }}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={onExport}>
+                  <Ionicons name="cloud-upload-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تصدير</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onImport}>
-                  <Ionicons name="cloud-download-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>استيراد</Text>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={onImport}>
+                  <Ionicons name="cloud-download-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>استيراد</Text>
                 </TouchableOpacity>
               </View>
               <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>تصدير: حفظ نسخة احتياطية ومشاركتها عبر واتساب أو إيميل</Text>
               <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>استيراد: استعادة بيانات من نسخة احتياطية سابقة</Text>
 
-              <View style={{ marginTop: 20, marginBottom: 10 }}>
-                <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: 16 }} />
+              <View style={{ marginTop: IS_SMALL ? 14 : 20, marginBottom: IS_SMALL ? 8 : 10 }}>
+                <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: IS_SMALL ? 10 : 16 }} />
 
                 <TouchableOpacity
-                  style={[styles.settingsInput, { backgroundColor: '#9C27B0', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }]}
+                  style={[styles.settingsInput, { backgroundColor: '#9C27B0', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]}
                   onPress={() => setChangePassVisible(true)}
                 >
-                  <Ionicons name="key-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تغيير رمز الحساب</Text>
+                  <Ionicons name="key-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تغيير رمز الحساب</Text>
                 </TouchableOpacity>
 
-                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: 10, marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
-                    <Ionicons name={darkMode ? 'moon' : 'sunny'} size={22} color={darkMode ? '#FFD700' : '#FF9800'} />
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: darkMode ? '#fff' : '#333' }}>الوضع الليلي</Text>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: IS_SMALL ? 8 : 12, paddingHorizontal: IS_SMALL ? 10 : 14, backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, marginBottom: IS_SMALL ? 8 : 12 }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 10 }}>
+                    <Ionicons name={darkMode ? 'moon' : 'sunny'} size={IS_SMALL ? 20 : 22} color={darkMode ? '#FFD700' : '#FF9800'} />
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '600', color: darkMode ? '#fff' : '#333' }}>الوضع الليلي</Text>
                   </View>
                   <TouchableOpacity
-                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: darkMode ? '#4CAF50' : '#ccc', justifyContent: 'center', paddingHorizontal: 3 }}
+                    style={{ width: IS_SMALL ? 44 : 50, height: IS_SMALL ? 24 : 28, borderRadius: IS_SMALL ? 12 : 14, backgroundColor: darkMode ? '#4CAF50' : '#ccc', justifyContent: 'center', paddingHorizontal: 3 }}
                     onPress={onToggleDarkMode}
                   >
-                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'white', alignSelf: darkMode ? 'flex-end' : 'flex-start' }} />
+                    <View style={{ width: IS_SMALL ? 18 : 22, height: IS_SMALL ? 18 : 22, borderRadius: IS_SMALL ? 9 : 11, backgroundColor: 'white', alignSelf: darkMode ? 'flex-end' : 'flex-start' }} />
                   </TouchableOpacity>
                 </View>
                 {generators && generators.length > 1 && (
-                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10 }]} onPress={() => setDeleteGeneratorVisible(true)}>
-                    <Ionicons name="trash-outline" size={20} color="white" />
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>حذف مولد</Text>
+                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 6 : 10 }]} onPress={() => setDeleteGeneratorVisible(true)}>
+                    <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف مولد</Text>
                   </TouchableOpacity>
                 )}
                 {deletedGenerators && deletedGenerators.length > 0 && (
-                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 10 }]} onPress={() => setRestoreGeneratorVisible(true)}>
-                    <Ionicons name="refresh-outline" size={20} color="white" />
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>استرداد بيانات المولد ({deletedGenerators.length})</Text>
+                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 6 : 10 }]} onPress={() => setRestoreGeneratorVisible(true)}>
+                    <Ionicons name="refresh-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>استرداد بيانات المولد ({deletedGenerators.length})</Text>
                   </TouchableOpacity>
                 )}
-                <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: 12 }} />
+                <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: IS_SMALL ? 8 : 12 }} />
 
                 <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>سياسة الخصوصية والشروط</Text>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#607D8B', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/privacy-policy')}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>سياسة الخصوصية</Text>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#607D8B', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 5 : 8 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/privacy-policy')}>
+                  <Ionicons name="shield-checkmark-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>سياسة الخصوصية</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#607D8B', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/terms-of-service')}>
-                  <Ionicons name="document-text-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>شروط الخدمة</Text>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#607D8B', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 5 : 8 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/terms-of-service')}>
+                  <Ionicons name="document-text-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>شروط الخدمة</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/delete-account-data-request')}>
-                  <Ionicons name="trash-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>حذف الحساب والبيانات</Text>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/delete-account-data-request')}>
+                  <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف الحساب والبيانات</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={onLogout}>
-                  <Ionicons name="log-out-outline" size={20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تسجيل الخروج</Text>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={onLogout}>
+                  <Ionicons name="log-out-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تسجيل الخروج</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1355,56 +1355,56 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
     <Modal visible={!!newWorkerCredentials} transparent animationType="fade">
       <View style={styles.modalOverlay}>
-        <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#4CAF50', borderRadius: 40, width: 70, height: 70, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <Ionicons name="checkmark-circle" size={40} color="white" />
+        <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH, alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 30 : 40, width: IS_SMALL ? 56 : 70, height: IS_SMALL ? 56 : 70, alignItems: 'center', justifyContent: 'center', marginBottom: IS_SMALL ? 12 : 16 }}>
+            <Ionicons name="checkmark-circle" size={IS_SMALL ? 32 : 40} color="white" />
           </View>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: 8 }}>تم إنشاء حساب العامل</Text>
+          <Text style={{ fontSize: IS_SMALL ? 17 : 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 6 : 8 }}>تم إنشاء حساب العامل</Text>
 
           {newWorkerCredentials && newWorkerCredentials.workerName && (
-            <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>اسم العامل</Text>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FF9800', textAlign: 'center' }}>{newWorkerCredentials.workerName}</Text>
+            <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
+              <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', marginBottom: IS_SMALL ? 4 : 6, textAlign: 'center' }}>اسم العامل</Text>
+              <Text style={{ fontSize: IS_SMALL ? 17 : 20, fontWeight: 'bold', color: '#FF9800', textAlign: 'center' }}>{newWorkerCredentials.workerName}</Text>
             </View>
           )}
 
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>كود العامل</Text>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1565C0', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.code : ''}</Text>
-              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.code : ''); Alert.alert('تم النسخ', 'تم نسخ كود العامل'); }} style={{ backgroundColor: '#E3F2FD', borderRadius: 8, padding: 8 }}>
-                <Ionicons name="copy-outline" size={20} color="#1565C0" />
+          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
+            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', marginBottom: IS_SMALL ? 4 : 6, textAlign: 'center' }}>كود العامل</Text>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 6 : 10 }}>
+              <Text style={{ fontSize: IS_SMALL ? 20 : 24, fontWeight: 'bold', color: '#1565C0', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.code : ''}</Text>
+              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.code : ''); Alert.alert('تم النسخ', 'تم نسخ كود العامل'); }} style={{ backgroundColor: '#E3F2FD', borderRadius: IS_SMALL ? 6 : 8, padding: IS_SMALL ? 6 : 8 }}>
+                <Ionicons name="copy-outline" size={IS_SMALL ? 18 : 20} color="#1565C0" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', marginBottom: 6, textAlign: 'center' }}>الرمز السري</Text>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#F44336', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.pin : ''}</Text>
-              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.pin : ''); Alert.alert('تم النسخ', 'تم نسخ الرمز السري'); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 8, padding: 8 }}>
-                <Ionicons name="copy-outline" size={20} color="#F44336" />
+          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
+            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', marginBottom: IS_SMALL ? 4 : 6, textAlign: 'center' }}>الرمز السري</Text>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 6 : 10 }}>
+              <Text style={{ fontSize: IS_SMALL ? 20 : 24, fontWeight: 'bold', color: '#F44336', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.pin : ''}</Text>
+              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.pin : ''); Alert.alert('تم النسخ', 'تم نسخ الرمز السري'); }} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 6 : 8, padding: IS_SMALL ? 6 : 8 }}>
+                <Ionicons name="copy-outline" size={IS_SMALL ? 18 : 20} color="#F44336" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 20 }}>
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.map(function(p) { return PERMISSION_LABELS[p] || p; }).join('، ') : ''}</Text>
+          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 14 : 20 }}>
+            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.map(function(p) { return PERMISSION_LABELS[p] || p; }).join('، ') : ''}</Text>
           </View>
 
-          <TouchableOpacity style={{ backgroundColor: '#FF9800', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center', marginBottom: 10 }} onPress={async () => {
+          <TouchableOpacity style={{ backgroundColor: '#FF9800', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 28 : 40, width: '100%', alignItems: 'center', marginBottom: IS_SMALL ? 6 : 10 }} onPress={async () => {
             const text = `كود العامل: ${newWorkerCredentials ? newWorkerCredentials.code : ''}\nالرمز السري: ${newWorkerCredentials ? newWorkerCredentials.pin : ''}`;
             await Clipboard.setStringAsync(text);
             Alert.alert('تم النسخ', 'تم نسخ كود العامل والرمز السري');
           }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="copy" size={20} color="white" />
-              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8 }}>
+              <Ionicons name="copy" size={IS_SMALL ? 18 : 20} color="white" />
+              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={{ backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center' }} onPress={onDismissCredentials}>
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>حسناً</Text>
+          <TouchableOpacity style={{ backgroundColor: '#1565C0', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 28 : 40, width: '100%', alignItems: 'center' }} onPress={onDismissCredentials}>
+            <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حسناً</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1412,30 +1412,30 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
       <Modal visible={deleteGeneratorVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#F44336' }}>حذف مولد</Text>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#F44336' }}>حذف مولد</Text>
               <TouchableOpacity onPress={() => { setDeleteGeneratorVisible(false); setDeleteGenPassword(''); setSelectedDeleteGenId(null); }}>
-                <Ionicons name="close" size={28} color="#333" />
+                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color="#333" />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 12 }}>اختر المولد المراد حذفه:</Text>
+            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 8 : 12 }}>اختر المولد المراد حذفه:</Text>
             {generators.map(function(gen) {
               return (
-                <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: selectedDeleteGenId === gen.id ? (darkMode ? '#3a1a1a' : '#FFEBEE') : 'transparent', borderRadius: selectedDeleteGenId === gen.id ? 8 : 0 }} onPress={function() { setSelectedDeleteGenId(gen.id); }}>
-                  <Ionicons name={selectedDeleteGenId === gen.id ? 'radio-button-on' : 'radio-button-off'} size={22} color={selectedDeleteGenId === gen.id ? '#F44336' : '#999'} style={{ marginLeft: 12 }} />
+                <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: selectedDeleteGenId === gen.id ? (darkMode ? '#3a1a1a' : '#FFEBEE') : 'transparent', borderRadius: selectedDeleteGenId === gen.id ? 8 : 0 }} onPress={function() { setSelectedDeleteGenId(gen.id); }}>
+                  <Ionicons name={selectedDeleteGenId === gen.id ? 'radio-button-on' : 'radio-button-off'} size={IS_SMALL ? 20 : 22} color={selectedDeleteGenId === gen.id ? '#F44336' : '#999'} style={{ marginLeft: IS_SMALL ? 8 : 12 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, color: darkMode ? '#fff' : '#333' }}>{gen.name}</Text>
-                    <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>{(gen.subscribers || []).length} مشترك</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333' }}>{gen.name}</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2 }}>{(gen.subscribers || []).length} مشترك</Text>
                   </View>
                 </TouchableOpacity>
               );
             })}
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 8 }}>أدخل كلمة المرور للتأكيد:</Text>
+            <View style={{ marginTop: IS_SMALL ? 12 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 6 : 8 }}>أدخل كلمة المرور للتأكيد:</Text>
               <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="كلمة المرور" placeholderTextColor="#999" value={deleteGenPassword} onChangeText={setDeleteGenPassword} secureTextEntry />
             </View>
-            <TouchableOpacity style={{ backgroundColor: '#F44336', borderRadius: 12, paddingVertical: 14, width: '100%', alignItems: 'center', marginTop: 16, opacity: selectedDeleteGenId && deleteGenPassword ? 1 : 0.5 }} disabled={!selectedDeleteGenId || !deleteGenPassword} onPress={async function() {
+            <TouchableOpacity style={{ backgroundColor: '#F44336', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 12 : 16, opacity: selectedDeleteGenId && deleteGenPassword ? 1 : 0.5 }} disabled={!selectedDeleteGenId || !deleteGenPassword} onPress={async function() {
               if (!selectedDeleteGenId || !deleteGenPassword) return;
               const success = await onDeleteGenerator(selectedDeleteGenId, deleteGenPassword);
               if (success === false) {
@@ -1447,7 +1447,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 Alert.alert('تم', 'تم حذف المولد بنجاح. يمكنك استرداده من قائمة الاسترداد.');
               }
             }}>
-              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>حذف المولد</Text>
+              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حذف المولد</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1455,29 +1455,29 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
       <Modal visible={restoreGeneratorVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4CAF50' }}>استرداد بيانات المولد</Text>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#4CAF50' }}>استرداد بيانات المولد</Text>
               <TouchableOpacity onPress={() => setRestoreGeneratorVisible(false)}>
-                <Ionicons name="close" size={28} color="#333" />
+                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color="#333" />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 4 }}>المولدات المحذوفة (تُحذف نهائياً بعد شهر):</Text>
+            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 4 }}>المولدات المحذوفة (تُحذف نهائياً بعد شهر):</Text>
             <ScrollView style={{ maxHeight: 300 }}>
               {deletedGenerators.map(function(dg) {
                 const daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
                 const dgData = dg.data || {};
                 const subCount = (dgData.subscribers || []).length;
                 return (
-                  <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
+                  <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
                     Alert.alert('استرداد المولد', 'هل تريد استرداد "' + dg.name + '"؟', [
                       { text: 'إلغاء', style: 'cancel' },
                       { text: 'نعم، استرداد', onPress: function() { onRestoreGenerator(dg.id); } },
                     ]);
                   }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, color: darkMode ? '#fff' : '#333', fontWeight: 'bold' }}>{dg.name}</Text>
-                      <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
+                      <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', fontWeight: 'bold' }}>{dg.name}</Text>
+                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
                     </View>
                     <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
                   </TouchableOpacity>
@@ -1493,26 +1493,26 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
       <Modal visible={changePassVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#9C27B0' }}>تغيير رمز الحساب</Text>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#9C27B0' }}>تغيير رمز الحساب</Text>
               <TouchableOpacity onPress={() => { setChangePassVisible(false); setCurrentPass(''); setNewPass(''); setConfirmPass(''); }}>
-                <Ionicons name="close" size={28} color="#333" />
+                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color="#333" />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 16 }}>أدخل الرمز الحالي ثم الرمز الجديد</Text>
+            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 10 : 16 }}>أدخل الرمز الحالي ثم الرمز الجديد</Text>
 
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
+            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
             <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={50} />
 
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: 12, textAlign: 'right' }}>الرمز الجديد</Text>
+            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 8 : 12, textAlign: 'right' }}>الرمز الجديد</Text>
             <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={setNewPass} secureTextEntry maxLength={50} />
 
-            <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: 12, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
+            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 8 : 12, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
             <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={setConfirmPass} secureTextEntry maxLength={50} />
 
             <TouchableOpacity
-              style={{ backgroundColor: '#9C27B0', borderRadius: 12, paddingVertical: 14, width: '100%', alignItems: 'center', marginTop: 16, opacity: currentPass && newPass && confirmPass ? 1 : 0.5 }}
+              style={{ backgroundColor: '#9C27B0', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 12 : 16, opacity: currentPass && newPass && confirmPass ? 1 : 0.5 }}
               disabled={!currentPass || !newPass || !confirmPass}
               onPress={async () => {
                 if (!currentPass.trim()) { Alert.alert('تنبيه', 'أدخل الرمز الحالي'); return; }
@@ -1531,7 +1531,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 }
               }}
             >
-              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>تغيير الرمز</Text>
+              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تغيير الرمز</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1999,7 +1999,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
             <View style={{ width: 40 }} />
           </View>
           <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
-            <View style={{ padding: 16 }}>
+            <View style={{ padding: IS_SMALL ? 12 : 16 }}>
               <View style={styles.dateSelectors}>
                 <TouchableOpacity style={styles.dateDropdown} onPress={() => setMonthPickerVisible(true)}>
                   <Text style={styles.dateDropdownText}>{selectedMonth}</Text>
@@ -2011,17 +2011,17 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                 </TouchableOpacity>
               </View>
 
-              <View style={{ marginBottom: 16 }}>
-                <Text style={[styles.formLabel, { marginBottom: 10, fontWeight: 'bold' }]}>اختر العامل</Text>
-                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 10 }}>
+              <View style={{ marginBottom: IS_SMALL ? 12 : 16 }}>
+                <Text style={[styles.formLabel, { marginBottom: IS_SMALL ? 8 : 10, fontWeight: 'bold' }]}>اختر العامل</Text>
+                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: IS_SMALL ? 8 : 10 }}>
                   {workers.map((w, idx) => {
                     const isSelected = selectedWorker && selectedWorker.code === w.code;
                     return (
-                      <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
-                        <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
-                          <Ionicons name="person" size={18} color={isSelected ? '#FF9800' : 'white'} />
+                      <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
+                        <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: IS_SMALL ? 14 : 16, width: IS_SMALL ? 28 : 32, height: IS_SMALL ? 28 : 32, alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="person" size={IS_SMALL ? 16 : 18} color={isSelected ? '#FF9800' : 'white'} />
                         </View>
-                        <Text style={{ fontSize: 15, fontWeight: 'bold', color: isSelected ? 'white' : '#333' }}>{w.workerName || 'بدون اسم'}</Text>
+                        <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: isSelected ? 'white' : '#333' }}>{w.workerName || 'بدون اسم'}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -2029,51 +2029,51 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
               </View>
 
               {!selectedWorker ? (
-                <View style={{ alignItems: 'center', marginTop: 40 }}>
-                  <Ionicons name="person-outline" size={60} color="#ccc" />
-                  <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>اختر عامل لعرض بياناته</Text>
+                <View style={{ alignItems: 'center', marginTop: IS_SMALL ? 30 : 40 }}>
+                  <Ionicons name="person-outline" size={IS_SMALL ? 50 : 60} color="#ccc" />
+                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#999', marginTop: IS_SMALL ? 8 : 10 }}>اختر عامل لعرض بياناته</Text>
                 </View>
               ) : (
               <>
-              <View style={{ marginBottom: 16 }}>
-                <Text style={[styles.formLabel, { marginBottom: 8, fontWeight: 'bold' }]}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
+              <View style={{ marginBottom: IS_SMALL ? 12 : 16 }}>
+                <Text style={[styles.formLabel, { marginBottom: IS_SMALL ? 6 : 8, fontWeight: 'bold' }]}>ملخص الشهر - {selectedWorker.workerName || 'العامل'}</Text>
                 {totalPendingCollected > 0 && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#E8F5E9', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#2E7D32', fontWeight: 'bold' }}>اجمالي التحصيل:</Text>
-                    <Text style={{ fontSize: 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalPendingCollected)}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#E8F5E9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#2E7D32', fontWeight: 'bold' }}>اجمالي التحصيل:</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#2E7D32', fontWeight: 'bold' }}>د.ع {formatNumber(totalPendingCollected)}</Text>
                   </View>
                 )}
                 {totalExpenses > 0 && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#D32F2F', fontWeight: 'bold' }}>اجمالي الصرفيات:</Text>
-                    <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#D32F2F', fontWeight: 'bold' }}>اجمالي الصرفيات:</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
                   </View>
                 )}
                 {totalPendingCollected === 0 && totalExpenses === 0 && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F5F5F5', borderRadius: 10, padding: 12 }}>
-                    <Text style={{ fontSize: 13, color: '#888' }}>لا توجد بيانات هذا الشهر</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F5F5F5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#888' }}>لا توجد بيانات هذا الشهر</Text>
                   </View>
                 )}
               </View>
 
               {expenses.length > 0 && (
-                <View style={{ marginBottom: 16 }}>
-                  <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FFCC80' }} onPress={() => setShowExpenses(!showExpenses)}>
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name={showExpenses ? "chevron-down" : "chevron-back"} size={18} color="#E65100" />
-                      <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>الصرفيات</Text>
+                <View style={{ marginBottom: IS_SMALL ? 12 : 16 }}>
+                  <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, borderWidth: 1, borderColor: '#FFCC80' }} onPress={() => setShowExpenses(!showExpenses)}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8 }}>
+                      <Ionicons name={showExpenses ? "chevron-down" : "chevron-back"} size={IS_SMALL ? 16 : 18} color="#E65100" />
+                      <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#333', fontWeight: 'bold' }}>الصرفيات</Text>
                     </View>
-                    <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
                   </TouchableOpacity>
                   {showExpenses && expenses.map((e, idx) => (
-                    <View key={idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082' }}>
-                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
-                        <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+                    <View key={idx} style={{ backgroundColor: '#FFF8E1', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginTop: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFE082' }}>
+                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: IS_SMALL ? 2 : 4 }}>
+                        <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
+                        <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
                       </View>
                       <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 11, color: '#999' }}>{e.workerName}</Text>
-                        <Text style={{ fontSize: 11, color: '#999' }}>{e.timestamp}</Text>
+                        <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>{e.workerName}</Text>
+                        <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>{e.timestamp}</Text>
                       </View>
                     </View>
                   ))}
@@ -2081,29 +2081,29 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
               )}
 
               {expenses.length === 0 && safePending.length === 0 && (
-                <View style={{ alignItems: 'center', marginTop: 40 }}>
-                  <Ionicons name="document-text-outline" size={60} color="#ccc" />
-                  <Text style={{ fontSize: 16, color: '#999', marginTop: 10 }}>لا توجد بيانات لهذا الشهر</Text>
+                <View style={{ alignItems: 'center', marginTop: IS_SMALL ? 30 : 40 }}>
+                  <Ionicons name="document-text-outline" size={IS_SMALL ? 50 : 60} color="#ccc" />
+                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#999', marginTop: IS_SMALL ? 8 : 10 }}>لا توجد بيانات لهذا الشهر</Text>
                 </View>
               )}
 
               {safePending.length > 0 && (
-                <View style={{ marginTop: 16, backgroundColor: '#FFF3E0', borderRadius: 12, borderWidth: 1, borderColor: '#FF9800', overflow: 'hidden' }}>
-                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14, backgroundColor: '#FF9800' }}>
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="notifications" size={20} color="white" />
-                      <Text style={{ fontSize: 15, fontWeight: 'bold', color: 'white' }}>تحديثات العامل</Text>
+                <View style={{ marginTop: IS_SMALL ? 12 : 16, backgroundColor: '#FFF3E0', borderRadius: IS_SMALL ? 10 : 12, borderWidth: 1, borderColor: '#FF9800', overflow: 'hidden' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: IS_SMALL ? 12 : 14, backgroundColor: '#FF9800' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8 }}>
+                      <Ionicons name="notifications" size={IS_SMALL ? 18 : 20} color="white" />
+                      <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: 'white' }}>تحديثات العامل</Text>
                     </View>
-                    <View style={{ backgroundColor: 'white', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 }}>
-                      <Text style={{ color: '#FF9800', fontWeight: 'bold', fontSize: 14 }}>{safePending.length}</Text>
+                    <View style={{ backgroundColor: 'white', borderRadius: IS_SMALL ? 8 : 10, paddingHorizontal: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 2 : 3 }}>
+                      <Text style={{ color: '#FF9800', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>{safePending.length}</Text>
                     </View>
                   </View>
 
                   {selectedBatch ? (
-                    <View style={{ padding: 12 }}>
-                      <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 12 }} onPress={() => setSelectedBatch(null)}>
-                        <Ionicons name="arrow-forward" size={20} color="#333" />
-                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>رجوع للقائمة</Text>
+                    <View style={{ padding: IS_SMALL ? 10 : 12 }}>
+                      <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 10 : 12 }} onPress={() => setSelectedBatch(null)}>
+                        <Ionicons name="arrow-forward" size={IS_SMALL ? 18 : 20} color="#333" />
+                        <Text style={{ fontSize: IS_SMALL ? 13 : 14, fontWeight: 'bold', color: '#333' }}>رجوع للقائمة</Text>
                       </TouchableOpacity>
                       {(() => {
                         const selUpdates = selectedBatch.updates || [];
@@ -2120,9 +2120,9 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                           }
                         }
                         return (
-                          <View style={{ backgroundColor: selExpenseOnly ? '#C62828' : '#1565C0', borderRadius: 12, padding: 14, marginBottom: 12 }}>
-                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: 6 }}>د.ع {formatNumber(selCollected)}</Text>
-                            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{selectedBatch.workerName || ''} - {selectedBatch.timestamp || ''}</Text>
+                          <View style={{ backgroundColor: selExpenseOnly ? '#C62828' : '#1565C0', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 14, marginBottom: IS_SMALL ? 10 : 12 }}>
+                            <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: IS_SMALL ? 4 : 6 }}>د.ع {formatNumber(selCollected)}</Text>
+                            <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{selectedBatch.workerName || ''} - {selectedBatch.timestamp || ''}</Text>
                           </View>
                         );
                       })()}
@@ -2145,26 +2145,26 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                         let monthLabel = u.monthKey || '';
                         if (monthLabel && monthLabel.indexOf('_') !== -1) { const p = monthLabel.split('_'); monthLabel = 'الشهر ' + p[0] + '/' + p[1]; }
                         return (
-                          <View key={u.id || ('u' + idx)} style={{ backgroundColor: bgColor, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#eee' }}>
+                          <View key={u.id || ('u' + idx)} style={{ backgroundColor: bgColor, borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#eee' }}>
                             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
                               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', flex: 1 }}>
-                                <Ionicons name={iconName} size={18} color={iconColor} />
-                                <Text style={{ fontSize: 14, fontWeight: 'bold', color: typeColor, marginRight: 6 }}>{typeLabel}</Text>
+                                <Ionicons name={iconName} size={IS_SMALL ? 16 : 18} color={iconColor} />
+                                <Text style={{ fontSize: IS_SMALL ? 13 : 14, fontWeight: 'bold', color: typeColor, marginRight: IS_SMALL ? 4 : 6 }}>{typeLabel}</Text>
                               </View>
-                              {monthLabel ? <Text style={{ fontSize: 12, color: '#888' }}>{monthLabel}</Text> : null}
+                              {monthLabel ? <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#888' }}>{monthLabel}</Text> : null}
                             </View>
-                            <Text style={{ fontSize: 13, color: '#333', fontWeight: '600', marginTop: 6, textAlign: 'right' }}>{u.subscriberName || ''}</Text>
-                            {detailText ? <Text style={{ fontSize: 12, color: '#666', marginTop: 3, textAlign: 'right' }}>{detailText}</Text> : null}
+                            <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#333', fontWeight: '600', marginTop: IS_SMALL ? 4 : 6, textAlign: 'right' }}>{u.subscriberName || ''}</Text>
+                            {detailText ? <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#666', marginTop: IS_SMALL ? 2 : 3, textAlign: 'right' }}>{detailText}</Text> : null}
                           </View>
                         );
                       })}
-                      <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: 10, paddingVertical: 12, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }} onPress={() => { onApplyBatch(selectedBatch.id); setSelectedBatch(null); }}>
-                        <Ionicons name="checkmark-done" size={20} color="white" />
-                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>تطبيق التغييرات</Text>
+                      <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginTop: IS_SMALL ? 6 : 8 }} onPress={() => { onApplyBatch(selectedBatch.id); setSelectedBatch(null); }}>
+                        <Ionicons name="checkmark-done" size={IS_SMALL ? 18 : 20} color="white" />
+                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 13 : 14 }}>تطبيق التغييرات</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <View style={{ padding: 12 }}>
+                    <View style={{ padding: IS_SMALL ? 10 : 12 }}>
                       {safePending.map(function(batch) {
                         let updates = Array.isArray(batch.updates) ? batch.updates : [];
                         let batchCollected = 0;
@@ -2180,42 +2180,42 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                           }
                         }
                         return (
-                          <TouchableOpacity key={batch.id || 'b'} style={{ backgroundColor: viewedBatches.indexOf(batch.id) >= 0 ? '#E8F5E9' : 'white', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1.5, borderColor: viewedBatches.indexOf(batch.id) >= 0 ? '#4CAF50' : '#FFD54F' }} onPress={() => { setSelectedBatch(batch); markBatchViewed(batch.id); }}>
-                            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
-                                <View style={{ backgroundColor: batchExpenseOnly ? '#D32F2F' : '#FF9800', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-                                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>د.ع {formatNumber(batchCollected)}</Text>
+                          <TouchableOpacity key={batch.id || 'b'} style={{ backgroundColor: viewedBatches.indexOf(batch.id) >= 0 ? '#E8F5E9' : 'white', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 14, marginBottom: IS_SMALL ? 8 : 10, borderWidth: 1.5, borderColor: viewedBatches.indexOf(batch.id) >= 0 ? '#4CAF50' : '#FFD54F' }} onPress={() => { setSelectedBatch(batch); markBatchViewed(batch.id); }}>
+                            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: IS_SMALL ? 2 : 4 }}>
+                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6 }}>
+                                <View style={{ backgroundColor: batchExpenseOnly ? '#D32F2F' : '#FF9800', borderRadius: IS_SMALL ? 8 : 10, paddingHorizontal: IS_SMALL ? 6 : 8, paddingVertical: IS_SMALL ? 2 : 3 }}>
+                                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 11 : 12 }}>د.ع {formatNumber(batchCollected)}</Text>
                                 </View>
-                                <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>{batch.workerName || ''}</Text>
+                                <Text style={{ fontSize: IS_SMALL ? 13 : 14, fontWeight: 'bold', color: '#333' }}>{batch.workerName || ''}</Text>
                               </View>
-                              <Text style={{ fontSize: 11, color: '#999' }}>{batch.timestamp || ''}</Text>
+                              <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>{batch.timestamp || ''}</Text>
                             </View>
-                            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                              <Text style={{ fontSize: 13, color: '#666' }}>عدد التحديثات: {updates.length}</Text>
-                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-                                <TouchableOpacity onPress={(e) => { e.stopPropagation && e.stopPropagation(); Alert.alert('حذف التحديث', 'هل تريد حذف هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'حذف', style: 'destructive', onPress: () => onDeleteBatch(batch.id) }]); }} style={{ backgroundColor: '#FFEBEE', borderRadius: 6, padding: 6 }}>
-                                  <Ionicons name="trash-outline" size={16} color="#F44336" />
+                            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: IS_SMALL ? 6 : 8 }}>
+                              <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#666' }}>عدد التحديثات: {updates.length}</Text>
+                              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8 }}>
+                                <TouchableOpacity onPress={(e) => { e.stopPropagation && e.stopPropagation(); Alert.alert('حذف التحديث', 'هل تريد حذف هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'حذف', style: 'destructive', onPress: () => onDeleteBatch(batch.id) }]); }} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 5 : 6, padding: IS_SMALL ? 5 : 6 }}>
+                                  <Ionicons name="trash-outline" size={IS_SMALL ? 14 : 16} color="#F44336" />
                                 </TouchableOpacity>
-                                <Ionicons name="chevron-back" size={18} color="#999" />
+                                <Ionicons name="chevron-back" size={IS_SMALL ? 16 : 18} color="#999" />
                               </View>
                             </View>
                           </TouchableOpacity>
                         );
                       })}
                       {safeRejected.length > 0 && (
-                        <View style={{ marginTop: 12 }}>
-                          <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginBottom: 8 }} onPress={() => setShowRejected(!showRejected)}>
-                            <Ionicons name={showRejected ? "chevron-down" : "chevron-forward"} size={18} color="#F44336" />
-                            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#F44336' }}>التحديثات المرفوضة ({safeRejected.length})</Text>
+                        <View style={{ marginTop: IS_SMALL ? 10 : 12 }}>
+                          <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 6 : 8 }} onPress={() => setShowRejected(!showRejected)}>
+                            <Ionicons name={showRejected ? "chevron-down" : "chevron-forward"} size={IS_SMALL ? 16 : 18} color="#F44336" />
+                            <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#F44336' }}>التحديثات المرفوضة ({safeRejected.length})</Text>
                           </TouchableOpacity>
                           {showRejected && safeRejected.map(function(batch) {
                             return (
-                              <TouchableOpacity key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#FFCDD2' }} onPress={() => { Alert.alert('اعادة التحديث', 'هل تريد اعادة تطبيق هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', onPress: () => onReapplyBatch(batch.id) }]); }}>
+                              <TouchableOpacity key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFCDD2' }} onPress={() => { Alert.alert('اعادة التحديث', 'هل تريد اعادة تطبيق هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', onPress: () => onReapplyBatch(batch.id) }]); }}>
                                 <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
-                                  <Text style={{ fontSize: 11, color: '#999' }}>{batch.timestamp || ''}</Text>
+                                  <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
+                                  <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>{batch.timestamp || ''}</Text>
                                 </View>
-                                <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>عدد التحديثات: {(batch.updates || []).length} - اضغط للاعادة</Text>
+                                <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#666', marginTop: IS_SMALL ? 2 : 4 }}>عدد التحديثات: {(batch.updates || []).length} - اضغط للاعادة</Text>
                               </TouchableOpacity>
                             );
                           })}
@@ -2315,7 +2315,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
             <View style={{ width: 40 }} />
           </View>
           <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
-            <View style={{ padding: 20 }}>
+            <View style={{ padding: IS_SMALL ? 14 : 20 }}>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>اسم المشترك <Text style={styles.required}>*</Text></Text>
                 <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="أدخل اسم المشترك" placeholderTextColor="#999" textAlign="right" />
@@ -2338,7 +2338,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
               </View>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>نوع الاشتراك</Text>
-                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 10 }}>
                   <TouchableOpacity
                     style={[styles.subscriptionTypeBtn, subscriptionType === 'normal' && styles.subscriptionTypeBtnActive]}
                     onPress={() => setSubscriptionType('normal')}
@@ -2435,14 +2435,14 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
             <View style={{ width: 40 }} />
           </View>
           <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
-            <View style={{ padding: 20 }}>
+            <View style={{ padding: IS_SMALL ? 14 : 20 }}>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>اسم المشترك <Text style={styles.required}>*</Text></Text>
                 <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholderTextColor="#999" textAlign="right" />
               </View>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>عدد الأمبيرات <Text style={styles.required}>*</Text></Text>
-                {isPaid && <Text style={{ color: '#FF9800', fontSize: 12, marginBottom: 4 }}>لا يمكن تغيير الأمبير - المشترك دافع الشهر الحالي</Text>}
+                {isPaid && <Text style={{ color: '#FF9800', fontSize: IS_SMALL ? 11 : 12, marginBottom: IS_SMALL ? 2 : 4 }}>لا يمكن تغيير الأمبير - المشترك دافع الشهر الحالي</Text>}
                 <TextInput style={[styles.formInput, isPaid && { backgroundColor: '#f0f0f0', color: '#999' }]} value={amper} onChangeText={(t) => setAmper(onlyDigits(t))} placeholderTextColor="#999" keyboardType="numeric" textAlign="right" editable={!isPaid} />
               </View>
               <View style={styles.formGroup}>
@@ -2459,7 +2459,7 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
               </View>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>نوع الاشتراك</Text>
-                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 10 }}>
                   <TouchableOpacity
                     style={[styles.subscriptionTypeBtn, subscriptionType === 'normal' && styles.subscriptionTypeBtnActive]}
                     onPress={() => setSubscriptionType('normal')}
@@ -2834,7 +2834,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             </TouchableOpacity>
           </View>
 
-          <View style={{ flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 6 : 8, paddingHorizontal: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 12 }}>
             <TouchableOpacity
               style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnActive, { flex: 1 }]}
               onPress={() => setSubscriptionTypeFilter('normal')}
@@ -2861,7 +2861,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             const hasGolden = subscribers.some(s => s.subscriptionType === 'golden');
             if (hasGolden) {
               return (
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flexDirection: 'row', gap: IS_SMALL ? 6 : 8 }}>
                   <View style={[styles.priceSection, { flex: 1 }]}>
                     <Text style={styles.priceLabel}>سعر العادي - شهر {selectedMonth}</Text>
                     <TextInput
@@ -2927,7 +2927,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 setEditPickerSearch('');
                 setEditPickerVisible(true);
               }}>
-                <Text style={[styles.addSubscriberText, { fontSize: 13 }]}>تعديل بيانات المشترك</Text>
+                <Text style={[styles.addSubscriberText, { fontSize: IS_SMALL ? 12 : 13 }]}>تعديل بيانات المشترك</Text>
               </TouchableOpacity>
             )}
             {canAdd && (
@@ -2998,7 +2998,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                     <Text style={styles.subscriberAmount}>
                       د.ع {formatNumber(getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear)) * getPriceForSubscriber(amperPrices, goldenPrices, `${selectedMonth}_${selectedYear}`, subscriber.subscriptionType))}    <Text style={styles.amperBlue}>{getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear))} أميبر</Text>
                     </Text>
-                    {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999', marginTop: 2 }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
+                    {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#999', marginTop: IS_SMALL ? 1 : 2 }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
                   </View>
                   {canEdit && (
                     <TouchableOpacity style={styles.restoreButton} onPress={() => {
@@ -3074,11 +3074,11 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                       </TouchableOpacity>
                       )}
                       <View style={styles.cardNameSection}>
-                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6 }}>
                             <Text style={styles.subscriberName}>{subscriber.name}</Text>
                             {subscriber.subscriptionType === 'golden' ? <View style={styles.goldenBadge}><Text style={styles.goldenBadgeText}>ذهبي</Text></View> : null}
                           </View>
-                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, marginTop: IS_SMALL ? 1 : 2 }}>
                               <TouchableOpacity
                                 onLongPress={() => {
                                   if (!canChangeAmperPrice) {
@@ -3092,7 +3092,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                               >
                                 <Text style={[styles.subscriberAmperTag]}>{currentAmper} أميبر</Text>
                               </TouchableOpacity>
-                          {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: 12, color: '#999' }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
+                          {subscriber.meterNumber && subscriber.meterNumber.trim() !== '' ? <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#999' }}>رقم الجوزة: {subscriber.meterNumber}</Text> : null}
                         </View>
                       </View>
                       <View style={styles.cardPriceSection}>
@@ -3290,7 +3290,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               <Text style={styles.modalTitle}>اختر مشترك للحذف</Text>
               <View style={{ width: 30 }} />
             </View>
-            <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+            <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 8 : 10 }}>
               <TextInput
                 style={[styles.formInput, { textAlign: 'right' }]}
                 placeholder="ابحث عن مشترك..."
@@ -3299,7 +3299,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 onChangeText={setDeletePickerSearch}
               />
             </View>
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: IS_SMALL ? 350 : 400 }} showsVerticalScrollIndicator={false}>
               {visibleSubscribers.filter(sub =>
                 sub.name.includes(deletePickerSearch) ||
                 (sub.subscriberNumber && sub.subscriberNumber.includes(deletePickerSearch)) ||
@@ -3307,7 +3307,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               ).map(sub => (
                 <TouchableOpacity
                   key={sub.id}
-                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ padding: IS_SMALL ? 12 : 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
                   onPress={() => {
                     setDeletePickerVisible(false);
                     setDeletePickerSearch('');
@@ -3317,8 +3317,8 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                     ]);
                   }}
                 >
-                  <Text style={{ fontSize: 16, color: '#333' }}>{sub.name}</Text>
-                  <Text style={{ fontSize: 14, color: '#D32F2F' }}>{sub.amper} أميبر</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333' }}>{sub.name}</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#D32F2F' }}>{sub.amper} أميبر</Text>
                 </TouchableOpacity>
               ))}
               {visibleSubscribers.filter(sub =>
@@ -3326,8 +3326,8 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 (sub.subscriberNumber && sub.subscriberNumber.includes(deletePickerSearch)) ||
                 (sub.meterNumber && sub.meterNumber.includes(deletePickerSearch))
               ).length === 0 && (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ color: '#999', fontSize: 16 }}>لا يوجد مشتركين</Text>
+                <View style={{ padding: IS_SMALL ? 16 : 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#999', fontSize: IS_SMALL ? 14 : 16 }}>لا يوجد مشتركين</Text>
                 </View>
               )}
             </ScrollView>
@@ -3345,7 +3345,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               <Text style={styles.modalTitle}>اختر مشترك للتعديل</Text>
               <View style={{ width: 30 }} />
             </View>
-            <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+            <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 8 : 10 }}>
               <TextInput
                 style={[styles.formInput, { textAlign: 'right' }]}
                 placeholder="ابحث عن مشترك..."
@@ -3354,7 +3354,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 onChangeText={setEditPickerSearch}
               />
             </View>
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: IS_SMALL ? 350 : 400 }} showsVerticalScrollIndicator={false}>
               {visibleSubscribers.filter(sub =>
                 sub.name.includes(editPickerSearch) ||
                 (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
@@ -3362,7 +3362,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               ).map(sub => (
                 <TouchableOpacity
                   key={sub.id}
-                  style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ padding: IS_SMALL ? 12 : 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
                   onPress={() => {
                     setEditPickerVisible(false);
                     setEditPickerSearch('');
@@ -3370,8 +3370,8 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                     setEditSubscriberVisible(true);
                   }}
                 >
-                  <Text style={{ fontSize: 16, color: '#333' }}>{sub.name}</Text>
-                  <Text style={{ fontSize: 14, color: '#2196F3' }}>{sub.amper} أميبر</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333' }}>{sub.name}</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#2196F3' }}>{sub.amper} أميبر</Text>
                 </TouchableOpacity>
               ))}
               {visibleSubscribers.filter(sub =>
@@ -3379,8 +3379,8 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
                 (sub.meterNumber && sub.meterNumber.includes(editPickerSearch))
               ).length === 0 && (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ color: '#999', fontSize: 16 }}>لا يوجد مشتركين</Text>
+                <View style={{ padding: IS_SMALL ? 16 : 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#999', fontSize: IS_SMALL ? 14 : 16 }}>لا يوجد مشتركين</Text>
                 </View>
               )}
             </ScrollView>
@@ -3483,28 +3483,28 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
 
           <ScrollView style={styles.reportsContent} showsVerticalScrollIndicator={false}>
             <View style={styles.reportsSelectors}>
-              <TouchableOpacity style={styles.reportsDropdown} onPress={() => setYearPickerVisible(true)}>
-                <Text style={styles.reportsDropdownText}>{selectedYear}</Text>
-                <Ionicons name="calendar" size={20} color="#2196F3" />
+              <TouchableOpacity style={[styles.reportsDropdown, { padding: IS_SMALL ? 10 : 14 }]} onPress={() => setYearPickerVisible(true)}>
+                <Text style={[styles.reportsDropdownText, { fontSize: IS_SMALL ? 14 : 16 }]}>{selectedYear}</Text>
+                <Ionicons name="calendar" size={IS_SMALL ? 18 : 20} color="#2196F3" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.reportsDropdown} onPress={() => setMonthPickerVisible(true)}>
-                <Text style={styles.reportsDropdownText}>{selectedMonth === 'all' ? 'كل الأشهر' : selectedMonth}</Text>
-                <Ionicons name="calendar" size={20} color="#2196F3" />
+              <TouchableOpacity style={[styles.reportsDropdown, { padding: IS_SMALL ? 10 : 14 }]} onPress={() => setMonthPickerVisible(true)}>
+                <Text style={[styles.reportsDropdownText, { fontSize: IS_SMALL ? 14 : 16 }]}>{selectedMonth === 'all' ? 'كل الأشهر' : selectedMonth}</Text>
+                <Ionicons name="calendar" size={IS_SMALL ? 18 : 20} color="#2196F3" />
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 5 : 8, paddingHorizontal: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
               <TouchableOpacity
                 style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnActive, { flex: 1 }]}
                 onPress={() => { setSubscriptionTypeFilter('normal'); setSelectedSubscriberId(null); }}
               >
-                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+                <Text style={[styles.subscriptionTypeBtnText, { fontSize: IS_SMALL ? 12 : 14 }, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnActiveGold, { flex: 1 }]}
                 onPress={() => { setSubscriptionTypeFilter('golden'); setSelectedSubscriberId(null); }}
               >
-                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
+                <Text style={[styles.subscriptionTypeBtnText, { fontSize: IS_SMALL ? 12 : 14 }, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
               </TouchableOpacity>
             </View>
 
@@ -3527,37 +3527,37 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
             )}
 
             {selectedSubscriber && (
-              <View style={styles.reportCard}>
+              <View style={[styles.reportCard, { padding: IS_SMALL ? 12 : 16 }]}>
                 <View style={styles.reportSubscriberHeader}>
-                  <Text style={styles.reportSubscriberName}>{selectedSubscriber.name}</Text>
+                  <Text style={[styles.reportSubscriberName, { fontSize: IS_SMALL ? 17 : 22 }]}>{selectedSubscriber.name}</Text>
                   <TouchableOpacity onPress={() => setSelectedSubscriberId(null)}>
                     <Ionicons name="close-circle" size={24} color="#D32F2F" />
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.reportSummary}>
+                <View style={[styles.reportSummary, { padding: IS_SMALL ? 10 : 16 }]}>
                   <View style={styles.reportSummaryItem}>
-                    <Text style={styles.reportSummaryLabel}>المبلغ الكلي</Text>
-                    <Text style={styles.reportSummaryValue}>د.ع {formatNumber(reportStats.totalDue)}</Text>
+                    <Text style={[styles.reportSummaryLabel, { fontSize: IS_SMALL ? 10 : 12 }]}>المبلغ الكلي</Text>
+                    <Text style={[styles.reportSummaryValue, { fontSize: IS_SMALL ? 13 : 16 }]}>د.ع {formatNumber(reportStats.totalDue)}</Text>
                   </View>
                   <View style={styles.reportSummaryDivider} />
                   <View style={styles.reportSummaryItem}>
-                    <Text style={styles.reportSummaryLabel}>المدفوع</Text>
-                    <Text style={[styles.reportSummaryValue, styles.reportSummaryPaid]}>د.ع {formatNumber(reportStats.totalPaid)}</Text>
+                    <Text style={[styles.reportSummaryLabel, { fontSize: IS_SMALL ? 10 : 12 }]}>المدفوع</Text>
+                    <Text style={[styles.reportSummaryValue, styles.reportSummaryPaid, { fontSize: IS_SMALL ? 13 : 16 }]}>د.ع {formatNumber(reportStats.totalPaid)}</Text>
                   </View>
                   <View style={styles.reportSummaryDivider} />
                   <View style={styles.reportSummaryItem}>
-                    <Text style={styles.reportSummaryLabel}>الغير مدفوع</Text>
-                    <Text style={[styles.reportSummaryValue, styles.reportSummaryRemaining]}>د.ع {formatNumber(reportStats.totalRemaining)}</Text>
+                    <Text style={[styles.reportSummaryLabel, { fontSize: IS_SMALL ? 10 : 12 }]}>الغير مدفوع</Text>
+                    <Text style={[styles.reportSummaryValue, styles.reportSummaryRemaining, { fontSize: IS_SMALL ? 13 : 16 }]}>د.ع {formatNumber(reportStats.totalRemaining)}</Text>
                   </View>
                 </View>
 
                 <View style={styles.reportTableHeader}>
-                  <Text style={styles.reportTableHeaderText}>الشهر</Text>
-                  <Text style={styles.reportTableHeaderText}>الأميبر</Text>
-                  <Text style={styles.reportTableHeaderText}>المبلغ</Text>
-                  <Text style={styles.reportTableHeaderText}>الحالة</Text>
-                  <Text style={styles.reportTableHeaderText}>التاريخ</Text>
+                  <Text style={[styles.reportTableHeaderText, { fontSize: IS_SMALL ? 11 : 13 }]}>الشهر</Text>
+                  <Text style={[styles.reportTableHeaderText, { fontSize: IS_SMALL ? 11 : 13 }]}>الأميبر</Text>
+                  <Text style={[styles.reportTableHeaderText, { fontSize: IS_SMALL ? 11 : 13 }]}>المبلغ</Text>
+                  <Text style={[styles.reportTableHeaderText, { fontSize: IS_SMALL ? 11 : 13 }]}>الحالة</Text>
+                  <Text style={[styles.reportTableHeaderText, { fontSize: IS_SMALL ? 11 : 13 }]}>التاريخ</Text>
                 </View>
 
                 {monthsToShow.map(m => {
@@ -3568,15 +3568,15 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
 
                   if (isBeforeAdded) {
                     return (
-                      <View key={m} style={[styles.reportTableRow, { backgroundColor: '#F5F5F5' }]}>
-                        <Text style={[styles.reportTableCell, { color: '#BBB' }]}>{m}/{selectedYear}</Text>
-                        <Text style={[styles.reportTableCell, { color: '#BBB' }]}>-</Text>
-                        <Text style={[styles.reportTableCell, { color: '#BBB' }]}>-</Text>
+                      <View key={m} style={[styles.reportTableRow, { backgroundColor: '#F5F5F5', padding: IS_SMALL ? 8 : 12 }]}>
+                        <Text style={[styles.reportTableCell, { color: '#BBB', fontSize: IS_SMALL ? 11 : 13 }]}>{m}/{selectedYear}</Text>
+                        <Text style={[styles.reportTableCell, { color: '#BBB', fontSize: IS_SMALL ? 11 : 13 }]}>-</Text>
+                        <Text style={[styles.reportTableCell, { color: '#BBB', fontSize: IS_SMALL ? 11 : 13 }]}>-</Text>
                         <View style={[styles.reportStatusBadge, { backgroundColor: '#E0E0E0' }]}>
-                          <Text style={[styles.reportStatusText, { color: '#999' }]}>لم يُضَف بعد</Text>
+                          <Text style={[styles.reportStatusText, { color: '#999', fontSize: IS_SMALL ? 10 : 12 }]}>لم يُضَف بعد</Text>
                         </View>
                         <View style={{flex: 1.5}}>
-                          <Text style={[styles.reportTableCellSmall, { color: '#BBB' }]}>-</Text>
+                          <Text style={[styles.reportTableCellSmall, { color: '#BBB', fontSize: IS_SMALL ? 9 : 11 }]}>-</Text>
                         </View>
                       </View>
                     );
@@ -3586,12 +3586,12 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
 
                   if (deleted) {
                     return (
-                      <View key={m} style={[styles.reportTableRow, { backgroundColor: '#FFF3E0' }]}>
-                        <Text style={styles.reportTableCell}>{m}/{selectedYear}</Text>
-                        <Text style={styles.reportTableCell}>-</Text>
-                        <Text style={styles.reportTableCell}>-</Text>
+                      <View key={m} style={[styles.reportTableRow, { backgroundColor: '#FFF3E0', padding: IS_SMALL ? 8 : 12 }]}>
+                        <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>{m}/{selectedYear}</Text>
+                        <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>-</Text>
+                        <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>-</Text>
                         <View style={[styles.reportStatusBadge, { backgroundColor: '#FF9800' }]}>
-                          <Text style={styles.reportStatusText}>تم الحذف</Text>
+                          <Text style={[styles.reportStatusText, { fontSize: IS_SMALL ? 10 : 12 }]}>تم الحذف</Text>
                         </View>
                         <View style={{flex: 1.5}}>
                           <Text style={styles.reportTableCellSmall}>{selectedSubscriber.deletedAt || '-'}</Text>
@@ -3612,10 +3612,10 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
                   const hasRowPartial = rowPartialPayments.length > 0 && !isPaid;
 
                   return (
-                    <View key={m} style={[styles.reportTableRow, priceNotSet ? styles.reportRowUnpaid : (isPaid ? styles.reportRowPaid : styles.reportRowUnpaid)]}>
-                      <Text style={styles.reportTableCell}>{m}/{selectedYear}</Text>
-                      <Text style={[styles.reportTableCell, styles.amperBlue]}>{rowAmper}</Text>
-                      <Text style={styles.reportTableCell}>{priceNotSet ? 'لم يتم تحديد السعر بعد' : `د.ع ${formatNumber(rowAmper * rowPrice)}`}</Text>
+                    <View key={m} style={[styles.reportTableRow, priceNotSet ? styles.reportRowUnpaid : (isPaid ? styles.reportRowPaid : styles.reportRowUnpaid), { padding: IS_SMALL ? 8 : 12 }]}>
+                      <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>{m}/{selectedYear}</Text>
+                      <Text style={[styles.reportTableCell, styles.amperBlue, { fontSize: IS_SMALL ? 11 : 13 }]}>{rowAmper}</Text>
+                      <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 10 : 13 }]}>{priceNotSet ? 'لم يتم تحديد السعر بعد' : `د.ع ${formatNumber(rowAmper * rowPrice)}`}</Text>
                       {priceNotSet ? null : (
                         <View style={[styles.reportStatusBadge, isPaid ? styles.reportStatusPaid : (hasRowPartial ? styles.reportStatusPartial : styles.reportStatusUnpaid)]}>
                           <Text style={styles.reportStatusText}>{isPaid ? 'مدفوع' : (hasRowPartial ? `جزئي ${formatNumber(rowPartialSum)}` : 'غير مدفوع')}</Text>
@@ -3800,39 +3800,39 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { flex: 1, paddingTop: 40 }]}>
+        <View style={[styles.modalContent, { flex: 1, paddingTop: IS_SMALL ? 30 : 40 }]}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose} style={styles.backButton}>
-              <Ionicons name="arrow-forward" size={26} color="#333" />
+              <Ionicons name="arrow-forward" size={IS_SMALL ? 22 : 26} color="#333" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>بيانات كل شهر</Text>
-            <View style={{ width: 28 }} />
+            <Text style={[styles.modalTitle, { fontSize: IS_SMALL ? 16 : 18 }]}>بيانات كل شهر</Text>
+            <View style={{ width: IS_SMALL ? 22 : 28 }} />
           </View>
 
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row-reverse', gap: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+            <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 6 : 10, paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 8 : 12 }}>
               <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setYearPickerVisible(true)}>
-                <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{selectedYear}</Text>
-                <Ionicons name="calendar-outline" size={16} color="#1565C0" />
+                <Text style={[styles.filterTabText, { color: '#1565C0', fontSize: IS_SMALL ? 12 : 14 }]}>{selectedYear}</Text>
+                <Ionicons name="calendar-outline" size={IS_SMALL ? 14 : 16} color="#1565C0" />
               </TouchableOpacity>
               <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
-                <Text style={[styles.filterTabText, { color: '#1565C0' }]}>{m}/{selectedYear}</Text>
-                <Ionicons name="chevron-down" size={16} color="#1565C0" />
+                <Text style={[styles.filterTabText, { color: '#1565C0', fontSize: IS_SMALL ? 12 : 14 }]}>{m}/{selectedYear}</Text>
+                <Ionicons name="chevron-down" size={IS_SMALL ? 14 : 16} color="#1565C0" />
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 5 : 8, paddingHorizontal: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
               <TouchableOpacity
                 style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnActive, { flex: 1 }]}
                 onPress={() => setSubscriptionTypeFilter('normal')}
               >
-                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
+                <Text style={[styles.subscriptionTypeBtnText, { fontSize: IS_SMALL ? 12 : 14 }, subscriptionTypeFilter === 'normal' && styles.subscriptionTypeBtnTextActive]}>اشتراك عادي</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.subscriptionTypeBtn, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnActiveGold, { flex: 1 }]}
                 onPress={() => setSubscriptionTypeFilter('golden')}
               >
-                <Text style={[styles.subscriptionTypeBtnText, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
+                <Text style={[styles.subscriptionTypeBtnText, { fontSize: IS_SMALL ? 12 : 14 }, subscriptionTypeFilter === 'golden' && styles.subscriptionTypeBtnTextActiveGold]}>اشتراك ذهبي</Text>
               </TouchableOpacity>
             </View>
 
@@ -3865,98 +3865,98 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
               </View>
             </View>
 
-            <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-              <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: 12 }} />
+            <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 12 : 16 }}>
+              <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: IS_SMALL ? 8 : 12 }} />
 
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Ionicons name="wallet" size={22} color="#4CAF50" />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المبلغ المستوفى من المشتركين</Text>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12 }}>
+                <Ionicons name="wallet" size={IS_SMALL ? 18 : 22} color="#4CAF50" />
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المبلغ المستوفى من المشتركين</Text>
               </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1 }]}>
-                <Text style={{ fontSize: 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
-              </View>
-
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
-                <Ionicons name="cash" size={22} color="#1565C0" />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
-              </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1 }]}>
-                <Text style={{ fontSize: 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
+              <View style={[styles.settingsInput, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
               </View>
 
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 }}>
-                <Ionicons name="alert-circle" size={22} color="#FF9800" />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>المطلوبين</Text>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 12 : 16 }}>
+                <Ionicons name="cash" size={IS_SMALL ? 18 : 22} color="#1565C0" />
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
               </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#FFF3E0', borderColor: '#FF9800', borderWidth: 1 }]}>
-                <Text style={{ fontSize: 15, color: '#E65100', fontWeight: '600' }}>د.ع {formatNumber(stats.requiredAmount)}</Text>
-              </View>
-
-              <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: 16 }} />
-
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Ionicons name="receipt" size={22} color="#F44336" />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>الصرفيات</Text>
+              <View style={[styles.settingsInput, { backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
               </View>
 
-              <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 12 : 16 }}>
+                <Ionicons name="alert-circle" size={IS_SMALL ? 18 : 22} color="#FF9800" />
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المطلوبين</Text>
+              </View>
+              <View style={[styles.settingsInput, { backgroundColor: '#FFF3E0', borderColor: '#FF9800', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#E65100', fontWeight: '600' }}>د.ع {formatNumber(stats.requiredAmount)}</Text>
+              </View>
+
+              <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: IS_SMALL ? 12 : 16 }} />
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12 }}>
+                <Ionicons name="receipt" size={IS_SMALL ? 18 : 22} color="#F44336" />
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>الصرفيات</Text>
+              </View>
+
+              <View style={{ gap: IS_SMALL ? 6 : 10 }}>
                 <View>
-                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>وقود</Text>
-                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
-                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.gas) || 0)}</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>وقود</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.gas) || 0)}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>زيت</Text>
-                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
-                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.oil) || 0)}</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>زيت</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.oil) || 0)}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>صيانة</Text>
-                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
-                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.repairs) || 0)}</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>صيانة</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.repairs) || 0)}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={{ fontSize: 13, color: '#666', marginBottom: 4, textAlign: 'right' }}>رواتب</Text>
-                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5' }]}>
-                    <Text style={{ fontSize: 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.salaries) || 0)}</Text>
+                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>رواتب</Text>
+                  <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.salaries) || 0)}</Text>
                   </View>
                 </View>
                 {monthWorkerExpenses.length > 0 && (
                   <TouchableOpacity style={styles.expenseRow} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
-                    <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={20} color="#FF9800" />
-                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: 8 }}>د.ع {formatNumber(workerExpensesTotal)}</Text>
+                    <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={IS_SMALL ? 16 : 20} color="#FF9800" />
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: IS_SMALL ? 5 : 8 }}>د.ع {formatNumber(workerExpensesTotal)}</Text>
                     <View style={[styles.expenseLabelContainer, { flex: 1 }]}>
-                      <Ionicons name="person" size={16} color="#FF9800" />
+                <Ionicons name="person" size={IS_SMALL ? 14 : 16} color="#FF9800" />
                       <Text style={[styles.expenseLabel]}>صرفيات العامل</Text>
                     </View>
                   </TouchableOpacity>
                 )}
                 {showWorkerExpenses && monthWorkerExpenses.map((e, idx) => (
-                  <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flex: 1 }}>
-                      <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.label || 'صرفية'}</Text>
-                      <Text style={{ fontSize: 11, color: '#999' }}>({e.workerName || ''})</Text>
+                  <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: IS_SMALL ? 6 : 10, padding: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 5 : 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 3 : 6, flex: 1 }}>
+                      <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#333', fontWeight: 'bold' }}>{e.label || 'صرفية'}</Text>
+                      <Text style={{ fontSize: IS_SMALL ? 9 : 11, color: '#999' }}>({e.workerName || ''})</Text>
                     </View>
-                    <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
                   </View>
                 ))}
               </View>
 
-              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 14, padding: 14, backgroundColor: '#FFEBEE', borderRadius: 10 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#333' }}>مجموع الصرفيات</Text>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#F44336' }}>د.ع {formatNumber(totalExpenses)}</Text>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 14, backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 6 : 10 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>مجموع الصرفيات</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#F44336' }}>د.ع {formatNumber(totalExpenses)}</Text>
               </View>
 
-              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 10, padding: 14, backgroundColor: netProfit >= 0 ? '#E8F5E9' : '#FFEBEE', borderRadius: 10 }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>صافي الربح</Text>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: netProfit >= 0 ? '#4CAF50' : '#F44336' }}>د.ع {formatNumber(netProfit)}</Text>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: IS_SMALL ? 6 : 10, padding: IS_SMALL ? 10 : 14, backgroundColor: netProfit >= 0 ? '#E8F5E9' : '#FFEBEE', borderRadius: IS_SMALL ? 6 : 10, marginBottom: IS_SMALL ? 4 : 8 }}>
+                <Text style={{ fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold', color: '#333' }}>صافي الربح</Text>
+                <Text style={{ fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold', color: netProfit >= 0 ? '#4CAF50' : '#F44336' }}>د.ع {formatNumber(netProfit)}</Text>
               </View>
             </View>
 
-            <View style={{ height: 30 }} />
+            <View style={{ height: IS_SMALL ? 20 : 30 }} />
           </ScrollView>
         </View>
 
@@ -3967,9 +3967,9 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
                 <Text style={styles.modalTitle}>اختر السنة</Text>
                 <ScrollView style={{ maxHeight: 300 }}>
                   {years.map(yr => (
-                    <TouchableOpacity key={yr} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedYear(yr); setYearPickerVisible(false); }}>
-                      <Text style={{ fontSize: 18, color: yr === selectedYear ? '#1565C0' : '#333', fontWeight: yr === selectedYear ? 'bold' : 'normal' }}>{yr}</Text>
-                      {yr === selectedYear && <Ionicons name="checkmark" size={20} color="#1565C0" style={{ marginRight: 8 }} />}
+                    <TouchableOpacity key={yr} style={{ padding: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedYear(yr); setYearPickerVisible(false); }}>
+                      <Text style={{ fontSize: IS_SMALL ? 15 : 18, color: yr === selectedYear ? '#1565C0' : '#333', fontWeight: yr === selectedYear ? 'bold' : 'normal' }}>{yr}</Text>
+                      {yr === selectedYear && <Ionicons name="checkmark" size={IS_SMALL ? 18 : 20} color="#1565C0" style={{ marginRight: 8 }} />}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -3985,9 +3985,9 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
                 <Text style={styles.modalTitle}>اختر الشهر</Text>
                 <ScrollView style={{ maxHeight: 350 }}>
                   {monthNames.map((name, idx) => (
-                    <TouchableOpacity key={idx + 1} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedMonth(String(idx + 1)); setMonthPickerVisible(false); }}>
-                      <Text style={{ fontSize: 18, color: (idx + 1) === m ? '#1565C0' : '#333', fontWeight: (idx + 1) === m ? 'bold' : 'normal' }}>{idx + 1}</Text>
-                      {(idx + 1) === m && <Ionicons name="checkmark" size={20} color="#1565C0" style={{ marginRight: 8 }} />}
+                    <TouchableOpacity key={idx + 1} style={{ padding: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center' }} onPress={() => { setSelectedMonth(String(idx + 1)); setMonthPickerVisible(false); }}>
+                      <Text style={{ fontSize: IS_SMALL ? 15 : 18, color: (idx + 1) === m ? '#1565C0' : '#333', fontWeight: (idx + 1) === m ? 'bold' : 'normal' }}>{idx + 1}</Text>
+                      {(idx + 1) === m && <Ionicons name="checkmark" size={IS_SMALL ? 18 : 20} color="#1565C0" style={{ marginRight: 8 }} />}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -4138,21 +4138,21 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
       )}
       <View style={styles.header}>
-        <View style={{ width: 40 }} />
+        <View style={{ width: IS_SMALL ? 32 : Math.round(40 * SCALE) }} />
         <Text style={styles.headerTitle}>{generatorName || 'مولدي'}</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: IS_SMALL ? 32 : Math.round(40 * SCALE) }} />
       </View>
 
       <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={[styles.addButton, { paddingHorizontal: 12, paddingVertical: 8 }]} onPress={onAddGenerator}>
-            <Ionicons name="add-circle-outline" size={16} color="white" />
-            <Text style={[styles.addButtonText, { fontSize: 13 }]}>إضافة مولد</Text>
+          <TouchableOpacity style={[styles.addButton, { paddingHorizontal: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 6 : 8 }]} onPress={onAddGenerator}>
+            <Ionicons name="add-circle-outline" size={IS_SMALL ? 14 : 16} color="white" />
+            <Text style={[styles.addButtonText, { fontSize: IS_SMALL ? 12 : 13 }]}>إضافة مولد</Text>
           </TouchableOpacity>
           {generators && generators.length > 1 && (
-            <TouchableOpacity style={[styles.addButton, { paddingHorizontal: 12, paddingVertical: 8 }]} onPress={onSwitchGenerator}>
-              <Ionicons name="swap-horizontal-outline" size={16} color="white" />
-              <Text style={[styles.addButtonText, { fontSize: 13 }]}>تبديل المولد ({generators.length})</Text>
+            <TouchableOpacity style={[styles.addButton, { paddingHorizontal: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 6 : 8 }]} onPress={onSwitchGenerator}>
+              <Ionicons name="swap-horizontal-outline" size={IS_SMALL ? 14 : 16} color="white" />
+              <Text style={[styles.addButtonText, { fontSize: IS_SMALL ? 12 : 13 }]}>تبديل المولد ({generators.length})</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
@@ -4165,18 +4165,18 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
 
         {hasGoldenSubscribers ? (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
-              <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1, fontSize: 12 }]}>سعر الاشتراك العادي - شهر {currentMonth}</Text>
+          <View style={{ flexDirection: 'row', gap: IS_SMALL ? 5 : 8 }}>
+            <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 10 }]}>
+              <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1, fontSize: IS_SMALL ? 10 : 12 }]}>سعر الاشتراك العادي - شهر {currentMonth}</Text>
               <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
             </View>
-            <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 10, borderColor: '#FFD700' }]}>
-              <Text style={[styles.priceLabel, { color: '#FF9800' }, { marginBottom: 0, flex: 1, fontSize: 12 }]}>سعر الاشتراك الذهبي - شهر {currentMonth}</Text>
+            <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 10, borderColor: '#FFD700' }]}>
+              <Text style={[styles.priceLabel, { color: '#FF9800' }, { marginBottom: 0, flex: 1, fontSize: IS_SMALL ? 10 : 12 }]}>سعر الاشتراك الذهبي - شهر {currentMonth}</Text>
               <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#FFD700', borderColor: '#444' }, { flex: 1, color: '#FF9800' }]} value={localGoldenPrice ? formatNumber(localGoldenPrice) : ''} onChangeText={handleGoldenPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
             </View>
           </View>
         ) : (
-          <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }]}>
+          <View style={[styles.priceSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, { flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 10 }]}>
             <Text style={[styles.priceLabel, darkMode && { color: '#fff' }, { marginBottom: 0, flex: 1 }]}>سعر الأميبر - شهر {currentMonth} (د.ع)</Text>
             <TextInput style={[styles.priceInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }, { flex: 1 }]} value={localAmperPrice ? formatNumber(localAmperPrice) : ''} onChangeText={handleAmperPriceChange} keyboardType="numeric" textAlign="center" placeholder="0" placeholderTextColor="#999" />
           </View>
@@ -4191,7 +4191,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             <Text style={[styles.statNumber, styles.amperNumber]} numberOfLines={1} adjustsFontSizeToFit>{formatNumber(totalAmper)}</Text>
             <View style={styles.amperLabelContainer}>
               <Text style={[styles.statLabel, styles.amperLabel]} numberOfLines={1} adjustsFontSizeToFit>أميبر</Text>
-              <Ionicons name="flash" size={14} color="#FF9800" />
+              <Ionicons name="flash" size={IS_SMALL ? 12 : 14} color="#FF9800" />
             </View>
           </View>
           <View style={[styles.statCard, styles.paidCard]}>
@@ -4222,58 +4222,58 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
         <View style={[styles.expensesSection, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
           <View style={[styles.expensesHeader, { justifyContent: 'space-between', flexDirection: 'row-reverse' }]}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="wallet-outline" size={24} color="#4CAF50" />
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8 }}>
+              <Ionicons name="wallet-outline" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
               <Text style={[styles.expensesTitle, darkMode && { color: '#fff' }]}>الصرفيات</Text>
             </View>
             {totalExpenses > 0 && (
-              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F' }}>د.ع {formatNumber(totalExpenses)}</Text>
+              <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#D32F2F' }}>د.ع {formatNumber(totalExpenses)}</Text>
             )}
           </View>
           <View style={styles.expenseRow}>
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('gas', 'كاز')}>
-              <Ionicons name="add-circle" size={24} color="#4CAF50" />
+              <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
             <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={gas ? formatNumber(gas) : ''} onChangeText={(v) => handleExpenseChange('gas', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
-              <Ionicons name="water" size={16} color="#2196F3" />
+              <Ionicons name="water" size={IS_SMALL ? 14 : 16} color="#2196F3" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>كاز</Text>
             </View>
           </View>
           <View style={styles.expenseRow}>
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('oil', 'دهن')}>
-              <Ionicons name="add-circle" size={24} color="#4CAF50" />
+              <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
             <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={oil ? formatNumber(oil) : ''} onChangeText={(v) => handleExpenseChange('oil', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
-              <Ionicons name="flask" size={16} color="#9C27B0" />
+              <Ionicons name="flask" size={IS_SMALL ? 14 : 16} color="#9C27B0" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>دهن</Text>
             </View>
           </View>
           <View style={styles.expenseRow}>
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('repairs', 'إصلاحات')}>
-              <Ionicons name="add-circle" size={24} color="#4CAF50" />
+              <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
             <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={repairs ? formatNumber(repairs) : ''} onChangeText={(v) => handleExpenseChange('repairs', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
-              <Ionicons name="build" size={16} color="#FF5722" />
+              <Ionicons name="build" size={IS_SMALL ? 14 : 16} color="#FF5722" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>إصلاحات</Text>
             </View>
           </View>
           <View style={styles.expenseRow}>
             <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('salaries', 'رواتب')}>
-              <Ionicons name="add-circle" size={24} color="#4CAF50" />
+              <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
             <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={salaries ? formatNumber(salaries) : ''} onChangeText={(v) => handleExpenseChange('salaries', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
-              <Ionicons name="people" size={16} color="#607D8B" />
+              <Ionicons name="people" size={IS_SMALL ? 14 : 16} color="#607D8B" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>رواتب</Text>
             </View>
           </View>
           {workerExpenses.length > 0 && (
             <TouchableOpacity style={styles.expenseRow} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
-              <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={20} color="#FF9800" />
-              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: 8 }}>د.ع {formatNumber(workerExpenses.reduce((s, e) => s + (e.amount || 0), 0))}</Text>
+              <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={IS_SMALL ? 16 : 20} color="#FF9800" />
+              <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: IS_SMALL ? 5 : 8 }}>د.ع {formatNumber(workerExpenses.reduce((s, e) => s + (e.amount || 0), 0))}</Text>
               <View style={[styles.expenseLabelContainer, { flex: 1 }]}>
                 <Ionicons name="person" size={16} color="#FF9800" />
                 <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>صرفيات العامل</Text>
@@ -4281,12 +4281,12 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             </TouchableOpacity>
           )}
           {showWorkerExpenses && workerExpenses.map((e, idx) => (
-            <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flex: 1 }}>
-                <Text style={{ fontSize: 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
-                <Text style={{ fontSize: 11, color: '#999' }}>({e.workerName})</Text>
+            <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 9 : 12, marginTop: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6, flex: 1 }}>
+                <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
+                <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>({e.workerName})</Text>
               </View>
-              <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
             </View>
           ))}
         </View>
@@ -4302,31 +4302,31 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
       <Modal visible={addExpenseVisible} transparent animationType="fade">
         <View style={[styles.modalOverlay, { justifyContent: 'center' }]}>
-          <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, width: '80%', alignItems: 'center' }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#333' }}>إضافة مبلغ - {addExpenseLabel}</Text>
-            <View style={{ backgroundColor: '#F5F5F5', borderRadius: 10, padding: 10, marginBottom: 12, width: '100%' }}>
-              <Text style={{ fontSize: 14, color: '#666', textAlign: 'center' }}>المبلغ الحالي: د.ع {formatNumber(parseInt(onlyDigits(addExpenseField === 'gas' ? gas : addExpenseField === 'oil' ? oil : addExpenseField === 'repairs' ? repairs : salaries)) || 0)}</Text>
+          <View style={{ backgroundColor: 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: '80%', alignItems: 'center' }}>
+            <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', marginBottom: IS_SMALL ? 12 : 16, color: '#333' }}>إضافة مبلغ - {addExpenseLabel}</Text>
+            <View style={{ backgroundColor: '#F5F5F5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 8 : 10, marginBottom: IS_SMALL ? 10 : 12, width: '100%' }}>
+              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#666', textAlign: 'center' }}>المبلغ الحالي: د.ع {formatNumber(parseInt(onlyDigits(addExpenseField === 'gas' ? gas : addExpenseField === 'oil' ? oil : addExpenseField === 'repairs' ? repairs : salaries)) || 0)}</Text>
             </View>
             <TextInput
-              style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 12, fontSize: 18, width: '100%', textAlign: 'center', marginBottom: 16 }}
+              style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 16 : 18, width: '100%', textAlign: 'center', marginBottom: IS_SMALL ? 12 : 16 }}
               value={addExpenseAmount ? formatNumber(parseInt(onlyDigits(addExpenseAmount))) : ''}
               onChangeText={(t) => setAddExpenseAmount(onlyDigits(t))}
               placeholder="المبلغ المضاف"
               placeholderTextColor="#999"
               keyboardType="numeric"
             />
-            <View style={{ flexDirection: 'row-reverse', gap: 12, width: '100%' }}>
+            <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 12, width: '100%' }}>
               <TouchableOpacity
-                style={{ flex: 1, backgroundColor: '#4CAF50', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                style={{ flex: 1, backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, alignItems: 'center' }}
                 onPress={handleConfirmAddExpense}
               >
-                <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>إدخال</Text>
+                <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إدخال</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ flex: 1, backgroundColor: '#eee', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                style={{ flex: 1, backgroundColor: '#eee', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, alignItems: 'center' }}
                 onPress={() => setAddExpenseVisible(false)}
               >
-                <Text style={{ color: '#666', fontSize: 16, fontWeight: 'bold' }}>إلغاء</Text>
+                <Text style={{ color: '#666', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إلغاء</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -6270,50 +6270,50 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: IS_SMALL ? 20 : IS_TABLET ? 40 : 30,
     maxWidth: IS_TABLET ? 500 : '100%',
     alignSelf: 'center',
     width: '100%',
   },
   welcomeLogo: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: IS_SMALL ? 40 : IS_TABLET ? 80 : 60,
   },
   welcomeTitle: {
-    fontSize: 42,
+    fontSize: IS_SMALL ? 32 : IS_TABLET ? 52 : 42,
     fontWeight: 'bold',
     color: 'white',
-    marginTop: 16,
+    marginTop: IS_SMALL ? 12 : IS_TABLET ? 20 : 16,
   },
   welcomeSubtitle: {
-    fontSize: 16,
+    fontSize: IS_SMALL ? 14 : IS_TABLET ? 18 : 16,
     color: 'rgba(255,255,255,0.8)',
-    marginTop: 8,
+    marginTop: IS_SMALL ? 6 : IS_TABLET ? 12 : 8,
   },
   welcomeLoginBtn: {
     backgroundColor: '#2196F3',
-    borderRadius: 12,
-    paddingVertical: 18,
+    borderRadius: IS_SMALL ? 10 : IS_TABLET ? 14 : 12,
+    paddingVertical: IS_SMALL ? 14 : IS_TABLET ? 22 : 18,
     alignItems: 'center',
     width: '100%',
-    marginBottom: 16,
+    marginBottom: IS_SMALL ? 12 : IS_TABLET ? 20 : 16,
   },
   welcomeLoginText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: IS_SMALL ? 16 : IS_TABLET ? 22 : 18,
     fontWeight: 'bold',
   },
   welcomeRegisterBtn: {
     borderWidth: 2,
     borderColor: 'white',
-    borderRadius: 12,
-    paddingVertical: 18,
+    borderRadius: IS_SMALL ? 10 : IS_TABLET ? 14 : 12,
+    paddingVertical: IS_SMALL ? 14 : IS_TABLET ? 22 : 18,
     alignItems: 'center',
     width: '100%',
   },
   welcomeRegisterText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: IS_SMALL ? 16 : IS_TABLET ? 22 : 18,
     fontWeight: 'bold',
   },
 
@@ -6323,16 +6323,16 @@ const styles = StyleSheet.create({
   },
   loginScrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 30,
+    paddingHorizontal: IS_SMALL ? 20 : IS_TABLET ? 40 : 30,
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 40,
+    paddingBottom: IS_SMALL ? 24 : IS_TABLET ? 50 : 40,
     maxWidth: IS_TABLET ? 500 : '100%',
     alignSelf: 'center',
     width: '100%',
   },
   loginContent: {
     flex: 1,
-    paddingHorizontal: 30,
+    paddingHorizontal: IS_SMALL ? 20 : IS_TABLET ? 40 : 30,
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     maxWidth: IS_TABLET ? 500 : '100%',
     alignSelf: 'center',
@@ -6340,22 +6340,22 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     alignSelf: 'flex-end',
-    padding: 8,
-    marginBottom: 10,
+    padding: IS_SMALL ? 6 : 8,
+    marginBottom: IS_SMALL ? 8 : 12,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: IS_SMALL ? 20 : IS_TABLET ? 40 : 30,
   },
   appTitle: {
     fontSize: IS_SMALL ? 24 : 32,
     fontWeight: 'bold',
     color: 'white',
-    marginTop: 12,
+    marginTop: IS_SMALL ? 8 : 12,
   },
   loginCard: {
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: IS_SMALL ? 16 : IS_TABLET ? 24 : 20,
     padding: IS_SMALL ? 16 : 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -6367,14 +6367,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 14,
+    borderRadius: IS_SMALL ? 10 : 12,
+    paddingHorizontal: IS_SMALL ? 12 : 16,
+    marginBottom: IS_SMALL ? 10 : 14,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: IS_SMALL ? 8 : 12,
   },
   input: {
     flex: 1,
@@ -6384,11 +6384,11 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: '#2196F3',
-    borderRadius: 12,
+    borderRadius: IS_SMALL ? 10 : 12,
     paddingVertical: IS_SMALL ? 12 : 16,
     alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 16,
+    marginTop: IS_SMALL ? 4 : 6,
+    marginBottom: IS_SMALL ? 10 : 16,
   },
   loginButtonText: {
     color: 'white',
@@ -6397,7 +6397,7 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: '#2196F3',
-    fontSize: 14,
+    fontSize: IS_SMALL ? 12 : 14,
     textAlign: 'center',
     fontWeight: '600',
   },
@@ -7439,7 +7439,7 @@ partialSubscriberName: {
   header: {
     backgroundColor: '#2196F3',
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 15,
+    paddingBottom: IS_SMALL ? 10 : Math.round(15 * SCALE),
     paddingHorizontal: IS_TABLET ? 30 : Math.round(16 * SCALE),
     flexDirection: 'row',
     alignItems: 'center',
@@ -7482,64 +7482,64 @@ partialSubscriberName: {
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    gap: 10,
-    marginTop: 16,
+    gap: IS_SMALL ? 6 : Math.round(10 * SCALE),
+    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
   },
   addButton: {
     borderWidth: 1.5,
     borderColor: '#2196F3',
     borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: IS_SMALL ? 14 : Math.round(20 * SCALE),
+    paddingVertical: IS_SMALL ? 7 : Math.round(10 * SCALE),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: IS_SMALL ? 4 : 6,
   },
   addButtonText: {
     color: '#2196F3',
-    fontSize: 15,
+    fontSize: IS_SMALL ? 13 : Math.round(15 * SCALE),
     fontWeight: '600',
   },
   monthlyDataButton: {
     backgroundColor: '#2196F3',
     borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: IS_SMALL ? 14 : Math.round(20 * SCALE),
+    paddingVertical: IS_SMALL ? 7 : Math.round(10 * SCALE),
   },
   monthlyDataButtonText: {
     color: 'white',
-    fontSize: 15,
+    fontSize: IS_SMALL ? 13 : Math.round(15 * SCALE),
     fontWeight: '600',
   },
   dateContainer: {
     backgroundColor: '#E3F2FD',
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 16,
+    borderRadius: IS_SMALL ? 10 : Math.round(12 * SCALE),
+    padding: IS_SMALL ? 10 : Math.round(14 * SCALE),
+    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   dateText: {
-    fontSize: 18,
+    fontSize: IS_SMALL ? 15 : Math.round(18 * SCALE),
     fontWeight: 'bold',
     color: '#333',
   },
   priceSection: {
-    marginTop: 16,
+    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
   },
   priceLabel: {
-    fontSize: 15,
+    fontSize: IS_SMALL ? 13 : Math.round(15 * SCALE),
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: IS_SMALL ? 5 : 8,
     textAlign: 'right',
   },
   priceInput: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 18,
+    borderRadius: IS_SMALL ? 10 : Math.round(12 * SCALE),
+    padding: IS_SMALL ? 12 : Math.round(16 * SCALE),
+    fontSize: IS_SMALL ? 15 : Math.round(18 * SCALE),
     borderWidth: 1,
     borderColor: '#e0e0e0',
     textAlign: 'center',
@@ -7548,7 +7548,7 @@ partialSubscriberName: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: IS_SMALL ? 12 : Math.round(20 * SCALE),
   },
   statCard: {
     borderRadius: 16,
@@ -7620,9 +7620,9 @@ partialSubscriberName: {
   },
   financialSummary: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 18,
-    marginTop: 16,
+    borderRadius: IS_SMALL ? 12 : Math.round(16 * SCALE),
+    padding: IS_SMALL ? 14 : Math.round(18 * SCALE),
+    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
@@ -7633,12 +7633,12 @@ partialSubscriberName: {
     marginBottom: 8,
   },
   summaryLabel: {
-    fontSize: IS_SMALL ? 14 : 17,
+    fontSize: IS_SMALL ? 13 : Math.round(16 * SCALE),
     fontWeight: '700',
     color: '#333',
   },
   summaryValue: {
-    fontSize: IS_SMALL ? 14 : 17,
+    fontSize: IS_SMALL ? 13 : Math.round(16 * SCALE),
     fontWeight: '700',
     color: '#333',
   },
@@ -7647,9 +7647,9 @@ partialSubscriberName: {
   },
   expensesSection: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 18,
-    marginTop: 16,
+    borderRadius: IS_SMALL ? 12 : Math.round(16 * SCALE),
+    padding: IS_SMALL ? 14 : Math.round(18 * SCALE),
+    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
@@ -7658,10 +7658,10 @@ partialSubscriberName: {
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: IS_SMALL ? 10 : 16,
   },
   expensesTitle: {
-    fontSize: IS_SMALL ? 15 : 18,
+    fontSize: IS_SMALL ? 14 : Math.round(17 * SCALE),
     fontWeight: '700',
     color: '#333',
   },
@@ -7669,38 +7669,38 @@ partialSubscriberName: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: IS_SMALL ? 8 : Math.round(14 * SCALE),
   },
   expenseAddButton: {
-    padding: 4,
+    padding: IS_SMALL ? 2 : 4,
   },
   expenseLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    width: IS_SMALL ? 75 : 90,
+    gap: IS_SMALL ? 5 : 8,
+    width: IS_SMALL ? 60 : Math.round(90 * SCALE),
   },
   expenseLabel: {
-    fontSize: IS_SMALL ? 12 : 15,
+    fontSize: IS_SMALL ? 11 : Math.round(15 * SCALE),
     fontWeight: '600',
     color: '#555',
   },
   expenseInput: {
     flex: 1,
     backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: IS_SMALL ? 10 : 14,
-    fontSize: IS_SMALL ? 14 : 16,
+    borderRadius: IS_SMALL ? 8 : 10,
+    padding: IS_SMALL ? 8 : Math.round(12 * SCALE),
+    fontSize: IS_SMALL ? 13 : Math.round(15 * SCALE),
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    marginHorizontal: 10,
+    marginHorizontal: IS_SMALL ? 6 : 10,
     textAlign: 'center',
   },
   netExpectedContainer: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 18,
-    marginTop: 16,
+    borderRadius: IS_SMALL ? 12 : Math.round(16 * SCALE),
+    padding: IS_SMALL ? 14 : Math.round(18 * SCALE),
+    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -7712,12 +7712,12 @@ partialSubscriberName: {
     backgroundColor: '#FFF5F5',
   },
   netExpectedLabel: {
-    fontSize: IS_SMALL ? 14 : 17,
+    fontSize: IS_SMALL ? 13 : Math.round(16 * SCALE),
     fontWeight: '700',
     color: '#333',
   },
   netExpectedValue: {
-    fontSize: IS_SMALL ? 14 : 17,
+    fontSize: IS_SMALL ? 13 : Math.round(16 * SCALE),
     fontWeight: '700',
     color: '#333',
   },
