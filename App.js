@@ -3920,23 +3920,12 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
                     <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.salaries) || 0)}</Text>
                   </View>
                 </View>
-                {monthWorkerExpenses.length > 0 && (
-                  <TouchableOpacity style={styles.expenseRow} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
-                    <Ionicons name={showWorkerExpenses ? "chevron-down" : "chevron-back"} size={IS_SMALL ? 16 : 20} color="#FF9800" />
-                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#D32F2F', marginHorizontal: IS_SMALL ? 5 : 8 }}>د.ع {formatNumber(workerExpensesTotal)}</Text>
-                    <View style={[styles.expenseLabelContainer, { flex: 1 }]}>
-                <Ionicons name="person" size={IS_SMALL ? 14 : 16} color="#FF9800" />
-                      <Text style={[styles.expenseLabel]}>صرفيات العامل</Text>
+                {monthWorkerExpenses.map((e, idx) => (
+                  <View key={'we'+idx}>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>{e.label || 'صرفية'} ({e.workerName || ''})</Text>
+                    <View style={[styles.settingsInput, { backgroundColor: '#FFF8E1', borderColor: '#FFE082', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
+                      <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(e.amount) || 0)}</Text>
                     </View>
-                  </TouchableOpacity>
-                )}
-                {showWorkerExpenses && monthWorkerExpenses.map((e, idx) => (
-                  <View key={'we'+idx} style={{ backgroundColor: '#FFF8E1', borderRadius: IS_SMALL ? 6 : 10, padding: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 5 : 8, borderWidth: 1, borderColor: '#FFE082', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 3 : 6, flex: 1 }}>
-                      <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#333', fontWeight: 'bold' }}>{e.label || 'صرفية'}</Text>
-                      <Text style={{ fontSize: IS_SMALL ? 9 : 11, color: '#999' }}>({e.workerName || ''})</Text>
-                    </View>
-                    <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
                   </View>
                 ))}
               </View>
