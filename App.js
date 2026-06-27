@@ -31,11 +31,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
 import * as Crypto from 'expo-crypto';
 
-Text.defaultProps = Text.defaultProps || {};
-Text.defaultProps.allowFontScaling = false;
-TextInput.defaultProps = TextInput.defaultProps || {};
-TextInput.defaultProps.allowFontScaling = false;
-
 const API_URL = 'https://server-ten-wheat.vercel.app';
 
 async function apiRequest(method, path, body) {
@@ -365,6 +360,7 @@ const loadingStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
+    elevation: 9999,
   },
   box: {
     backgroundColor: 'white',
