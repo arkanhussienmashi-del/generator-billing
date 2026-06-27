@@ -4988,7 +4988,13 @@ export default function App() {
   };
 
   const handleWorkerAddExpense = (expenseType, amount, monthKey) => {
-    trackWorkerUpdate('addExpense', '', expenseType, 0, monthKey, { expenseType, amount });
+    setGlobalLoading('جاري حفظ الصرفية...');
+    try {
+      trackWorkerUpdate('addExpense', '', expenseType, 0, monthKey, { expenseType, amount });
+    } catch (e) {
+    } finally {
+      setGlobalLoading('');
+    }
   };
 
   const handleWorkerSync = async () => {
@@ -5335,22 +5341,40 @@ export default function App() {
   };
 
   const saveAmperPrice = async (monthKey, price) => {
-    const newPrices = { ...amperPrices, [monthKey]: price };
-    setAmperPrices(newPrices);
-    if (currentUser) await saveUserData(currentUser, 'amperPrices', newPrices);
+    setGlobalLoading('جاري حفظ السعر...');
+    try {
+      const newPrices = { ...amperPrices, [monthKey]: price };
+      setAmperPrices(newPrices);
+      if (currentUser) await saveUserData(currentUser, 'amperPrices', newPrices);
+    } catch (e) {
+    } finally {
+      setGlobalLoading('');
+    }
   };
 
   const saveGoldenPrice = async (monthKey, price) => {
-    const newPrices = { ...goldenPrices, [monthKey]: price };
-    setGoldenPrices(newPrices);
-    if (currentUser) await saveUserData(currentUser, 'goldenPrices', newPrices);
+    setGlobalLoading('جاري حفظ السعر...');
+    try {
+      const newPrices = { ...goldenPrices, [monthKey]: price };
+      setGoldenPrices(newPrices);
+      if (currentUser) await saveUserData(currentUser, 'goldenPrices', newPrices);
+    } catch (e) {
+    } finally {
+      setGlobalLoading('');
+    }
   };
 
   const saveExpenses = async (exp) => {
-    const key = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
-    const updated = { ...monthlyExpenses, [key]: exp };
-    setMonthlyExpenses(updated);
-    if (currentUser) await saveUserData(currentUser, 'monthlyExpenses', updated);
+    setGlobalLoading('جاري حفظ الصرفيات...');
+    try {
+      const key = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
+      const updated = { ...monthlyExpenses, [key]: exp };
+      setMonthlyExpenses(updated);
+      if (currentUser) await saveUserData(currentUser, 'monthlyExpenses', updated);
+    } catch (e) {
+    } finally {
+      setGlobalLoading('');
+    }
   };
 
   const handleCreateWorker = async (workerNameInput, permissions, assignedGenerators) => {
@@ -5449,6 +5473,7 @@ export default function App() {
 
   const handleAddSubscriber = async (subscriber) => {
     resetActivity();
+    setGlobalLoading('جاري حفظ المشترك...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('add')) return;
       const existing = subscribers.find(s => s.id === subscriber.id);
@@ -5498,11 +5523,14 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حفظ البيانات');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
   const handleDeleteSubscriber = async (id, monthKey) => {
     resetActivity();
+    setGlobalLoading('جاري حذف المشترك...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
       const now = new Date();
@@ -5531,11 +5559,14 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حذف المشترك');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
   const handleTogglePaid = async (id, monthKey) => {
     resetActivity();
+    setGlobalLoading('جاري تحديث حالة الدفع...');
     try {
       const sub = subscribers.find(s => s.id === id);
       if (!sub) return;
@@ -5595,11 +5626,14 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تغيير حالة الدفع');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
   const handlePartialPayment = async (id, amount, monthKey) => {
     resetActivity();
+    setGlobalLoading('جاري تسجيل الدفع الجزئي...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('partialPayment')) return;
       const sub = subscribers.find(s => s.id === id);
@@ -5672,10 +5706,13 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء الدفع الجزئي');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
   const handleRestoreSubscriber = async (id) => {
+    setGlobalLoading('جاري استرداد المشترك...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('delete')) return;
       const sub = subscribers.find(s => s.id === id);
@@ -5696,10 +5733,13 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء استرداد المشترك');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
   const handleChangeAmper = async (id, newAmper, monthKey) => {
+    setGlobalLoading('جاري تغيير الأمبير...');
     try {
       if (userRole === 'worker' && !workerPermissions.includes('amperPrice')) return;
       const sub = subscribers.find(s => s.id === id);
@@ -5728,6 +5768,8 @@ export default function App() {
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تغيير الأمبير');
+    } finally {
+      setGlobalLoading('');
     }
   };
 
