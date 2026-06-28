@@ -1866,9 +1866,9 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
               const list = usersResult || [];
               var found = false;
               for (var i = 0; i < list.length; i++) {
-                if (list[i].phone === currentUser && list[i].code === ownerPassword) {
-                  found = true;
-                  break;
+                if (list[i].phone === currentUser) {
+                  const vr = await verifyOwnerPassword(list[i].password, ownerPassword, currentUser);
+                  if (vr.match) { found = true; break; }
                 }
               }
               if (!found) {
