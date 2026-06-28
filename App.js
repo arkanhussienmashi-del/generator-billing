@@ -29,7 +29,6 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Crypto from 'expo-crypto';
 
 Text.defaultProps = { ...(Text.defaultProps || {}), allowFontScaling: false };
@@ -4855,7 +4854,6 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
 };
 
 export default function App() {
-  const insets = useSafeAreaInsets();
   const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -6781,7 +6779,7 @@ export default function App() {
       />
 
       {!editWorkerModalVisible && !addWorkerModalVisible && (
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
+      <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
           <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'home' ? '#2196F3' : '#999' }]}>الرئيسية</Text>
@@ -8322,6 +8320,7 @@ partialSubscriberName: {
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
     paddingTop: 6,
     elevation: 8,
     shadowColor: '#000',
