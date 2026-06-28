@@ -6640,6 +6640,17 @@ export default function App() {
     <View style={styles.mainContainer}>
       <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
 
+      {monthlyDataVisible ? (
+        <MonthlyDataScreen
+          visible={monthlyDataVisible}
+          onClose={() => setMonthlyDataVisible(false)}
+          subscribers={subscribers}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          monthlyExpenses={monthlyExpenses}
+          workerExpenses={workerExpenses}
+        />
+      ) : (<>
       {activeTab === 'home' && (
         <MainScreen
           currentUser={currentUser}
@@ -6800,17 +6811,9 @@ export default function App() {
         />
       )}
 
-      <MonthlyDataScreen
-        visible={monthlyDataVisible}
-        onClose={() => setMonthlyDataVisible(false)}
-        subscribers={subscribers}
-        amperPrices={amperPrices}
-        goldenPrices={goldenPrices}
-        monthlyExpenses={monthlyExpenses}
-        workerExpenses={workerExpenses}
-      />
+      </>)}
 
-      {!editWorkerModalVisible && !addWorkerModalVisible && (
+      {!monthlyDataVisible && !editWorkerModalVisible && !addWorkerModalVisible && (
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
           <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
