@@ -3356,25 +3356,26 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
       )}
 
       {editPickerVisible && (
-        <View style={styles.addSubscriberOverlay}>
-          <View style={styles.addSubscriberModalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => { setEditPickerVisible(false); setEditPickerSearch(''); }}>
-                <Ionicons name="close" size={28} color="#333" />
+        <View style={styles.subscribersOverlay}>
+          <View style={styles.subscribersContainer}>
+            <View style={styles.subscribersHeader}>
+              <TouchableOpacity onPress={() => { setEditPickerVisible(false); setEditPickerSearch(''); }} style={styles.backButton}>
+                <Ionicons name="arrow-forward" size={26} color="white" />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>اختر مشترك للتعديل</Text>
-              <View style={{ width: 30 }} />
+              <Text style={styles.subscribersTitle}>اختر مشترك للتعديل</Text>
+              <View style={{ width: 40 }} />
             </View>
-            <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 8 : 10 }}>
-              <TextInput
-                style={[styles.formInput, { textAlign: 'right' }]}
-                placeholder="ابحث عن مشترك..."
-                placeholderTextColor="#999"
-                value={editPickerSearch}
-                onChangeText={setEditPickerSearch}
-              />
-            </View>
-            <ScrollView style={{ maxHeight: IS_SMALL ? 350 : 400 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.searchContainer}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="ابحث عن مشترك بالاسم أو رقم الهاتف أو رقم الجوزة..."
+                  placeholderTextColor="#999"
+                  value={editPickerSearch}
+                  onChangeText={setEditPickerSearch}
+                  textAlign="right"
+                />
+              </View>
               {visibleSubscribers.filter(sub =>
                 sub.name.includes(editPickerSearch) ||
                 (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
@@ -3382,7 +3383,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
               ).map(sub => (
                 <TouchableOpacity
                   key={sub.id}
-                  style={{ padding: IS_SMALL ? 12 : 14, borderBottomWidth: 1, borderBottomColor: '#eee', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={[styles.subscriberCard, styles.unpaidCardBorder, { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }]}
                   onPress={() => {
                     setEditPickerVisible(false);
                     setEditPickerSearch('');
@@ -3390,8 +3391,14 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                     setEditSubscriberVisible(true);
                   }}
                 >
-                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333' }}>{sub.name}</Text>
-                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#2196F3' }}>{sub.amper} أميبر</Text>
+                  <View style={styles.subscriberInfo}>
+                    <Text style={styles.subscriberName}>{sub.name}</Text>
+                    <Text style={styles.subscriberAmount}>
+                      {sub.amper} أميبر    د.ع {formatNumber(sub.amper * (amperPrices[monthKey] || 0))}
+                    </Text>
+                    {sub.meterNumber && sub.meterNumber.trim() !== '' ? <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#999', marginTop: IS_SMALL ? 1 : 2 }}>رقم الجوزة: {sub.meterNumber}</Text> : null}
+                  </View>
+                  <Ionicons name="chevron-back" size={22} color="#2196F3" />
                 </TouchableOpacity>
               ))}
               {visibleSubscribers.filter(sub =>
@@ -3399,8 +3406,9 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
                 (sub.meterNumber && sub.meterNumber.includes(editPickerSearch))
               ).length === 0 && (
-                <View style={{ padding: IS_SMALL ? 16 : 20, alignItems: 'center' }}>
-                  <Text style={{ color: '#999', fontSize: IS_SMALL ? 14 : 16 }}>لا يوجد مشتركين</Text>
+                <View style={styles.emptyState}>
+                  <Ionicons name="search-outline" size={80} color="#90A4AE" />
+                  <Text style={styles.emptyStateText}>لا يوجد مشتركين</Text>
                 </View>
               )}
             </ScrollView>
