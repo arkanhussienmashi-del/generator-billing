@@ -1095,7 +1095,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
           </TouchableOpacity>
         </View>
       </View>
-      </Modal>
+    </Modal>
 
       <Modal visible={deleteGeneratorVisible} transparent animationType="fade">
         <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -4163,12 +4163,10 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: IS_SMALL ? 6 : 8 }}>
                     <Ionicons name="flash" size={IS_SMALL ? 18 : 22} color={isCurrent ? '#2196F3' : '#999'} />
-                    <Text style={{ fontSize: IS_SMALL ? 15 : 17, fontWeight: isCurrent ? 'bold' : '600', color: darkMode ? '#fff' : '#333', flex: 1 }}>{gen.name}</Text>
-                    {isCurrent && (
-                      <View style={{ backgroundColor: '#E3F2FD', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#1565C0', fontWeight: '600' }}>الحالي</Text>
-                      </View>
-                    )}
+                    <Text style={{ fontSize: IS_SMALL ? 15 : 17, fontWeight: isCurrent ? 'bold' : '600', color: darkMode ? '#fff' : '#333', flex: 1, textAlign: 'center' }}>{gen.name}</Text>
+                    <View style={{ backgroundColor: isCurrent ? '#E3F2FD' : 'transparent', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, minWidth: 48, alignItems: 'center' }}>
+                      {isCurrent ? <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#1565C0', fontWeight: '600' }}>الحالي</Text> : null}
+                    </View>
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: IS_SMALL ? 8 : 12, marginTop: 4 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -4178,10 +4176,6 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Ionicons name="flash-outline" size={IS_SMALL ? 13 : 15} color="#FF9800" />
                       <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>{formatNumber(stats.totalAmper)} أميبر</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Ionicons name="receipt-outline" size={IS_SMALL ? 13 : 15} color="#F44336" />
-                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>{formatNumber(stats.totalExpenses)}</Text>
                     </View>
                   </View>
                 </View>
@@ -4256,49 +4250,50 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
       )}
 
       {restoreModalVisible && (
-        <Modal visible={restoreModalVisible} transparent animationType="fade">
-          <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={function() { setRestoreModalVisible(false); }}>
-            <View style={[styles.partialModalContent, { maxHeight: '60%' }]} onStartShouldSetResponder={function() { return true; }}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={function() { setRestoreModalVisible(false); }}>
-                  <Ionicons name="close" size={28} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>استرداد بيانات المولد</Text>
-                <View style={{ width: 28 }} />
-              </View>
-              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#666', textAlign: 'center', marginBottom: 8 }}>المولدات المحذوفة (تُحذف نهائياً بعد شهر):</Text>
-              <ScrollView style={{ maxHeight: 300 }}>
-                {(deletedGenerators || []).map(function(dg) {
+        <View style={styles.subscribersOverlay}>
+          <View style={styles.subscribersContainer}>
+            <View style={styles.subscribersHeader}>
+              <TouchableOpacity onPress={function() { setRestoreModalVisible(false); }} style={styles.backButton}>
+                <Ionicons name="arrow-forward" size={26} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.subscribersTitle}>استرداد بيانات المولد</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+              {(!deletedGenerators || deletedGenerators.length === 0) ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="refresh-outline" size={80} color="#90A4AE" />
+                  <Text style={styles.emptyStateText}>لا توجد مولدات محذوفة</Text>
+                </View>
+              ) : (
+                deletedGenerators.map(function(dg) {
                   var daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
                   var dgData = dg.data || {};
                   var subCount = (dgData.subscribers || []).length;
                   return (
-                    <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
+                    <TouchableOpacity key={dg.id} style={[styles.subscriberCard, styles.unpaidCardBorder, { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }]} onPress={function() {
                       setRestorePasswordVisible(dg);
                       setRestorePassword('');
                       setRestoreModalVisible(false);
                     }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333', fontWeight: 'bold' }}>{dg.name}</Text>
-                        <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
+                      <View style={styles.subscriberInfo}>
+                        <Text style={styles.subscriberName}>{dg.name}</Text>
+                        <Text style={styles.subscriberAmount}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
                       </View>
                       <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
                     </TouchableOpacity>
                   );
-                })}
-                {(!deletedGenerators || deletedGenerators.length === 0) && (
-                  <Text style={{ fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 }}>لا توجد مولدات محذوفة</Text>
-                )}
-              </ScrollView>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
       )}
 
       {restorePasswordVisible && (
         <Modal visible={!!restorePasswordVisible} animationType="fade" transparent>
-          <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={function() { setRestorePasswordVisible(null); }}>
-            <View style={[styles.partialModalContent, { maxHeight: '35%' }]} onStartShouldSetResponder={function() { return true; }}>
+          <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[styles.partialModalContent, { width: MODAL_WIDTH, maxHeight: '40%' }]} onStartShouldSetResponder={function() { return true; }}>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={function() { setRestorePasswordVisible(null); }}>
                   <Ionicons name="close" size={28} color="#333" />
@@ -4345,7 +4340,7 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
                 </TouchableOpacity>
               </View>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
       )}
     </View>
