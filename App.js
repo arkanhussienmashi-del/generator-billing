@@ -3369,7 +3369,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
 
       <EditSubscriberModal
         visible={editSubscriberVisible}
-        onClose={() => { setEditSubscriberVisible(false); setEditSubscriber(null); }}
+        onClose={() => { setEditSubscriberVisible(false); setEditSubscriber(null); setEditPickerVisible(true); setEditPickerSearch(''); }}
         subscriber={editSubscriber}
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
@@ -4181,7 +4181,7 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Ionicons name="receipt-outline" size={IS_SMALL ? 13 : 15} color="#F44336" />
-                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>د.ع {formatNumber(stats.totalExpenses)}</Text>
+                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>{formatNumber(stats.totalExpenses)}</Text>
                     </View>
                   </View>
                 </View>
