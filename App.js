@@ -2772,7 +2772,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             <View style={styles.searchContainer}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="اكتب اسم المشترك للبحث..."
+placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم الجوزة للبحث..."
                 placeholderTextColor="#999"
                 value={editPickerSearch}
                 onChangeText={setEditPickerSearch}
@@ -2783,7 +2783,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             {editPickerSearch.trim() === '' && (
               <View style={styles.emptyState}>
                 <Ionicons name="search-outline" size={80} color="#90A4AE" />
-                <Text style={styles.emptyStateText}>اكتب اسم المشترك للبحث</Text>
+                <Text style={styles.emptyStateText}>اكتب اسم المشترك أو رقم الهاتف أو رقم الجوزة للبحث</Text>
               </View>
             )}
             {editResults.map(sub => (
@@ -2946,7 +2946,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
           </View>
 
           <View style={styles.searchContainer}>
-            <TextInput style={styles.searchInput} placeholder="اكتب اسم المشترك للبحث..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} textAlign="right" />
+            <TextInput style={styles.searchInput} placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم الجوزة للبحث..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} textAlign="right" />
           </View>
 
           <View style={styles.filterTabs}>
@@ -3674,13 +3674,17 @@ const AddGeneratorInput = ({ onAdd }) => {
   );
 };
 
-const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses }) => {
+const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses, onSetExpenses }) => {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState('normal');
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [addExpenseVisible, setAddExpenseVisible] = useState(false);
+  const [addExpenseField, setAddExpenseField] = useState('');
+  const [addExpenseLabel, setAddExpenseLabel] = useState('');
+  const [addExpenseAmount, setAddExpenseAmount] = useState('');
   const [showWorkerExpenses, setShowWorkerExpenses] = useState(false);
 
   const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
@@ -3697,6 +3701,31 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   const m = parseInt(selectedMonth);
   const y = parseInt(selectedYear);
   const monthKey = `${m}_${y}`;
+
+  const isPastMonth = (y < now.getFullYear()) || (y === now.getFullYear() && m < (now.getMonth() + 1));
+
+  const openAddExpense = (field, label) => {
+    setAddExpenseField(field);
+    setAddExpenseLabel(label);
+    setAddExpenseAmount('');
+    setAddExpenseVisible(true);
+  };
+
+  const handleConfirmAddExpense = () => {
+    const clean = addExpenseAmount.replace(/[^0-9]/g, '');
+    const addVal = parseInt(clean) || 0;
+    if (addVal <= 0) {
+      Alert.alert('خطأ', 'أدخل مبلغ صحيح');
+      return;
+    }
+    const currentMap = { gas: monthExpenses.gas, oil: monthExpenses.oil, repairs: monthExpenses.repairs, salaries: monthExpenses.salaries };
+    const current = parseInt(String(currentMap[addExpenseField]).replace(/[^0-9]/g, '')) || 0;
+    const newVal = String(current + addVal);
+    const newExpenses = { ...monthlyExpenses, [monthKey]: { ...monthExpenses, [addExpenseField]: newVal } };
+    if (onSetExpenses) onSetExpenses(newExpenses);
+    setAddExpenseVisible(false);
+    Alert.alert('تم', 'تم تسجيل الصرفية بنجاح');
+  };
 
   const stats = useMemo(() => {
     let activeCount = 0;
@@ -3845,25 +3874,37 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
 
               <View style={{ gap: IS_SMALL ? 6 : 10 }}>
                 <View>
-                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>وقود</Text>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 2 : 4 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>وقود</Text>
+                    {isPastMonth && <TouchableOpacity onPress={() => openAddExpense('gas', 'وقود')} style={{ backgroundColor: '#1565C0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 11, fontWeight: '600' }}>إضافة صرفية</Text></TouchableOpacity>}
+                  </View>
                   <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
                     <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.gas) || 0)}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>زيت</Text>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 2 : 4 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>زيت</Text>
+                    {isPastMonth && <TouchableOpacity onPress={() => openAddExpense('oil', 'زيت')} style={{ backgroundColor: '#1565C0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 11, fontWeight: '600' }}>إضافة صرفية</Text></TouchableOpacity>}
+                  </View>
                   <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
                     <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.oil) || 0)}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>صيانة</Text>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 2 : 4 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>صيانة</Text>
+                    {isPastMonth && <TouchableOpacity onPress={() => openAddExpense('repairs', 'صيانة')} style={{ backgroundColor: '#1565C0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 11, fontWeight: '600' }}>إضافة صرفية</Text></TouchableOpacity>}
+                  </View>
                   <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
                     <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.repairs) || 0)}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666', marginBottom: IS_SMALL ? 2 : 4, textAlign: 'right' }}>رواتب</Text>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 2 : 4 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>رواتب</Text>
+                    {isPastMonth && <TouchableOpacity onPress={() => openAddExpense('salaries', 'رواتب')} style={{ backgroundColor: '#1565C0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ color: 'white', fontSize: 11, fontWeight: '600' }}>إضافة صرفية</Text></TouchableOpacity>}
+                  </View>
                   <View style={[styles.settingsInput, { backgroundColor: '#f5f5f5', padding: IS_SMALL ? 10 : 16 }]}>
                     <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333' }}>د.ع {formatNumber(parseFloat(monthExpenses.salaries) || 0)}</Text>
                   </View>
@@ -3925,6 +3966,41 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
                 </ScrollView>
               </View>
             </TouchableOpacity>
+          </Modal>
+        )}
+
+        {addExpenseVisible && (
+          <Modal visible={addExpenseVisible} transparent animationType="fade">
+            <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+              <View style={{ backgroundColor: 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: '80%', alignItems: 'center' }}>
+                <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', marginBottom: IS_SMALL ? 12 : 16, color: '#333' }}>إضافة مبلغ - {addExpenseLabel}</Text>
+                <View style={{ backgroundColor: '#F5F5F5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 8 : 10, marginBottom: IS_SMALL ? 10 : 12, width: '100%' }}>
+                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#666', textAlign: 'center' }}>المبلغ الحالي: د.ع {formatNumber(parseFloat(monthExpenses[addExpenseField]) || 0)}</Text>
+                </View>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 16 : 18, width: '100%', textAlign: 'center', marginBottom: IS_SMALL ? 12 : 16 }}
+                  value={addExpenseAmount ? formatNumber(parseInt(addExpenseAmount.replace(/[^0-9]/g, ''))) : ''}
+                  onChangeText={(t) => setAddExpenseAmount(t.replace(/[^0-9]/g, ''))}
+                  placeholder="المبلغ المضاف"
+                  placeholderTextColor="#999"
+                  keyboardType="numeric"
+                />
+                <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 12, width: '100%' }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, alignItems: 'center' }}
+                    onPress={handleConfirmAddExpense}
+                  >
+                    <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إدخال</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#eee', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, alignItems: 'center' }}
+                    onPress={() => setAddExpenseVisible(false)}
+                  >
+                    <Text style={{ color: '#666', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إلغاء</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
           </Modal>
         )}
       </View>
@@ -4461,11 +4537,17 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
         </View>
       )}
       <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 4 : 6 }}>
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 8 : 12 }}>
           <TouchableOpacity style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
-            <Text style={styles.monthlyDataButtonText}>بيانات كل شهر</Text>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="calendar-outline" size={IS_SMALL ? 14 : 16} color="white" />
+              <Text style={styles.monthlyDataButtonText}>بيانات كل شهر</Text>
+            </View>
           </TouchableOpacity>
-          <Text style={[styles.dateText, { fontSize: IS_SMALL ? 12 : 14 }]}>{getCurrentDate()}</Text>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="flash-outline" size={IS_SMALL ? 14 : 16} color="#1565C0" />
+            <Text style={[styles.dateText, { fontSize: IS_SMALL ? 12 : 14 }]}>{generatorName || 'مولدي'} - {getCurrentDate()}</Text>
+          </View>
         </View>
 
         {hasGoldenSubscribers ? (
@@ -4610,7 +4692,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
       </ScrollView>
 
       <Modal visible={addExpenseVisible} transparent animationType="fade">
-        <View style={[styles.modalOverlay, { justifyContent: 'center' }]}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
           <View style={{ backgroundColor: 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: '80%', alignItems: 'center' }}>
             <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', marginBottom: IS_SMALL ? 12 : 16, color: '#333' }}>إضافة مبلغ - {addExpenseLabel}</Text>
             <View style={{ backgroundColor: '#F5F5F5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 8 : 10, marginBottom: IS_SMALL ? 10 : 12, width: '100%' }}>
@@ -5795,6 +5877,17 @@ export default function App() {
     }
   };
 
+  const handleSetMonthlyExpenses = async (newExpenses) => {
+    setGlobalLoading('جاري حفظ الصرفية...');
+    try {
+      setMonthlyExpenses(newExpenses);
+      if (currentUser) await saveUserData(currentUser, 'monthlyExpenses', newExpenses);
+    } catch (e) {
+    } finally {
+      setGlobalLoading('');
+    }
+  };
+
   const handleCreateWorker = async (workerNameInput, permissions, assignedGenerators) => {
     setGlobalLoading('جاري إنشاء حساب العامل...');
     try {
@@ -5992,7 +6085,6 @@ export default function App() {
 
   const handleTogglePaid = async (id, monthKey) => {
     resetActivity();
-    setGlobalLoading('جاري تحديث حالة الدفع...');
     try {
       const sub = subscribers.find(s => s.id === id);
       if (!sub) return;
@@ -6001,6 +6093,29 @@ export default function App() {
         const requiredPerm = isCurrentlyPaid ? 'cancelPayment' : 'edit';
         if (!workerPermissions.includes(requiredPerm)) return;
       }
+      if (isCurrentlyPaid) {
+        Alert.alert('تأكيد إلغاء الدفع', `هل أنت متأكد من إلغاء دفع "${sub.name}" للشهر ${monthKey.split('_')[0]}/${monthKey.split('_')[1]}؟`, [
+          { text: 'لا', style: 'cancel' },
+          { text: 'نعم', onPress: () => {
+            Alert.alert('تنبيه نهائي', 'سيتم حذف سجل الدفع نهائياً. هل تريد المتابعة؟', [
+              { text: 'إلغاء', style: 'cancel' },
+              { text: 'تأكيد الإلغاء', style: 'destructive', onPress: () => executePaymentToggle(id, monthKey, true) },
+            ]);
+          }},
+        ]);
+        return;
+      }
+      await executePaymentToggle(id, monthKey, false);
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء تغيير حالة الدفع');
+    }
+  };
+
+  const executePaymentToggle = async (id, monthKey, isCurrentlyPaid) => {
+    setGlobalLoading('جاري تحديث حالة الدفع...');
+    try {
+      const sub = subscribers.find(s => s.id === id);
+      if (!sub) return;
       const now = new Date();
       const hours = now.getHours();
       const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
@@ -6535,6 +6650,7 @@ export default function App() {
           goldenPrices={goldenPrices}
           monthlyExpenses={monthlyExpenses}
           workerExpenses={workerExpenses}
+          onSetExpenses={handleSetMonthlyExpenses}
         />
       ) : (<>
       {activeTab === 'home' && (
