@@ -4031,6 +4031,18 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
   const [restorePasswordVisible, setRestorePasswordVisible] = useState(null);
   const [restorePassword, setRestorePassword] = useState('');
 
+  useEffect(() => {
+    if (!restorePasswordVisible && !restoreModalVisible && !addModalVisible && !deletePasswordModal) return;
+    var handler = BackHandler.addEventListener('hardwareBackPress', function() {
+      if (restorePasswordVisible) { setRestorePasswordVisible(null); setRestorePassword(''); return true; }
+      if (restoreModalVisible) { setRestoreModalVisible(false); return true; }
+      if (addModalVisible) { setAddModalVisible(false); return true; }
+      if (deletePasswordModal) { setDeletePasswordModal(null); return true; }
+      return false;
+    });
+    return function() { handler.remove(); };
+  }, [restorePasswordVisible, restoreModalVisible, addModalVisible, deletePasswordModal]);
+
   const getGeneratorStats = (gen) => {
     var subs = gen.subscribers || [];
     var activeSubs = subs.filter(function(s) { return !s.deletedFromMonth; });
