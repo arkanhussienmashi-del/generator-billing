@@ -1745,7 +1745,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
             {selWorker ? (
               <>
                 <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 12 : 16, backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 14 }}>
-                  <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ backgroundColor: '#2196F3', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="person" size={IS_SMALL ? 18 : 20} color="white" />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -1832,7 +1832,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
                         setEditPerms(worker.permissions || []);
                         setEditAssignedGens(worker.assignedGenerators || []);
                       }}>
-                        <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ backgroundColor: '#2196F3', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="person" size={IS_SMALL ? 18 : 20} color="white" />
                         </View>
                         <View style={{ flex: 1, alignItems: 'flex-end' }}>
