@@ -26,8 +26,7 @@ const SCALE = SCREEN_WIDTH / 375;
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
+
 import NetInfo from '@react-native-community/netinfo';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Crypto from 'expo-crypto';
@@ -201,8 +200,7 @@ function isDeletedForReport(subscriber, month, year) {
   const delYear = parseInt(delParts[1]);
   const tMonth = parseInt(month);
   const tYear = parseInt(year);
-  if (tYear > delYear) return true;
-  if (tYear === delYear && tMonth >= delMonth) return true;
+  if (tYear === delYear && tMonth === delMonth) return true;
   return false;
 }
 
@@ -408,44 +406,6 @@ function validatePhone(phone) {
   return null;
 }
 
-async function exportUserData(phone) {
-  const allData = await loadAllUserKeys(phone);
-  if (!allData || Object.keys(allData).length === 0) {
-    return null;
-  }
-  const exportObj = {
-    appVersion: '1.0.0',
-    exportDate: new Date().toISOString(),
-    phone: phone,
-    keys: allData,
-  };
-  const json = JSON.stringify(exportObj, null, 2);
-  const fileName = `backup_${phone}_${Date.now()}.json`;
-  const filePath = FileSystem.documentDirectory + fileName;
-  await FileSystem.writeAsStringAsync(filePath, json);
-  return filePath;
-}
-
-async function importUserData(filePath) {
-  try {
-    const content = await FileSystem.readAsStringAsync(filePath);
-    const importObj = JSON.parse(content);
-    if (!importObj.phone) {
-      return { success: false, error: 'ملف غير صالح' };
-    }
-    const data = importObj.keys || importObj.data;
-    if (!data || typeof data !== 'object') {
-      return { success: false, error: 'ملف غير صالح' };
-    }
-    for (const [key, value] of Object.entries(data)) {
-      await saveUserData(importObj.phone, key, value);
-    }
-    return { success: true, phone: importObj.phone };
-  } catch (e) {
-    return { success: false, error: 'خطأ في قراءة الملف' };
-  }
-}
-
 const OnboardingScreen = ({ onComplete }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const slides = [
@@ -469,13 +429,6 @@ const OnboardingScreen = ({ onComplete }) => {
       title: 'التقارير والإحصائيات',
       description: 'عرض تقارير شاملة للمدفوعات والمطلوبين مع إمكانية البحث والتصفية',
       bg: '#37474F',
-    },
-    {
-      icon: 'cloud-upload',
-      iconColor: '#9C27B0',
-      title: 'نسخ احتياطي',
-      description: 'حفظ البيانات تلقائياً في السحابة مع إمكانية التصدير والاستيراد',
-      bg: '#6A1B9A',
     },
     {
       icon: 'person-add',
@@ -605,6 +558,10 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
       Alert.alert('تنبيه', 'الرمز يجب أن يكون 6 أحرف أو أرقام على الأقل');
       return;
     }
+    if (/[\u0600-\u06FF]/.test(ownerCode)) {
+      Alert.alert('تنبيه', 'الرمز يجب أن يكون أرقام أو حروف إنجليزية فقط');
+      return;
+    }
     if (ownerCode.trim() !== confirmOwnerCode.trim()) {
       Alert.alert('تنبيه', 'الرمز غير متطابق');
       return;
@@ -692,7 +649,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               placeholder="الرمز (6 أحرف أو أرقام على الأقل)"
               placeholderTextColor="#999"
               value={ownerCode}
-              onChangeText={setOwnerCode}
+              onChangeText={(t) => setOwnerCode(t.replace(/[\u0600-\u06FF]/g, ''))}
               maxLength={20}
               secureTextEntry={!showRegCode}
             />
@@ -707,7 +664,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               placeholder="تأكيد الرمز"
               placeholderTextColor="#999"
               value={confirmOwnerCode}
-              onChangeText={setConfirmOwnerCode}
+              onChangeText={(t) => setConfirmOwnerCode(t.replace(/[\u0600-\u06FF]/g, ''))}
               maxLength={20}
               secureTextEntry={!showRegCodeConfirm}
             />
@@ -939,17 +896,13 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser, onChangePassVisible }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
 
   const [deleteGenPassword, setDeleteGenPassword] = useState('');
   const [selectedDeleteGenId, setSelectedDeleteGenId] = useState(null);
   const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
-  const [changePassVisible, setChangePassVisible] = useState(false);
-  const [currentPass, setCurrentPass] = useState('');
-  const [newPass, setNewPass] = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
   const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
   const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
 
@@ -1005,28 +958,19 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               />
               <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>سيتم عرض هذا الاسم عند كل عملية دفع أو إلغاء دفع</Text>
 
-              <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
+              <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#25D366', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginTop: IS_SMALL ? 8 : 12 }]} onPress={() => Linking.openURL('https://wa.me/9647802524458')}>
+                <Ionicons name="logo-whatsapp" size={IS_SMALL ? 18 : 20} color="white" />
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تواصل مع الدعم</Text>
+              </TouchableOpacity>
 
-              <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>النسخ الاحتياطي</Text>
-              <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 6 : 10 }}>
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={onExport}>
-                  <Ionicons name="cloud-upload-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تصدير</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={onImport}>
-                  <Ionicons name="cloud-download-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>استيراد</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>تصدير: حفظ نسخة احتياطية ومشاركتها عبر واتساب أو إيميل</Text>
-              <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>استيراد: استعادة بيانات من نسخة احتياطية سابقة</Text>
+              <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
 
               <View style={{ marginTop: IS_SMALL ? 14 : 20, marginBottom: IS_SMALL ? 8 : 10 }}>
                 <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: IS_SMALL ? 10 : 16 }} />
 
                 <TouchableOpacity
                   style={[styles.settingsInput, { backgroundColor: '#9C27B0', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]}
-                  onPress={() => setChangePassVisible(true)}
+                  onPress={() => onChangePassVisible && onChangePassVisible()}
                 >
                   <Ionicons name="key-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تغيير رمز الحساب</Text>
@@ -1058,7 +1002,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>شروط الخدمة</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => { setDeleteAccountPassword(''); setDeleteAccountVisible(true); }}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => {}}>
                   <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف الحساب والبيانات</Text>
                 </TouchableOpacity>
@@ -1135,52 +1079,6 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               }
             }}>
               <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حذف المولد</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={changePassVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
-              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#9C27B0' }}>تغيير رمز الحساب</Text>
-              <TouchableOpacity onPress={() => { setChangePassVisible(false); setCurrentPass(''); setNewPass(''); setConfirmPass(''); }}>
-                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color="#333" />
-              </TouchableOpacity>
-            </View>
-            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 10 : 16 }}>أدخل الرمز الحالي ثم الرمز الجديد</Text>
-
-            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
-            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={50} />
-
-            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 8 : 12, textAlign: 'right' }}>الرمز الجديد</Text>
-            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={setNewPass} secureTextEntry maxLength={50} />
-
-            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 8 : 12, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
-            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={setConfirmPass} secureTextEntry maxLength={50} />
-
-            <TouchableOpacity
-              style={{ backgroundColor: '#9C27B0', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 12 : 16, opacity: currentPass && newPass && confirmPass ? 1 : 0.5 }}
-              disabled={!currentPass || !newPass || !confirmPass}
-              onPress={async () => {
-                if (!currentPass.trim()) { Alert.alert('تنبيه', 'أدخل الرمز الحالي'); return; }
-                if (newPass.trim().length < 6) { Alert.alert('تنبيه', 'الرمز الجديد يجب أن يكون 6 أحرف على الأقل'); return; }
-                if (newPass.trim() !== confirmPass.trim()) { Alert.alert('تنبيه', 'الرمز الجديد غير متطابق'); return; }
-                if (currentPass.trim() === newPass.trim()) { Alert.alert('تنبيه', 'الرمز الجديد نفس الرمز الحالي'); return; }
-                const success = await onChangePassword(currentPass.trim(), newPass.trim());
-                if (success) {
-                  setChangePassVisible(false);
-                  setCurrentPass('');
-                  setNewPass('');
-                  setConfirmPass('');
-                  Alert.alert('تم', 'تم تغيير رمز الحساب بنجاح');
-                } else {
-                  Alert.alert('خطأ', 'الرمز الحالي غير صحيح');
-                }
-              }}
-            >
-              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تغيير الرمز</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1745,7 +1643,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
             {selWorker ? (
               <>
                 <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 12 : 16, backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 14 }}>
-                  <View style={{ backgroundColor: '#2196F3', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
                     <Ionicons name="person" size={IS_SMALL ? 18 : 20} color="white" />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -1832,7 +1730,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
                         setEditPerms(worker.permissions || []);
                         setEditAssignedGens(worker.assignedGenerators || []);
                       }}>
-                        <View style={{ backgroundColor: '#2196F3', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="person" size={IS_SMALL ? 18 : 20} color="white" />
                         </View>
                         <View style={{ flex: 1, alignItems: 'flex-end' }}>
@@ -2023,17 +1921,33 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
               <View style={{ marginBottom: IS_SMALL ? 12 : 16 }}>
                 <Text style={[styles.formLabel, { marginBottom: IS_SMALL ? 8 : 10, fontWeight: 'bold' }]}>اختر العامل</Text>
                 <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: IS_SMALL ? 8 : 10 }}>
-                  {workers.map((w, idx) => {
-                    const isSelected = selectedWorker && selectedWorker.code === w.code;
-                    return (
-                      <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
-                        <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: IS_SMALL ? 14 : 16, width: IS_SMALL ? 28 : 32, height: IS_SMALL ? 28 : 32, alignItems: 'center', justifyContent: 'center' }}>
-                          <Ionicons name="person" size={IS_SMALL ? 16 : 18} color={isSelected ? '#FF9800' : 'white'} />
-                        </View>
-                        <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: isSelected ? 'white' : '#333' }}>{w.workerName || 'بدون اسم'}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {(() => {
+                    const pendingCounts = {};
+                    (safePending || []).forEach(function(batch) {
+                      const code = batch.workerCode || '';
+                      const name = batch.workerName || '';
+                      const key = code || name;
+                      if (key) pendingCounts[key] = (pendingCounts[key] || 0) + 1;
+                    });
+                    return workers.map((w, idx) => {
+                      const isSelected = selectedWorker && selectedWorker.code === w.code;
+                      const workerKey = w.code || w.workerName || '';
+                      const pendingCount = pendingCounts[workerKey] || 0;
+                      return (
+                        <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
+                          <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: IS_SMALL ? 14 : 16, width: IS_SMALL ? 28 : 32, height: IS_SMALL ? 28 : 32, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="person" size={IS_SMALL ? 16 : 18} color={isSelected ? '#FF9800' : 'white'} />
+                          </View>
+                          <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: isSelected ? 'white' : '#333' }}>{w.workerName || 'بدون اسم'}</Text>
+                          {pendingCount > 0 && (
+                            <View style={{ backgroundColor: '#F44336', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, marginLeft: 4 }}>
+                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 11 }}>{pendingCount}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    });
+                  })()}
                 </View>
               </View>
 
@@ -2697,9 +2611,9 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode }) => {
-  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
-  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth }) => {
+  const [selectedMonth, setSelectedMonth] = useState(lastMonth || String(new Date().getMonth() + 1));
+  const [selectedYear, setSelectedYear] = useState(lastYear || String(new Date().getFullYear()));
   const [searchText, setSearchText] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState('normal');
@@ -2735,6 +2649,10 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   const PAGE_SIZE = 15;
 
   useEffect(() => { setDisplayCount(PAGE_SIZE); }, [selectedMonth, selectedYear, searchText, activeFilter, visible]);
+
+  useEffect(() => { if (visible) { setSelectedMonth(lastMonth || String(new Date().getMonth() + 1)); setSelectedYear(lastYear || String(new Date().getFullYear())); } }, [visible, lastMonth, lastYear]);
+
+  useEffect(() => { if (onSaveLastMonth) onSaveLastMonth(selectedMonth, selectedYear); }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     if (!editPickerVisible && !deletePickerVisible) return;
@@ -3468,20 +3386,13 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
   const getPriceForMonth = (m, y, subType) => getPriceForSubscriber(amperPrices, goldenPrices, `${m}_${y}`, subType);
 
   const filteredSubscribers = useMemo(() => {
+    if (!searchText) return [];
     return subscribers.filter(sub => {
       if ((sub.subscriptionType || 'normal') !== subscriptionTypeFilter) return false;
       if (!sub.name.includes(searchText)) return false;
-      if (sub.deletedFromMonth) {
-        const delParts = sub.deletedFromMonth.split('_');
-        const delMonth = parseInt(delParts[0]);
-        const delYear = parseInt(delParts[1]);
-        const selYear = parseInt(selectedYear);
-        if (selYear > delYear) return false;
-        if (selYear === delYear && parseInt(selectedMonth !== 'all' ? selectedMonth : '1') >= delMonth) return false;
-      }
       return true;
     });
-  }, [subscribers, searchText, selectedYear, selectedMonth, subscriptionTypeFilter]);
+  }, [subscribers, searchText, subscriptionTypeFilter]);
 
   const monthsToShow = selectedMonth === 'all' ? months : [selectedMonth];
 
@@ -4921,6 +4832,8 @@ export default function App() {
   const [updatesModalVisible, setUpdatesModalVisible] = useState(false);
   const [monthlyDataVisible, setMonthlyDataVisible] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [lastSubscribersMonth, setLastSubscribersMonth] = useState(String(new Date().getMonth() + 1));
+  const [lastSubscribersYear, setLastSubscribersYear] = useState(String(new Date().getFullYear()));
   const [deletedGenerators, setDeletedGenerators] = useState([]);
   const [globalLoading, setGlobalLoading] = useState('');
   const [activeTab, setActiveTab] = useState('home');
@@ -4932,6 +4845,10 @@ export default function App() {
   const [editWorkerSel, setEditWorkerSel] = useState(null);
   const [editWorkerPerms, setEditWorkerPerms] = useState([]);
   const [editWorkerAssignedGens, setEditWorkerAssignedGens] = useState([]);
+  const [changePassVisible, setChangePassVisible] = useState(false);
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -5117,6 +5034,8 @@ export default function App() {
     if (all.worker_activity_log !== undefined) setWorkerActivityLog(all.worker_activity_log);
     if (all.workers !== undefined) setWorkers(all.workers);
     if (all.darkMode !== undefined) setDarkMode(all.darkMode);
+    if (all.lastSubscribersMonth) setLastSubscribersMonth(all.lastSubscribersMonth);
+    if (all.lastSubscribersYear) setLastSubscribersYear(all.lastSubscribersYear);
 
     const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const savedDeleted = all.deletedGenerators || [];
@@ -5823,46 +5742,6 @@ export default function App() {
     setPendingWorkerUpdates(normalizeBatches(updates));
   };
 
-  const handleExport = async () => {
-    try {
-      const filePath = await exportUserData(currentUser);
-      if (!filePath) {
-        Alert.alert('تنبيه', 'لا توجد بيانات للتصدير');
-        return;
-      }
-      await Sharing.shareAsync(filePath, {
-        mimeType: 'application/json',
-        dialogTitle: 'تصدير بيانات مولدي',
-      });
-    } catch (e) {
-      Alert.alert('خطأ', 'فشل التصدير');
-    }
-  };
-
-  const handleImport = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/json',
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled) return;
-      const fileUri = result.assets[0].uri;
-      const importResult = await importUserData(fileUri);
-      if (importResult.success) {
-        if (importResult.phone === currentUser) {
-          await loadAllUserData();
-          Alert.alert('نجاح', 'تم استيراد البيانات بنجاح');
-        } else {
-          Alert.alert('تنبيه', 'الملف يخص مستخدم آخر');
-        }
-      } else {
-        Alert.alert('خطأ', importResult.error);
-      }
-    } catch (e) {
-      Alert.alert('خطأ', 'فشل الاستيراد');
-    }
-  };
-
   const saveGeneratorName = async (name) => {
     setGeneratorName(name);
     if (currentUser) await saveUserData(currentUser, 'generatorName', name);
@@ -6330,6 +6209,7 @@ export default function App() {
       if (screen === 'welcome' || screen === 'login' || screen === 'register' || screen === 'workerLogin') return false;
 
       if (workerSwitchGeneratorVisible) { setWorkerSwitchGeneratorVisible(false); return true; }
+      if (changePassVisible) { setChangePassVisible(false); setCurrentPass(''); setNewPass(''); setConfirmPass(''); return true; }
       if (monthlyDataVisible) { setMonthlyDataVisible(false); return true; }
       if (updatesModalVisible) { setUpdatesModalVisible(false); return true; }
       if (settingsVisible) { setSettingsVisible(false); setActiveTab('home'); return true; }
@@ -6341,7 +6221,7 @@ export default function App() {
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible]);
+  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible]);
 
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
@@ -6486,6 +6366,9 @@ export default function App() {
           userRole={userRole}
           workerPermissions={workerPermissions}
           darkMode={darkMode}
+          lastMonth={lastSubscribersMonth}
+          lastYear={lastSubscribersYear}
+          onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -6580,6 +6463,9 @@ export default function App() {
           userRole={userRole}
           workerPermissions={workerPermissions}
           darkMode={darkMode}
+          lastMonth={lastSubscribersMonth}
+          lastYear={lastSubscribersYear}
+          onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -6698,6 +6584,9 @@ export default function App() {
           userRole={userRole}
           workerPermissions={workerPermissions}
           darkMode={darkMode}
+          lastMonth={lastSubscribersMonth}
+          lastYear={lastSubscribersYear}
+          onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
         />
       )}
 
@@ -6753,14 +6642,12 @@ export default function App() {
       )}
 
       <SettingsScreen
-        visible={activeTab === 'more' || settingsVisible}
+        visible={(activeTab === 'more' || settingsVisible) && !changePassVisible}
         onClose={() => { setSettingsVisible(false); setActiveTab('home'); }}
         generatorName={generatorName}
         onSaveGeneratorName={saveGeneratorName}
         ownerName={ownerName}
         onSaveOwnerName={saveOwnerName}
-        onExport={handleExport}
-        onImport={handleImport}
         onCreateWorker={handleCreateWorker}
         pendingWorkerUpdates={pendingWorkerUpdates}
         onLoadUpdates={loadPendingUpdates}
@@ -6784,6 +6671,7 @@ export default function App() {
         currentGeneratorId={currentGeneratorId}
         onChangePassword={handleChangePassword}
         currentUser={currentUser}
+        onChangePassVisible={() => setChangePassVisible(true)}
       />
 
       {addWorkerModalVisible && (
@@ -6811,9 +6699,62 @@ export default function App() {
         />
       )}
 
+      {changePassVisible && (
+        <View style={styles.subscribersOverlay}>
+          <View style={styles.subscribersContainer}>
+            <View style={styles.subscribersHeader}>
+              <TouchableOpacity onPress={() => { setChangePassVisible(false); setCurrentPass(''); setNewPass(''); setConfirmPass(''); }} style={styles.backButton}>
+                <Ionicons name="arrow-forward" size={26} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.subscribersTitle}>تغيير رمز الحساب</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+              <View style={{ padding: IS_SMALL ? 16 : 20 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 16 : 20 }}>أدخل الرمز الحالي ثم الرمز الجديد</Text>
+
+                <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 16 : 20, marginBottom: IS_SMALL ? 16 : 20 }}>
+                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={50} allowFontScaling={false} />
+
+                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 12 : 16, textAlign: 'right' }}>الرمز الجديد</Text>
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={(t) => setNewPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={50} allowFontScaling={false} />
+
+                  <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 12 : 16, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={(t) => setConfirmPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={50} allowFontScaling={false} />
+                </View>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#9C27B0', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 12 : 16, width: '100%', alignItems: 'center', opacity: currentPass && newPass && confirmPass ? 1 : 0.5 }}
+                  disabled={!currentPass || !newPass || !confirmPass}
+                  onPress={async () => {
+                    if (!currentPass.trim()) { Alert.alert('تنبيه', 'أدخل الرمز الحالي'); return; }
+                    if (newPass.trim().length < 6) { Alert.alert('تنبيه', 'الرمز الجديد يجب أن يكون 6 أحرف على الأقل'); return; }
+                    if (newPass.trim() !== confirmPass.trim()) { Alert.alert('تنبيه', 'الرمز الجديد غير متطابق'); return; }
+                    if (currentPass.trim() === newPass.trim()) { Alert.alert('تنبيه', 'الرمز الجديد نفس الرمز الحالي'); return; }
+                    if (/[\u0600-\u06FF]/.test(newPass)) { Alert.alert('تنبيه', 'الرمز يجب أن يكون أرقام أو حروف إنجليزية فقط'); return; }
+                    const success = await handleChangePassword(currentPass.trim(), newPass.trim());
+                    if (success) {
+                      setCurrentPass('');
+                      setNewPass('');
+                      setConfirmPass('');
+                      Alert.alert('تم', 'تم تغيير رمز الحساب بنجاح', [{ text: 'حسناً', onPress: () => setChangePassVisible(false) }]);
+                    } else {
+                      Alert.alert('خطأ', 'الرمز الحالي غير صحيح');
+                    }
+                  }}
+                >
+                  <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تغيير الرمز</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
       </>)}
 
-      {!monthlyDataVisible && !editWorkerModalVisible && !addWorkerModalVisible && (
+      {!monthlyDataVisible && !editWorkerModalVisible && !addWorkerModalVisible && !changePassVisible && (
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
           <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
@@ -6842,7 +6783,7 @@ export default function App() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => { setSettingsVisible(true); setActiveTab('more'); }}>
           <Ionicons name={activeTab === 'more' ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline'} size={24} color={activeTab === 'more' ? '#2196F3' : '#999'} />
-          <Text style={[styles.tabLabel, { color: activeTab === 'more' ? '#2196F3' : '#999' }]}>المزيد</Text>
+          <Text style={[styles.tabLabel, { color: activeTab === 'more' ? '#2196F3' : '#999' }]}>الاعدادات</Text>
         </TouchableOpacity>
       </View>
       )}
