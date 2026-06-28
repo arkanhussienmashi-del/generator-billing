@@ -4090,6 +4090,48 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
 
   if (!visible) return null;
 
+  if (restoreModalVisible) {
+    return (
+      <View style={[styles.mainContainer, darkMode && { backgroundColor: '#121212' }]}>
+        <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+        <View style={{ backgroundColor: '#1565C0', paddingTop: IS_SMALL ? 36 : 44, paddingBottom: IS_SMALL ? 12 : 16, paddingHorizontal: 16, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ width: 40 }} />
+          <Text style={{ fontSize: IS_SMALL ? 18 : 22, fontWeight: 'bold', color: 'white', textAlign: 'center', flex: 1 }}>استرداد بيانات المولد</Text>
+          <TouchableOpacity onPress={function() { setRestoreModalVisible(false); }} style={{ padding: 6 }}>
+            <Ionicons name="arrow-forward" size={IS_SMALL ? 22 : 26} color="white" />
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
+          {(!deletedGenerators || deletedGenerators.length === 0) ? (
+            <View style={{ alignItems: 'center', marginTop: IS_SMALL ? 40 : 60, paddingHorizontal: 30 }}>
+              <Ionicons name="refresh-outline" size={60} color="#ccc" />
+              <Text style={{ fontSize: IS_SMALL ? 15 : 18, color: '#999', marginTop: IS_SMALL ? 10 : 16, textAlign: 'center' }}>لا توجد مولدات محذوفة</Text>
+            </View>
+          ) : (
+            deletedGenerators.map(function(dg) {
+              var daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
+              var dgData = dg.data || {};
+              var subCount = (dgData.subscribers || []).length;
+              return (
+                <TouchableOpacity key={dg.id} style={{ marginHorizontal: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 12, backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 10 : 14, borderWidth: 1, borderColor: darkMode ? '#333' : '#eee', padding: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }} onPress={function() {
+                  setRestorePasswordVisible(dg);
+                  setRestorePassword('');
+                  setRestoreModalVisible(false);
+                }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 15 : 17, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>{dg.name}</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
+                  </View>
+                  <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.mainContainer, darkMode && { backgroundColor: '#121212' }]}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
@@ -4247,47 +4289,6 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
             />
           </TouchableOpacity>
         </Modal>
-      )}
-
-      {restoreModalVisible && (
-        <View style={styles.subscribersOverlay}>
-          <View style={styles.subscribersContainer}>
-            <View style={styles.subscribersHeader}>
-              <TouchableOpacity onPress={function() { setRestoreModalVisible(false); }} style={styles.backButton}>
-                <Ionicons name="arrow-forward" size={26} color="white" />
-              </TouchableOpacity>
-              <Text style={styles.subscribersTitle}>استرداد بيانات المولد</Text>
-              <View style={{ width: 40 }} />
-            </View>
-            <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
-              {(!deletedGenerators || deletedGenerators.length === 0) ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="refresh-outline" size={80} color="#90A4AE" />
-                  <Text style={styles.emptyStateText}>لا توجد مولدات محذوفة</Text>
-                </View>
-              ) : (
-                deletedGenerators.map(function(dg) {
-                  var daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
-                  var dgData = dg.data || {};
-                  var subCount = (dgData.subscribers || []).length;
-                  return (
-                    <TouchableOpacity key={dg.id} style={[styles.subscriberCard, styles.unpaidCardBorder, { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }]} onPress={function() {
-                      setRestorePasswordVisible(dg);
-                      setRestorePassword('');
-                      setRestoreModalVisible(false);
-                    }}>
-                      <View style={styles.subscriberInfo}>
-                        <Text style={styles.subscriberName}>{dg.name}</Text>
-                        <Text style={styles.subscriberAmount}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
-                      </View>
-                      <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        </View>
       )}
 
       {restorePasswordVisible && (
