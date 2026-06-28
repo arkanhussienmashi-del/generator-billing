@@ -2736,6 +2736,16 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
 
   useEffect(() => { setDisplayCount(PAGE_SIZE); }, [selectedMonth, selectedYear, searchText, activeFilter, visible]);
 
+  useEffect(() => {
+    if (!editPickerVisible && !deletePickerVisible) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', function() {
+      if (editPickerVisible) { setEditPickerVisible(false); setEditPickerSearch(''); return true; }
+      if (deletePickerVisible) { setDeletePickerVisible(false); setDeletePickerSearch(''); return true; }
+      return false;
+    });
+    return () => handler.remove();
+  }, [editPickerVisible, deletePickerVisible]);
+
   const monthKey = `${selectedMonth}_${selectedYear}`;
   const isPaid = (sub) => sub.paidMonths && sub.paidMonths[monthKey];
 
