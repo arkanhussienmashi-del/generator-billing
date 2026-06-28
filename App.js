@@ -29,7 +29,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import NetInfo from '@react-native-community/netinfo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Crypto from 'expo-crypto';
+
+Text.defaultProps = { ...(Text.defaultProps || {}), allowFontScaling: false };
+TextInput.defaultProps = { ...(TextInput.defaultProps || {}), allowFontScaling: false };
 
 const API_URL = 'https://server-ten-wheat.vercel.app';
 
@@ -38,7 +42,7 @@ async function apiRequest(method, path, body) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== undefined) opts.body = JSON.stringify(body);
     const fetchPromise = fetch(`${API_URL}${path}`, opts);
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, json: async () => null }), 15000));
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ ok: false, json: async () => null }), 5000));
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     if (!res.ok) return null;
     try { return await res.json(); } catch (e2) { return null; }
@@ -49,47 +53,52 @@ async function apiRequest(method, path, body) {
 
 async function saveToFile(filename, data) {
   await saveLocalCache('app_' + filename, data);
-  const result = await apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data });
-  return result;
+  apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data }).catch(function() {});
+  return { ok: true };
 }
 
 async function loadFromFile(filename) {
-  const result = await apiRequest('GET', `/api?table=app_data&filename=${encodeURIComponent(filename)}`);
-  if (Array.isArray(result) && result.length > 0) {
-    let val = result[0].data_value;
-    if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
-    await saveLocalCache('app_' + filename, val);
-    return val;
-  }
-  return await loadLocalCache('app_' + filename);
+  const local = await loadLocalCache('app_' + filename);
+  apiRequest('GET', `/api?table=app_data&filename=${encodeURIComponent(filename)}`).then(function(result) {
+    if (Array.isArray(result) && result.length > 0) {
+      var val = result[0].data_value;
+      if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+      saveLocalCache('app_' + filename, val);
+    }
+  }).catch(function() {});
+  return local;
 }
 
 async function deleteFile(filename) {
-  await apiRequest('DELETE', `/api?table=app_data&filename=${encodeURIComponent(filename)}`);
   try {
     const path = CACHE_DIR + ('app_' + filename).replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
     const info = await FileSystem.getInfoAsync(path);
     if (info.exists) await FileSystem.deleteAsync(path);
   } catch (e) {}
+  apiRequest('DELETE', `/api?table=app_data&filename=${encodeURIComponent(filename)}`).catch(function() {});
 }
 
 async function saveUserData(phone, key, data) {
   await saveLocalCache('user_' + phone + '_' + key, data);
-  const result = await apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data });
-  if (result === null) {
-    const pending = await loadLocalCache('pending_sync_' + phone) || [];
-    const existing = pending.findIndex(function(p) { return p.key === key; });
-    if (existing >= 0) { pending[existing] = { key: key, data: data, timestamp: Date.now() }; }
-    else { pending.push({ key: key, data: data, timestamp: Date.now() }); }
-    await saveLocalCache('pending_sync_' + phone, pending);
-  } else {
-    const pending = await loadLocalCache('pending_sync_' + phone) || [];
-    if (pending.length > 0) {
-      const cleaned = pending.filter(function(p) { return p.key !== key; });
-      await saveLocalCache('pending_sync_' + phone, cleaned);
+  apiRequest('POST', '/api', { _table: 'user_data', phone, data_key: key, data_value: data }).then(function(result) {
+    if (result === null) {
+      loadLocalCache('pending_sync_' + phone).then(function(pending) {
+        pending = pending || [];
+        var existing = pending.findIndex(function(p) { return p.key === key; });
+        if (existing >= 0) { pending[existing] = { key: key, data: data, timestamp: Date.now() }; }
+        else { pending.push({ key: key, data: data, timestamp: Date.now() }); }
+        saveLocalCache('pending_sync_' + phone, pending);
+      });
+    } else {
+      loadLocalCache('pending_sync_' + phone).then(function(pending) {
+        if (pending && pending.length > 0) {
+          var cleaned = pending.filter(function(p) { return p.key !== key; });
+          saveLocalCache('pending_sync_' + phone, cleaned);
+        }
+      });
     }
-  }
-  return result;
+  }).catch(function() {});
+  return { ok: true };
 }
 
 async function syncPendingChanges(phone) {
@@ -105,36 +114,35 @@ async function syncPendingChanges(phone) {
 }
 
 async function loadUserData(phone, key) {
-  const result = await apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}&key=${encodeURIComponent(key)}`);
-  if (Array.isArray(result) && result.length > 0) {
-    let val = result[0].data_value;
-    if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
-    await saveLocalCache('user_' + phone + '_' + key, val);
-    return val;
-  }
-  return await loadLocalCache('user_' + phone + '_' + key);
+  const local = await loadLocalCache('user_' + phone + '_' + key);
+  apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}&key=${encodeURIComponent(key)}`).then(function(result) {
+    if (Array.isArray(result) && result.length > 0) {
+      var val = result[0].data_value;
+      if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+      saveLocalCache('user_' + phone + '_' + key, val);
+    }
+  }).catch(function() {});
+  return local;
 }
 
 async function loadAllUserKeys(phone) {
-  const result = await apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}`);
+  const localKeys = ['subscribers', 'generators', 'currentGeneratorId', 'amperPrices', 'goldenPrices', 'monthlyExpenses', 'workerExpenses', 'generatorName', 'ownerName', 'workers', 'deletedWorkers', 'pending_worker_updates', 'worker_activity_log', 'darkMode', 'deletedGenerators'];
   const map = {};
-  if (Array.isArray(result) && result.length > 0) {
-    for (const row of result) {
-      let val = row.data_value;
-      if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
-      map[row.data_key] = val;
-      await saveLocalCache('user_' + phone + '_' + row.data_key, val);
-    }
+  for (var i = 0; i < localKeys.length; i++) {
+    var cached = await loadLocalCache('user_' + phone + '_' + localKeys[i]);
+    if (cached !== null && cached !== undefined) { map[localKeys[i]] = cached; }
   }
-  if (Object.keys(map).length === 0) {
-    const localKeys = ['subscribers', 'generators', 'currentGeneratorId', 'amperPrices', 'goldenPrices', 'monthlyExpenses', 'workerExpenses', 'generatorName', 'ownerName', 'workers', 'deletedWorkers', 'pending_worker_updates', 'worker_activity_log', 'darkMode', 'deletedGenerators'];
-    for (const key of localKeys) {
-      const cached = await loadLocalCache('user_' + phone + '_' + key);
-      if (cached !== null && cached !== undefined) {
-        map[key] = cached;
+  apiRequest('GET', `/api?table=user_data&phone=${encodeURIComponent(phone)}`).then(function(result) {
+    if (Array.isArray(result) && result.length > 0) {
+      for (var j = 0; j < result.length; j++) {
+        var row = result[j];
+        var val = row.data_value;
+        if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+        map[row.data_key] = val;
+        saveLocalCache('user_' + phone + '_' + row.data_key, val);
       }
     }
-  }
+  }).catch(function() {});
   return map;
 }
 
@@ -571,6 +579,8 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   const [ownerName, setOwnerName] = useState('');
   const [ownerCode, setOwnerCode] = useState('');
   const [confirmOwnerCode, setConfirmOwnerCode] = useState('');
+  const [showRegCode, setShowRegCode] = useState(false);
+  const [showRegCodeConfirm, setShowRegCodeConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
@@ -674,7 +684,9 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TouchableOpacity onPress={() => setShowRegCode(!showRegCode)}>
+              <Ionicons name={showRegCode ? "eye-outline" : "eye-off-outline"} size={22} color="#666" style={styles.inputIcon} />
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
               placeholder="الرمز (6 أحرف أو أرقام على الأقل)"
@@ -682,11 +694,14 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               value={ownerCode}
               onChangeText={setOwnerCode}
               maxLength={20}
+              secureTextEntry={!showRegCode}
             />
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TouchableOpacity onPress={() => setShowRegCodeConfirm(!showRegCodeConfirm)}>
+              <Ionicons name={showRegCodeConfirm ? "eye-outline" : "eye-off-outline"} size={22} color="#666" style={styles.inputIcon} />
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
               placeholder="تأكيد الرمز"
@@ -694,6 +709,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               value={confirmOwnerCode}
               onChangeText={setConfirmOwnerCode}
               maxLength={20}
+              secureTextEntry={!showRegCodeConfirm}
             />
           </View>
 
@@ -726,6 +742,12 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
     }
     if (!password.trim()) {
       Alert.alert('تنبيه', 'يرجى إدخال كلمة المرور');
+      return;
+    }
+
+    const net = await NetInfo.fetch();
+    if (!net.isConnected) {
+      Alert.alert('تنبيه', 'يجب الاتصال بالإنترنت لتسجيل الدخول');
       return;
     }
 
@@ -917,25 +939,19 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onExport, onImport, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser }) => {
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
-  const [workerModalVisible, setWorkerModalVisible] = useState(false);
-  const [workerPermissions, setWorkerPermissions] = useState([]);
-  const [workerAssignedGenerators, setWorkerAssignedGenerators] = useState([]);
-  const [editWorkerVisible, setEditWorkerVisible] = useState(false);
-  const [selectedWorker, setSelectedWorker] = useState(null);
-  const [editWorkerPermissions, setEditWorkerPermissions] = useState([]);
-  const [editWorkerAssignedGenerators, setEditWorkerAssignedGenerators] = useState([]);
-  const [newWorkerName, setNewWorkerName] = useState('');
+
   const [deleteGenPassword, setDeleteGenPassword] = useState('');
   const [selectedDeleteGenId, setSelectedDeleteGenId] = useState(null);
   const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
-  const [restoreGeneratorVisible, setRestoreGeneratorVisible] = useState(false);
   const [changePassVisible, setChangePassVisible] = useState(false);
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
 
   useEffect(() => {
     setName(generatorName);
@@ -950,37 +966,16 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
     setOwner(val);
   };
 
-  const togglePermission = (perm) => {
-    setWorkerPermissions(prev =>
-      prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
-    );
-  };
-
-  const handleConfirmCreateWorker = () => {
-    if (!newWorkerName.trim()) {
-      Alert.alert('تنبيه', 'يرجى إدخال اسم العامل');
-      return;
-    }
-    if (workerPermissions.length === 0) {
-      Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل');
-      return;
-    }
-    onCreateWorker(newWorkerName.trim(), workerPermissions, workerAssignedGenerators);
-    setWorkerPermissions([]);
-    setWorkerAssignedGenerators([]);
-    setNewWorkerName('');
-    setWorkerModalVisible(false);
-  };
 
   return (<>
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={() => { if (!owner || !owner.trim()) { Alert.alert('تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
       <View style={{ flex: 1, backgroundColor: darkMode ? '#121212' : 'white' }}>
           <View style={[styles.modalHeader, { backgroundColor: '#1565C0' }]}>
-            <TouchableOpacity onPress={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: IS_SMALL ? 36 : 40, height: IS_SMALL ? 36 : 40, alignItems: 'center', justifyContent: 'center' }]}>
+            <TouchableOpacity onPress={() => { if (!owner || !owner.trim()) { Alert.alert('تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: IS_SMALL ? 36 : 40, height: IS_SMALL ? 36 : 40, alignItems: 'center', justifyContent: 'center' }]}>
               <Ionicons name="arrow-forward" size={IS_SMALL ? 24 : 28} color="white" />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: 'white' }]}>الإعدادات</Text>
-            <TouchableOpacity onPress={() => { onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
+            <TouchableOpacity onPress={() => { if (!owner || !owner.trim()) { Alert.alert('تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={{ marginRight: 10 }}>
               <Text style={[styles.saveButtonText, { color: 'white' }]}>تم</Text>
             </TouchableOpacity>
           </View>
@@ -1009,23 +1004,6 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 textAlign="right"
               />
               <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>سيتم عرض هذا الاسم عند كل عملية دفع أو إلغاء دفع</Text>
-
-              <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
-
-              <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>إدارة العمال</Text>
-              <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#FF9800', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => setWorkerModalVisible(true)}>
-                <Ionicons name="person-add-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>إضافة عامل</Text>
-              </TouchableOpacity>
-              <Text style={[styles.settingsHint, darkMode && { color: '#888' }]}>إنشاء كود ورمز سري جديد للعامل</Text>
-
-              <View style={{ marginTop: IS_SMALL ? 6 : 10 }}>
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#2196F3', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => setEditWorkerVisible(true)}>
-                  <Ionicons name="create-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تعديل بيانات العامل</Text>
-                </TouchableOpacity>
-                <Text style={styles.settingsHint}>تعديل الصلاحيات أو حذف عامل</Text>
-              </View>
 
               <View style={[styles.settingsDivider, darkMode && { backgroundColor: '#333' }]} />
 
@@ -1066,18 +1044,6 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                     <View style={{ width: IS_SMALL ? 18 : 22, height: IS_SMALL ? 18 : 22, borderRadius: IS_SMALL ? 9 : 11, backgroundColor: 'white', alignSelf: darkMode ? 'flex-end' : 'flex-start' }} />
                   </TouchableOpacity>
                 </View>
-                {generators && generators.length > 1 && (
-                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 6 : 10 }]} onPress={() => setDeleteGeneratorVisible(true)}>
-                    <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف مولد</Text>
-                  </TouchableOpacity>
-                )}
-                {deletedGenerators && deletedGenerators.length > 0 && (
-                  <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#4CAF50', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 6 : 10 }]} onPress={() => setRestoreGeneratorVisible(true)}>
-                    <Ionicons name="refresh-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>استرداد بيانات المولد ({deletedGenerators.length})</Text>
-                  </TouchableOpacity>
-                )}
                 <View style={{ height: 1, backgroundColor: '#ddd', marginVertical: IS_SMALL ? 8 : 12 }} />
 
                 <Text style={[styles.settingsLabel, darkMode && { color: '#fff' }]}>سياسة الخصوصية والشروط</Text>
@@ -1092,12 +1058,12 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>شروط الخدمة</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => Linking.openURL('https://sites.google.com/view/mowledy-app/delete-account-data-request')}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => { setDeleteAccountPassword(''); setDeleteAccountVisible(true); }}>
                   <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف الحساب والبيانات</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={onLogout}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => { Alert.alert('تسجيل الخروج', 'هل أنت متأكد أنك تريد تسجيل الخروج؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', style: 'destructive', onPress: onLogout }]); }}>
                   <Ionicons name="log-out-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تسجيل الخروج</Text>
                 </TouchableOpacity>
@@ -1105,301 +1071,26 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             </View>
           </ScrollView>
       </View>
-
-      <Modal visible={workerModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => { setWorkerModalVisible(false); setWorkerPermissions([]); setNewWorkerName(''); }}>
-                <Ionicons name="close" size={28} color="#333" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>إضافة عامل جديد</Text>
-            </View>
-
-            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-              <Text style={{ fontSize: 14, color: '#333', marginBottom: 6, textAlign: 'right', fontWeight: 'bold' }}>اسم العامل <Text style={{ color: '#F44336' }}>*</Text></Text>
-              <TextInput
-                style={[styles.formInput, { textAlign: 'right' }]}
-                placeholder="أدخل اسم العامل"
-                placeholderTextColor="#999"
-                value={newWorkerName}
-                onChangeText={setNewWorkerName}
-              />
-            </View>
-
-            <Text style={{ color: '#666', marginBottom: 10, paddingHorizontal: 16, textAlign: 'center' }}>اختر الصلاحيات التي تريدها للعامل:</Text>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('add')}>
-              <Ionicons name={workerPermissions.includes('add') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('add') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>إضافة مشتركين</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('edit')}>
-              <Ionicons name={workerPermissions.includes('edit') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('edit') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>تعديل بيانات المشتركين</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('delete')}>
-              <Ionicons name={workerPermissions.includes('delete') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('delete') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>حذف مشتركين</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('amperPrice')}>
-              <Ionicons name={workerPermissions.includes('amperPrice') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('amperPrice') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>تغيير سعر الأميبر</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('cancelPayment')}>
-              <Ionicons name={workerPermissions.includes('cancelPayment') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('cancelPayment') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>إلغاء الدفع</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('partialPayment')}>
-              <Ionicons name={workerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => togglePermission('addExpense')}>
-              <Ionicons name={workerPermissions.includes('addExpense') ? 'checkbox' : 'square-outline'} size={26} color={workerPermissions.includes('addExpense') ? '#4CAF50' : '#999'} />
-              <Text style={{ fontSize: 16, color: '#333' }}>إضافة صرفية</Text>
-            </TouchableOpacity>
-
-            <View style={{ marginTop: 16, marginBottom: 8 }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10, textAlign: 'right' }}>المولدات المسموح بها:</Text>
-              {generators && generators.length > 1 ? generators.map(function(gen) {
-                const isSelected = workerAssignedGenerators.indexOf(gen.id) >= 0;
-                return (
-                  <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
-                    setWorkerAssignedGenerators(function(prev) {
-                      if (isSelected) return prev.filter(function(id) { return id !== gen.id; });
-                      return [...prev, gen.id];
-                    });
-                  }}>
-                    <Ionicons name={isSelected ? 'checkbox' : 'square-outline'} size={26} color={isSelected ? '#FF9800' : '#999'} />
-                    <Text style={{ fontSize: 16, color: '#333' }}>{gen.name}</Text>
-                    <Text style={{ fontSize: 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
-                  </TouchableOpacity>
-                );
-              }) : <Text style={{ fontSize: 14, color: '#999', textAlign: 'center' }}>مولد واحد فقط - العامل يعمل عليه</Text>}
-            </View>
-
-            <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#FF9800', marginTop: 20 }]} onPress={handleConfirmCreateWorker}>
-              <Text style={styles.modalButtonText}>إنشاء حساب العامل</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={editWorkerVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {selectedWorker ? (
-              <>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => { setSelectedWorker(null); setEditWorkerPermissions([]); setEditWorkerAssignedGenerators([]); }}>
-                    <Ionicons name="arrow-forward" size={28} color="#333" />
-                  </TouchableOpacity>
-                  <Text style={styles.modalTitle}>تعديل صلاحيات العامل</Text>
-                  <View style={{ width: 30 }} />
-                </View>
-                <Text style={{ color: '#666', marginBottom: 10, textAlign: 'center' }}>كود: {selectedWorker.code}</Text>
-                <Text style={{ color: '#666', marginBottom: 20, textAlign: 'center' }}>اختر الصلاحيات الجديدة:</Text>
-
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('add') ? prev.filter(p => p !== 'add') : [...prev, 'add'])}>
-                  <Ionicons name={editWorkerPermissions.includes('add') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('add') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>إضافة مشتركين</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('edit') ? prev.filter(p => p !== 'edit') : [...prev, 'edit'])}>
-                  <Ionicons name={editWorkerPermissions.includes('edit') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('edit') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>تعديل بيانات المشتركين</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('delete') ? prev.filter(p => p !== 'delete') : [...prev, 'delete'])}>
-                  <Ionicons name={editWorkerPermissions.includes('delete') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('delete') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>حذف مشتركين</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('amperPrice') ? prev.filter(p => p !== 'amperPrice') : [...prev, 'amperPrice'])}>
-                  <Ionicons name={editWorkerPermissions.includes('amperPrice') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('amperPrice') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>تغيير سعر الأميبر</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('cancelPayment') ? prev.filter(p => p !== 'cancelPayment') : [...prev, 'cancelPayment'])}>
-                  <Ionicons name={editWorkerPermissions.includes('cancelPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('cancelPayment') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>إلغاء الدفع</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('partialPayment') ? prev.filter(p => p !== 'partialPayment') : [...prev, 'partialPayment'])}>
-                  <Ionicons name={editWorkerPermissions.includes('partialPayment') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('partialPayment') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>الدفع الجزئي</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={() => setEditWorkerPermissions(prev => prev.includes('addExpense') ? prev.filter(p => p !== 'addExpense') : [...prev, 'addExpense'])}>
-                  <Ionicons name={editWorkerPermissions.includes('addExpense') ? 'checkbox' : 'square-outline'} size={26} color={editWorkerPermissions.includes('addExpense') ? '#4CAF50' : '#999'} />
-                  <Text style={{ fontSize: 16, color: '#333' }}>إضافة صرفية</Text>
-                </TouchableOpacity>
-
-                <View style={{ marginTop: 16, marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10, textAlign: 'right' }}>المولدات المسموح بها:</Text>
-                  {generators && generators.length > 1 ? generators.map(function(gen) {
-                    const isSelected = editWorkerAssignedGenerators.indexOf(gen.id) >= 0;
-                    return (
-                      <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
-                        setEditWorkerAssignedGenerators(function(prev) {
-                          if (isSelected) return prev.filter(function(id) { return id !== gen.id; });
-                          return [...prev, gen.id];
-                        });
-                      }}>
-                        <Ionicons name={isSelected ? 'checkbox' : 'square-outline'} size={26} color={isSelected ? '#FF9800' : '#999'} />
-                        <Text style={{ fontSize: 16, color: '#333' }}>{gen.name}</Text>
-                        <Text style={{ fontSize: 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
-                      </TouchableOpacity>
-                    );
-                  }) : <Text style={{ fontSize: 14, color: '#999', textAlign: 'center' }}>مولد واحد فقط</Text>}
-                </View>
-
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4CAF50', marginTop: 20 }]} onPress={() => {
-                  if (editWorkerPermissions.length === 0) {
-                    Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل');
-                    return;
-                  }
-                  onUpdateWorker(selectedWorker.code, editWorkerPermissions, editWorkerAssignedGenerators);
-                  setSelectedWorker(null);
-                  setEditWorkerPermissions([]);
-                  setEditWorkerAssignedGenerators([]);
-                }}>
-                  <Text style={styles.modalButtonText}>حفظ التعديلات</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#D32F2F', marginTop: 10 }]} onPress={() => {
-                  Alert.alert('حذف العامل', `هل تريد حذف العامل "${selectedWorker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
-                    { text: 'إلغاء', style: 'cancel' },
-                    { text: 'نعم، حذف', style: 'destructive', onPress: () => { onDeleteWorker(selectedWorker.code); setSelectedWorker(null); setEditWorkerPermissions([]); setEditWorkerAssignedGenerators([]); setEditWorkerVisible(false); } },
-                  ]);
-                }}>
-                  <Ionicons name="trash-outline" size={20} color="white" />
-                  <Text style={styles.modalButtonText}>حذف العامل نهائياً</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => setEditWorkerVisible(false)}>
-                    <Ionicons name="close" size={28} color="#333" />
-                  </TouchableOpacity>
-                  <Text style={styles.modalTitle}>تعديل بيانات العامل</Text>
-                  <View style={{ width: 30 }} />
-                </View>
-                {(!workers || workers.length === 0) ? (
-                  <View style={{ padding: 40, alignItems: 'center' }}>
-                    <Ionicons name="people-outline" size={60} color="#ccc" />
-                    <Text style={{ color: '#999', fontSize: 16, marginTop: 10 }}>لا يوجد عمال مسجلين</Text>
-                  </View>
-                ) : (
-                  workers.map((worker, index) => (
-                    <View key={index} style={{ borderBottomWidth: 1, borderBottomColor: '#eee', paddingVertical: 12 }}>
-                      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                        <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
-                          <Ionicons name="person" size={20} color="white" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 18, color: '#333', fontWeight: 'bold' }}>{worker.workerName || 'بدون اسم'}</Text>
-                          <Text style={{ fontSize: 13, color: '#999', marginTop: 2 }}>كود: {worker.code} | الرمز: {worker.plainPin || 'أعد إنشاء العامل'}</Text>
-                          <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{(worker.permissions || []).length} صلاحيات</Text>
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' }}>
-                        {!worker.plainPin && (
-                          <TouchableOpacity style={{ backgroundColor: '#E8F5E9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }} onPress={() => {
-                            Alert.alert('تغيير الرمز', `سيتم إنشاء رمز جديد للعامل "${worker.workerName || worker.code}"\nهل أنت متأكد؟`, [
-                              { text: 'إلغاء', style: 'cancel' },
-                              { text: 'نعم، تغيير', onPress: () => handleResetWorkerPin(worker.code) },
-                            ]);
-                          }}>
-                            <Ionicons name="key-outline" size={16} color="#4CAF50" />
-                            <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: 'bold' }}>تغيير الرمز</Text>
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity style={{ flex: 1, backgroundColor: '#E3F2FD', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={async () => {
-                          await Clipboard.setStringAsync(`كود: ${worker.code}\nالرمز: ${worker.plainPin || 'غير متوفر - قم بتغيير الرمز'}`);
-                          Alert.alert('تم النسخ', `كود: ${worker.code}\nالرمز: ${worker.plainPin || 'غير متوفر'}`);
-                        }}>
-                          <Ionicons name="copy-outline" size={16} color="#2196F3" />
-                          <Text style={{ color: '#2196F3', fontSize: 13, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFF3E0', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
-                          setSelectedWorker(worker);
-                          setEditWorkerPermissions(worker.permissions || []);
-                          setEditWorkerAssignedGenerators(worker.assignedGenerators || []);
-                        }}>
-                          <Ionicons name="create-outline" size={16} color="#FF9800" />
-                          <Text style={{ color: '#FF9800', fontSize: 13, fontWeight: 'bold' }}>تعديل الصلاحيات</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFEBEE', borderRadius: 8, paddingVertical: 10, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
-                          Alert.alert('حذف العامل', `هل تريد حذف العامل "${worker.workerName || worker.code}" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.`, [
-                            { text: 'إلغاء', style: 'cancel' },
-                            { text: 'نعم، حذف', style: 'destructive', onPress: () => onDeleteWorker(worker.code) },
-                          ]);
-                        }}>
-                          <Ionicons name="trash-outline" size={16} color="#F44336" />
-                          <Text style={{ color: '#F44336', fontSize: 13, fontWeight: 'bold' }}>حذف العامل</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
     </Modal>
 
     <Modal visible={!!newWorkerCredentials} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
+      <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
         <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH, alignItems: 'center' }}>
           <View style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 30 : 40, width: IS_SMALL ? 56 : 70, height: IS_SMALL ? 56 : 70, alignItems: 'center', justifyContent: 'center', marginBottom: IS_SMALL ? 12 : 16 }}>
             <Ionicons name="checkmark-circle" size={IS_SMALL ? 32 : 40} color="white" />
           </View>
-          <Text style={{ fontSize: IS_SMALL ? 17 : 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 6 : 8 }}>تم إنشاء حساب العامل</Text>
+          <Text style={{ fontSize: IS_SMALL ? 17 : 20, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 12 : 16 }}>تم إنشاء حساب العامل بنجاح</Text>
 
-          {newWorkerCredentials && newWorkerCredentials.workerName && (
-            <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
-              <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', marginBottom: IS_SMALL ? 4 : 6, textAlign: 'center' }}>اسم العامل</Text>
-              <Text style={{ fontSize: IS_SMALL ? 17 : 20, fontWeight: 'bold', color: '#FF9800', textAlign: 'center' }}>{newWorkerCredentials.workerName}</Text>
-            </View>
-          )}
-
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
-            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', marginBottom: IS_SMALL ? 4 : 6, textAlign: 'center' }}>كود العامل</Text>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 6 : 10 }}>
-              <Text style={{ fontSize: IS_SMALL ? 20 : 24, fontWeight: 'bold', color: '#1565C0', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.code : ''}</Text>
-              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.code : ''); Alert.alert('تم النسخ', 'تم نسخ كود العامل'); }} style={{ backgroundColor: '#E3F2FD', borderRadius: IS_SMALL ? 6 : 8, padding: IS_SMALL ? 6 : 8 }}>
-                <Ionicons name="copy-outline" size={IS_SMALL ? 18 : 20} color="#1565C0" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 12 }}>
-            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', marginBottom: IS_SMALL ? 4 : 6, textAlign: 'center' }}>الرمز السري</Text>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 6 : 10 }}>
-              <Text style={{ fontSize: IS_SMALL ? 20 : 24, fontWeight: 'bold', color: '#F44336', letterSpacing: 2 }}>{newWorkerCredentials ? newWorkerCredentials.pin : ''}</Text>
-              <TouchableOpacity onPress={async () => { await Clipboard.setStringAsync(newWorkerCredentials ? newWorkerCredentials.pin : ''); Alert.alert('تم النسخ', 'تم نسخ الرمز السري'); }} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 6 : 8, padding: IS_SMALL ? 6 : 8 }}>
-                <Ionicons name="copy-outline" size={IS_SMALL ? 18 : 20} color="#F44336" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ width: '100%', backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 12, padding: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 14 : 20 }}>
-            <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>الصلاحيات: {newWorkerCredentials && newWorkerCredentials.permissions ? newWorkerCredentials.permissions.map(function(p) { return PERMISSION_LABELS[p] || p; }).join('، ') : ''}</Text>
-          </View>
-
-          <TouchableOpacity style={{ backgroundColor: '#FF9800', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 28 : 40, width: '100%', alignItems: 'center', marginBottom: IS_SMALL ? 6 : 10 }} onPress={async () => {
-            const text = `كود العامل: ${newWorkerCredentials ? newWorkerCredentials.code : ''}\nالرمز السري: ${newWorkerCredentials ? newWorkerCredentials.pin : ''}`;
+          <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 20 : 28, width: '100%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={async () => {
+            const text = 'كود العامل: ' + (newWorkerCredentials ? newWorkerCredentials.code : '') + '\nالرمز السري: ' + (newWorkerCredentials ? newWorkerCredentials.pin : '');
             await Clipboard.setStringAsync(text);
             Alert.alert('تم النسخ', 'تم نسخ كود العامل والرمز السري');
           }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8 }}>
-              <Ionicons name="copy" size={IS_SMALL ? 18 : 20} color="white" />
-              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
-            </View>
+            <Ionicons name="copy" size={IS_SMALL ? 18 : 20} color="white" />
+            <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={{ backgroundColor: '#1565C0', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 28 : 40, width: '100%', alignItems: 'center' }} onPress={onDismissCredentials}>
+          <TouchableOpacity style={{ backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 28 : 40, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10 }} onPress={onDismissCredentials}>
             <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حسناً</Text>
           </TouchableOpacity>
         </View>
@@ -1407,7 +1098,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
       </Modal>
 
       <Modal visible={deleteGeneratorVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
           <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
               <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#F44336' }}>حذف مولد</Text>
@@ -1445,44 +1136,6 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             }}>
               <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حذف المولد</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={restoreGeneratorVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
-              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#4CAF50' }}>استرداد بيانات المولد</Text>
-              <TouchableOpacity onPress={() => setRestoreGeneratorVisible(false)}>
-                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color="#333" />
-              </TouchableOpacity>
-            </View>
-            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: 4 }}>المولدات المحذوفة (تُحذف نهائياً بعد شهر):</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
-              {deletedGenerators.map(function(dg) {
-                const daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
-                const dgData = dg.data || {};
-                const subCount = (dgData.subscribers || []).length;
-                return (
-                  <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
-                    Alert.alert('استرداد المولد', 'هل تريد استرداد "' + dg.name + '"؟', [
-                      { text: 'إلغاء', style: 'cancel' },
-                      { text: 'نعم، استرداد', onPress: function() { onRestoreGenerator(dg.id); } },
-                    ]);
-                  }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', fontWeight: 'bold' }}>{dg.name}</Text>
-                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
-                    </View>
-                    <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
-                  </TouchableOpacity>
-                );
-              })}
-              {deletedGenerators.length === 0 && (
-                <Text style={{ fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 }}>لا توجد مولدات محذوفة</Text>
-              )}
-            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1529,6 +1182,64 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
             >
               <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تغيير الرمز</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={deleteAccountVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: '#D32F2F' }}>حذف الحساب</Text>
+              <TouchableOpacity onPress={() => { setDeleteAccountVisible(false); setDeleteAccountPassword(''); }}>
+                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 10 : 16 }}>أدخل رمز الحساب للتأكيد قبل الحذف</Text>
+            <TextInput
+              style={[styles.settingsInput, { textAlign: 'center' }]}
+              placeholder="رمز الحساب"
+              placeholderTextColor="#999"
+              value={deleteAccountPassword}
+              onChangeText={setDeleteAccountPassword}
+              secureTextEntry
+              maxLength={50}
+            />
+            <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 12 : 16 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#D32F2F', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
+                onPress={async () => {
+                  if (!deleteAccountPassword.trim()) {
+                    Alert.alert('تنبيه', 'أدخل رمز الحساب');
+                    return;
+                  }
+                  try {
+                    const usersResult = await loadFromFile('registered_users');
+                    const usersList = usersResult || [];
+                    const user = usersList.find(function(u) { return u.phone === currentUser; });
+                    if (!user) { Alert.alert('خطأ', 'حدث خطأ'); return; }
+                    const verifyResult = await verifyOwnerPassword(user.password, deleteAccountPassword.trim(), currentUser);
+                    if (verifyResult.match) {
+                      setDeleteAccountVisible(false);
+                      setDeleteAccountPassword('');
+                      Linking.openURL('https://sites.google.com/view/mowledy-app/delete-account-data-request');
+                    } else {
+                      Alert.alert('خطأ', 'الرمز غير صحيح');
+                    }
+                  } catch (e) {
+                    Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
+                  }
+                }}
+              >
+                <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تأكيد الحذف</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#eee', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
+                onPress={() => { setDeleteAccountVisible(false); setDeleteAccountPassword(''); }}
+              >
+                <Text style={{ color: '#666', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إلغاء</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1892,7 +1603,296 @@ const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch, currentUser, fullScreen }) => {
+const AddWorkerScreen = ({ visible, onClose, generators, darkMode, currentUser, onConfirmCreate }) => {
+  const [workerName, setWorkerName] = useState('');
+  const [perms, setPerms] = useState([]);
+  const [assignedGens, setAssignedGens] = useState([]);
+
+  useEffect(() => {
+    if (!visible) return;
+    var sub = BackHandler.addEventListener('hardwareBackPress', function() {
+      onClose();
+      return true;
+    });
+    return function() { sub.remove(); };
+  }, [visible]);
+
+  if (!visible) return null;
+
+  var togglePerm = function(key) {
+    setPerms(function(prev) { return prev.indexOf(key) >= 0 ? prev.filter(function(x) { return x !== key; }) : [...prev, key]; });
+  };
+
+  var handleCreate = function() {
+    if (!workerName.trim()) { Alert.alert('تنبيه', 'يرجى إدخال اسم العامل'); return; }
+    if (perms.length === 0) { Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل'); return; }
+    if (assignedGens.length === 0) { Alert.alert('تنبيه', 'اختر مولداً واحداً على الأقل'); return; }
+    onConfirmCreate(workerName.trim(), perms, assignedGens);
+    setWorkerName('');
+    setPerms([]);
+    setAssignedGens([]);
+  };
+
+  return (
+    <View style={styles.subscribersOverlay}>
+      <View style={styles.subscribersContainer}>
+        <View style={styles.subscribersHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.backButton}>
+            <Ionicons name="arrow-forward" size={26} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.subscribersTitle}>إضافة عامل جديد</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: IS_SMALL ? 12 : 16 }}>
+            <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 6 : 8, textAlign: 'right', fontWeight: 'bold' }}>اسم العامل <Text style={{ color: '#F44336' }}>*</Text></Text>
+            <TextInput style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 14 : 16, borderWidth: 1, borderColor: darkMode ? '#444' : '#e0e0e0', textAlign: 'right', color: darkMode ? '#fff' : '#333' }} placeholder="أدخل اسم العامل" placeholderTextColor="#999" value={workerName} onChangeText={setWorkerName} />
+
+            <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666', marginTop: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 10, textAlign: 'center' }}>اختر الصلاحيات التي تريدها للعامل:</Text>
+
+            {[
+              { key: 'add', label: 'إضافة مشتركين', icon: 'person-add-outline' },
+              { key: 'edit', label: 'تعديل بيانات المشتركين', icon: 'create-outline' },
+              { key: 'delete', label: 'حذف مشتركين', icon: 'trash-outline' },
+              { key: 'amperPrice', label: 'تغيير سعر الأميبر', icon: 'flash-outline' },
+              { key: 'cancelPayment', label: 'إلغاء الدفع', icon: 'close-circle-outline' },
+              { key: 'partialPayment', label: 'الدفع الجزئي', icon: 'wallet-outline' },
+              { key: 'addExpense', label: 'إضافة صرفية', icon: 'receipt-outline' },
+            ].map(function(p) {
+              var active = perms.indexOf(p.key) >= 0;
+              return (
+                <TouchableOpacity key={p.key} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 12 : 14, paddingHorizontal: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: darkMode ? '#333' : '#eee', backgroundColor: active ? (darkMode ? '#1a3a1a' : '#E8F5E9') : 'transparent' }} onPress={function() { togglePerm(p.key); }}>
+                  <Ionicons name={active ? 'checkbox' : 'square-outline'} size={IS_SMALL ? 22 : 26} color={active ? '#4CAF50' : '#999'} />
+                  <Ionicons name={p.icon} size={IS_SMALL ? 16 : 18} color={active ? '#4CAF50' : '#999'} />
+                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', flex: 1 }}>{p.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {generators && generators.length > 0 && (
+              <View style={{ marginTop: IS_SMALL ? 14 : 18 }}>
+                <Text style={{ fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 8 : 10, textAlign: 'right' }}>المولدات المسموح بها: <Text style={{ color: '#F44336' }}>*</Text></Text>
+                {generators.map(function(gen) {
+                  var isSel = assignedGens.indexOf(gen.id) >= 0;
+                  return (
+                    <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 12, borderBottomWidth: 1, borderBottomColor: darkMode ? '#333' : '#eee', backgroundColor: isSel ? (darkMode ? '#2a1a00' : '#FFF3E0') : 'transparent', borderRadius: isSel ? 8 : 0 }} onPress={function() { setAssignedGens(function(prev) { return isSel ? prev.filter(function(id) { return id !== gen.id; }) : [...prev, gen.id]; }); }}>
+                      <Ionicons name={isSel ? 'checkbox' : 'square-outline'} size={IS_SMALL ? 22 : 26} color={isSel ? '#FF9800' : '#999'} />
+                      <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', flex: 1 }}>{gen.name}</Text>
+                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 16 : 20 }} onPress={handleCreate}>
+              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إنشاء حساب العامل</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </View>
+  );
+};
+
+const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorker, onDeleteWorker, onResetWorkerPin, darkMode, currentUser }) => {
+  const [selWorker, setSelWorker] = useState(null);
+  const [editPerms, setEditPerms] = useState([]);
+  const [editAssignedGens, setEditAssignedGens] = useState([]);
+  const [ownerPassword, setOwnerPassword] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', function() {
+      if (showPasswordModal) {
+        setShowPasswordModal(false);
+        setOwnerPassword('');
+        return true;
+      }
+      if (selWorker) {
+        setSelWorker(null);
+        setEditPerms([]);
+        setEditAssignedGens([]);
+        return true;
+      }
+      onClose();
+      return true;
+    });
+    return function() { handler.remove(); };
+  }, [visible, selWorker, showPasswordModal]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={styles.subscribersOverlay}>
+      <View style={styles.subscribersContainer}>
+        <View style={styles.subscribersHeader}>
+          {selWorker ? (
+            <TouchableOpacity onPress={() => { setSelWorker(null); setEditPerms([]); setEditAssignedGens([]); }} style={styles.backButton}>
+              <Ionicons name="arrow-forward" size={26} color="white" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons name="arrow-forward" size={26} color="white" />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.subscribersTitle}>{selWorker ? 'تعديل الصلاحيات' : 'تعديل صلاحيات العامل'}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: IS_SMALL ? 12 : 16 }}>
+            {selWorker ? (
+              <>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 12 : 16, backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 14 }}>
+                  <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="person" size={IS_SMALL ? 18 : 20} color="white" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 15 : 17, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>{selWorker.workerName || 'بدون اسم'}</Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.formLabel, { fontWeight: 'bold', marginBottom: IS_SMALL ? 8 : 10 }]}>اختر الصلاحيات الجديدة:</Text>
+                {[
+                  { key: 'add', label: 'إضافة مشتركين', icon: 'person-add-outline' },
+                  { key: 'edit', label: 'تعديل بيانات المشتركين', icon: 'create-outline' },
+                  { key: 'delete', label: 'حذف مشتركين', icon: 'trash-outline' },
+                  { key: 'amperPrice', label: 'تغيير سعر الأميبر', icon: 'flash-outline' },
+                  { key: 'cancelPayment', label: 'إلغاء الدفع', icon: 'close-circle-outline' },
+                  { key: 'partialPayment', label: 'الدفع الجزئي', icon: 'wallet-outline' },
+                  { key: 'addExpense', label: 'إضافة صرفية', icon: 'receipt-outline' },
+                ].map(function(p) {
+                  var active = editPerms.indexOf(p.key) >= 0;
+                  return (
+                    <TouchableOpacity key={p.key} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 12 : 14, paddingHorizontal: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: darkMode ? '#333' : '#eee', backgroundColor: active ? (darkMode ? '#1a3a1a' : '#E8F5E9') : 'transparent' }} onPress={function() { setEditPerms(function(prev) { return prev.indexOf(p.key) >= 0 ? prev.filter(function(x) { return x !== p.key; }) : [...prev, p.key]; }); }}>
+                    <Ionicons name={active ? 'checkbox' : 'square-outline'} size={IS_SMALL ? 22 : 26} color={active ? '#4CAF50' : '#999'} />
+                    <Ionicons name={p.icon} size={IS_SMALL ? 16 : 18} color={active ? '#4CAF50' : '#999'} />
+                    <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', flex: 1 }}>{p.label}</Text>
+                  </TouchableOpacity>
+                );
+                })}
+
+                {generators && generators.length > 1 && (
+                  <View style={{ marginTop: IS_SMALL ? 14 : 18 }}>
+                    <Text style={[styles.formLabel, { fontWeight: 'bold', marginBottom: IS_SMALL ? 8 : 10 }]}>المولدات المسموح بها:</Text>
+                    {generators.map(function(gen) {
+                      var isSel = editAssignedGens.indexOf(gen.id) >= 0;
+                      return (
+                        <TouchableOpacity key={gen.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 12, borderBottomWidth: 1, borderBottomColor: darkMode ? '#333' : '#eee', backgroundColor: isSel ? (darkMode ? '#2a1a00' : '#FFF3E0') : 'transparent', borderRadius: isSel ? 8 : 0 }} onPress={function() { setEditAssignedGens(function(prev) { return isSel ? prev.filter(function(id) { return id !== gen.id; }) : [...prev, gen.id]; }); }}>
+                          <Ionicons name={isSel ? 'checkbox' : 'square-outline'} size={IS_SMALL ? 22 : 26} color={isSel ? '#FF9800' : '#999'} />
+                          <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', flex: 1 }}>{gen.name}</Text>
+                          <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999' }}>({(gen.subscribers || []).length} مشترك)</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <TouchableOpacity style={{ backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 16 : 20 }} onPress={function() { setShowPasswordModal(true); }}>
+                  <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حفظ التعديلات</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10, flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={async function() {
+                  var text = 'كود العامل: ' + selWorker.code + '\nالرمز السري: ' + (selWorker.plainPin || 'غير متوفر');
+                  await Clipboard.setStringAsync(text);
+                  Alert.alert('تم النسخ', 'تم نسخ كود العامل والرمز السري');
+                }}>
+                  <Ionicons name="copy-outline" size={IS_SMALL ? 16 : 18} color="white" />
+                  <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ كود ورمز العامل</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={{ backgroundColor: '#F44336', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10 }} onPress={function() {
+                  Alert.alert('حذف العامل', 'هل تريد حذف العامل "' + (selWorker.workerName || selWorker.code) + '" نهائياً؟\nسيتم تسجيل خروج العامل تلقائياً وتعطيل الكود.', [
+                    { text: 'إلغاء', style: 'cancel' },
+                    { text: 'نعم، حذف', style: 'destructive', onPress: function() {
+                      onDeleteWorker(selWorker.code);
+                      setSelWorker(null);
+                      setEditPerms([]);
+                      setEditAssignedGens([]);
+                      onClose();
+                    } },
+                  ]);
+                }}>
+                  <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حذف العامل</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {(!workers || workers.length === 0) ? (
+                  <View style={{ alignItems: 'center', marginTop: IS_SMALL ? 40 : 60 }}>
+                    <Ionicons name="people-outline" size={IS_SMALL ? 50 : 60} color="#ccc" />
+                    <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#999', marginTop: IS_SMALL ? 8 : 10 }}>لا يوجد عمال مسجلين</Text>
+                  </View>
+                ) : (
+                  workers.map(function(worker, index) {
+                    return (
+                      <TouchableOpacity key={index} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 12 : 14, paddingHorizontal: IS_SMALL ? 10 : 14, marginBottom: IS_SMALL ? 6 : 8, borderRadius: IS_SMALL ? 8 : 10, backgroundColor: darkMode ? '#1e1e1e' : 'white', borderWidth: 1, borderColor: darkMode ? '#333' : '#eee' }} onPress={function() {
+                        setSelWorker(worker);
+                        setEditPerms(worker.permissions || []);
+                        setEditAssignedGens(worker.assignedGenerators || []);
+                      }}>
+                        <View style={{ backgroundColor: '#FF9800', borderRadius: 20, width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="person" size={IS_SMALL ? 18 : 20} color="white" />
+                        </View>
+                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: IS_SMALL ? 15 : 17, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'right' }}>{worker.workerName || 'بدون اسم'}</Text>
+                          <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2, textAlign: 'right' }}>{(worker.permissions || []).length} صلاحيات</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+
+      <Modal visible={showPasswordModal} transparent animationType="fade">
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+          <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 18 : 24, width: MODAL_WIDTH }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 15 : 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>تأكيد هوية صاحب المولد</Text>
+              <TouchableOpacity onPress={() => { setShowPasswordModal(false); setOwnerPassword(''); }}>
+                <Ionicons name="close" size={IS_SMALL ? 24 : 28} color={darkMode ? '#fff' : '#333'} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#666', textAlign: 'center', marginBottom: IS_SMALL ? 10 : 14 }}>أدخل رمز حساب صاحب المولد للتأكيد</Text>
+            <TextInput style={[styles.settingsInput, { textAlign: 'center' }]} placeholder="رمز الحساب" placeholderTextColor="#999" value={ownerPassword} onChangeText={setOwnerPassword} secureTextEntry />
+            <TouchableOpacity style={{ backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 12 : 16, opacity: ownerPassword ? 1 : 0.5 }} disabled={!ownerPassword} onPress={async function() {
+              if (!ownerPassword) return;
+              const usersResult = await loadFromFile('registered_users');
+              const list = usersResult || [];
+              var found = false;
+              for (var i = 0; i < list.length; i++) {
+                if (list[i].phone === currentUser && list[i].code === ownerPassword) {
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
+                Alert.alert('خطأ', 'رمز الحساب غير صحيح');
+                return;
+              }
+              setShowPasswordModal(false);
+              setOwnerPassword('');
+              onUpdateWorker(selWorker.code, editPerms, editAssignedGens);
+              setSelWorker(null);
+              setEditPerms([]);
+              setEditAssignedGens([]);
+              onClose();
+            }}>
+              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تأكيد</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch, currentUser, fullScreen, onAddWorker, onEditWorker }) => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
@@ -1995,7 +1995,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
             <View style={{ width: 40 }} />
           </View>
           <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
-            <View style={{ padding: IS_SMALL ? 12 : 16 }}>
+            <View style={{ padding: IS_SMALL ? 12 : 16, paddingTop: 0 }}>
               <View style={styles.dateSelectors}>
                 <TouchableOpacity style={styles.dateDropdown} onPress={() => setMonthPickerVisible(true)}>
                   <Text style={styles.dateDropdownText}>{selectedMonth}</Text>
@@ -2006,6 +2006,19 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                   <Ionicons name="calendar" size={20} color="#2196F3" />
                 </TouchableOpacity>
               </View>
+
+              {onAddWorker && onEditWorker && (
+                <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 10, marginTop: IS_SMALL ? 6 : 8, marginBottom: IS_SMALL ? 12 : 16 }}>
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }} onPress={onAddWorker}>
+                    <Ionicons name="person-add-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 13 : 15 }}>إضافة عامل</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }} onPress={onEditWorker}>
+                    <Ionicons name="create-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 13 : 15 }}>تعديل صلاحيات العامل</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={{ marginBottom: IS_SMALL ? 12 : 16 }}>
                 <Text style={[styles.formLabel, { marginBottom: IS_SMALL ? 8 : 10, fontWeight: 'bold' }]}>اختر العامل</Text>
@@ -2482,7 +2495,7 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   );
 };
 
-const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, goldenPrices, monthKey, onConfirm }) => {
+const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, goldenPrices, monthKey, onConfirm, darkMode }) => {
   const [amount, setAmount] = useState('');
   const pmMonth = monthKey ? monthKey.split('_')[0] : '1';
   const pmYear = monthKey ? monthKey.split('_')[1] : '2026';
@@ -2492,109 +2505,94 @@ const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, golden
   const totalPaid = existingPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
   const remaining = totalDue - totalPaid;
 
+  useEffect(() => {
+    if (!visible) return;
+    var sub = BackHandler.addEventListener('hardwareBackPress', function() {
+      onClose();
+      return true;
+    });
+    return function() { sub.remove(); };
+  }, [visible]);
+
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.partialModalContent}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={28} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>دفع جزئي</Text>
-            <View style={{ width: 30 }} />
-          </View>
-
-          <View style={styles.partialSubscriberInfo}>
-            <Text style={styles.partialSubscriberName}>{subscriber ? subscriber.name : ''}</Text>
-            <Text style={styles.partialSubscriberAmper}>{subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0} أميبر</Text>
-          </View>
-
-          <View style={styles.partialSummary}>
-            <View style={styles.partialSummaryRow}>
-              <Text style={styles.partialSummaryLabel}>المبلغ الواجب دفعه</Text>
-              <Text style={styles.partialSummaryValue}>د.ع {formatNumber(totalDue)}</Text>
-            </View>
-            <View style={styles.partialSummaryRow}>
-              <Text style={styles.partialSummaryLabel}>الواصل</Text>
-              <Text style={[styles.partialSummaryValue, styles.partialPaid]}>د.ع {formatNumber(totalPaid)}</Text>
-            </View>
-            <View style={styles.partialSummaryRow}>
-              <Text style={styles.partialSummaryLabel}>المتبقي</Text>
-              <Text style={[styles.partialSummaryValue, styles.partialRemaining]}>د.ع {formatNumber(remaining)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.partialInputGroup}>
-            <Text style={styles.partialInputLabel}>ادخل مبلغ الدفع</Text>
-            <TextInput
-              style={styles.partialInput}
-              value={amount}
-              onChangeText={(t) => {
-                const raw = t.replace(/[^0-9]/g, '');
-                if (raw) {
-                  setAmount(formatNumber(parseInt(raw)));
-                } else {
-                  setAmount('');
-                }
-              }}
-              placeholder="0"
-              placeholderTextColor="#999"
-              keyboardType="numeric"
-              textAlign="center"
-            />
-          </View>
-
-          <TouchableOpacity style={styles.partialConfirmButton} onPress={() => {
-            const parsed = parseFloat(amount.replace(/,/g, ''));
-            if (!parsed || parsed <= 0) {
-              Alert.alert('خطأ', 'أدخل مبلغ صحيح');
-              return;
-            }
-            if (parsed > remaining) {
-              Alert.alert('خطأ', `المبلغ المدخل أكبر من المتبقي. الحد الأقصى المسموح: ${formatNumber(remaining)} د.ع`);
-              return;
-            }
-            onConfirm(parsed);
-            setAmount('');
-            onClose();
-          }}>
-            <Ionicons name="checkmark-circle" size={22} color="white" />
-            <Text style={styles.partialConfirmText}>تأكيد الدفع</Text>
+    <View style={styles.subscribersOverlay}>
+      <View style={styles.subscribersContainer}>
+        <View style={styles.subscribersHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.backButton}>
+            <Ionicons name="arrow-forward" size={26} color="white" />
           </TouchableOpacity>
-
-          {remaining > 0 && (
-            <TouchableOpacity style={[styles.partialConfirmButton, { marginTop: 8 }]} onPress={() => {
-              Alert.alert('دفع المتبقي', `هل تريد دفع المتبقي بالكامل؟\nالمبلغ: د.ع ${formatNumber(remaining)}`, [
-                { text: 'إلغاء', style: 'cancel' },
-                { text: 'نعم', onPress: () => { onConfirm(remaining); onClose(); } },
-              ]);
-            }}>
-              <Ionicons name="wallet" size={22} color="white" />
-              <Text style={styles.partialConfirmText}>دفع المتبقي كاملاً ({formatNumber(remaining)} د.ع)</Text>
-            </TouchableOpacity>
-          )}
-
-          {existingPayments.length > 0 && (
-            <View style={{ marginTop: 16, width: '100%' }}>
-              <Text style={[styles.partialSummaryLabel, { textAlign: 'right', marginBottom: 8, fontSize: 14, fontWeight: 'bold', color: '#333' }]}>سجل الدفعات الجزئية</Text>
-              {existingPayments.slice().reverse().map((p, idx) => (
-                <View key={idx} style={{ backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, marginBottom: 6, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
-                    <Text style={{ fontSize: 14, color: '#4CAF50', fontWeight: 'bold' }}>د.ع {formatNumber(parseFloat(p.amount) || 0)}</Text>
-                    {p.ownerName ? <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{p.ownerName}</Text> : null}
-                  </View>
-                  <View style={{ alignItems: 'flex-start' }}>
-                    <Text style={{ fontSize: 12, color: '#666' }}>{p.timestamp || '-'}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
+          <Text style={styles.subscribersTitle}>دفع جزئي</Text>
+          <View style={{ width: 40 }} />
         </View>
+        <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: IS_SMALL ? 12 : 16 }}>
+            <View style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 14 }}>
+              <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'right' }}>{subscriber ? subscriber.name : ''}</Text>
+              <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#999', textAlign: 'right', marginTop: 4 }}>{subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0} أميبر</Text>
+            </View>
+
+            <View style={{ backgroundColor: darkMode ? '#2a2a2a' : '#fff', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 14, borderWidth: 1, borderColor: darkMode ? '#333' : '#eee' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: IS_SMALL ? 6 : 8 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666' }}>المبلغ الواجب دفعه</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: darkMode ? '#fff' : '#333' }}>د.ع {formatNumber(totalDue)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: IS_SMALL ? 6 : 8 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666' }}>الواصل</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#4CAF50' }}>د.ع {formatNumber(totalPaid)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666' }}>المتبقي</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#F44336' }}>د.ع {formatNumber(remaining)}</Text>
+              </View>
+            </View>
+
+            <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 6 : 8, textAlign: 'right' }}>ادخل مبلغ الدفع</Text>
+            <TextInput style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 14, fontSize: IS_SMALL ? 18 : 22, borderWidth: 1, borderColor: darkMode ? '#444' : '#e0e0e0', textAlign: 'center', color: darkMode ? '#fff' : '#333', fontWeight: 'bold', marginBottom: IS_SMALL ? 14 : 20 }} value={amount} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); if (raw) { setAmount(formatNumber(parseInt(raw))); } else { setAmount(''); } }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" />
+
+            <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={() => {
+              const parsed = parseFloat(amount.replace(/,/g, ''));
+              if (!parsed || parsed <= 0) { Alert.alert('خطأ', 'أدخل مبلغ صحيح'); return; }
+              if (parsed > remaining) { Alert.alert('خطأ', 'المبلغ المدخل أكبر من المتبقي. الحد الأقصى المسموح: ' + formatNumber(remaining) + ' د.ع'); return; }
+              onConfirm(parsed);
+              setAmount('');
+              onClose();
+            }}>
+              <Ionicons name="checkmark-circle" size={IS_SMALL ? 18 : 22} color="white" />
+              <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تأكيد الدفع</Text>
+            </TouchableOpacity>
+
+            {remaining > 0 && (
+              <TouchableOpacity style={{ backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10, flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={() => {
+                Alert.alert('دفع المتبقي', 'هل تريد دفع المتبقي بالكامل؟\nالمبلغ: د.ع ' + formatNumber(remaining), [
+                  { text: 'إلغاء', style: 'cancel' },
+                  { text: 'نعم', onPress: () => { onConfirm(remaining); onClose(); } },
+                ]);
+              }}>
+                <Ionicons name="wallet" size={IS_SMALL ? 18 : 22} color="white" />
+                <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>دفع المتبقي كاملاً ({formatNumber(remaining)} د.ع)</Text>
+              </TouchableOpacity>
+            )}
+
+            {existingPayments.length > 0 && (
+              <View style={{ marginTop: IS_SMALL ? 14 : 18 }}>
+                <Text style={{ fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 8 : 10, textAlign: 'right' }}>سجل الدفعات الجزئية</Text>
+                {existingPayments.slice().reverse().map((p, idx) => (
+                  <View key={idx} style={{ backgroundColor: darkMode ? '#2a2a2a' : '#F5F5F5', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View>
+                      <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#4CAF50', fontWeight: 'bold' }}>د.ع {formatNumber(parseFloat(p.amount) || 0)}</Text>
+                      {p.ownerName ? <Text style={{ fontSize: IS_SMALL ? 10 : 12, color: '#999', marginTop: 2 }}>{p.ownerName}</Text> : null}
+                    </View>
+                    <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>{p.timestamp || '-'}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </View>
-    </Modal>
+    </View>
   );
 };
 
@@ -2699,7 +2697,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode }) => {
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [searchText, setSearchText] = useState('');
@@ -2784,6 +2782,25 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
       if (activeFilter === 'unpaid') return matchesSearch && !isPaid(sub) && !hasPartialPayments(sub);
       if (activeFilter === 'required') return matchesSearch && !isPaid(sub) && hasPartialPayments(sub);
       return matchesSearch;
+    }).sort(function(a, b) {
+      if (activeFilter === 'all' || activeFilter === 'total' || activeFilter === 'deleted') {
+        var aAdded = (a.addedYear || 0) * 100 + (a.addedMonth || 0);
+        var bAdded = (b.addedYear || 0) * 100 + (b.addedMonth || 0);
+        if (aAdded !== bAdded) return bAdded - aAdded;
+        return (b.id || '').localeCompare(a.id || '');
+      }
+      if (activeFilter === 'required') {
+        var aPP = (a.partialPayments && a.partialPayments[monthKey]) || [];
+        var bPP = (b.partialPayments && b.partialPayments[monthKey]) || [];
+        var aLastPP = aPP.length > 0 ? aPP[aPP.length - 1].timestamp : '';
+        var bLastPP = bPP.length > 0 ? bPP[bPP.length - 1].timestamp : '';
+        return bLastPP.localeCompare(aLastPP);
+      }
+      var aHistory = (a.paymentHistory || []).filter(function(h) { return h.monthKey === monthKey; });
+      var bHistory = (b.paymentHistory || []).filter(function(h) { return h.monthKey === monthKey; });
+      var aLast = aHistory.length > 0 ? aHistory[aHistory.length - 1].timestamp : '';
+      var bLast = bHistory.length > 0 ? bHistory[bHistory.length - 1].timestamp : '';
+      return bLast.localeCompare(aLast);
     });
     const fd = df.filter(sub => {
       return sub.name.includes(searchText) ||
@@ -3074,6 +3091,12 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                             <Text style={styles.subscriberName}>{subscriber.name}</Text>
                             {subscriber.subscriptionType === 'golden' ? <View style={styles.goldenBadge}><Text style={styles.goldenBadgeText}>ذهبي</Text></View> : null}
                           </View>
+                          {subscriber.rejectedPayments && subscriber.rejectedPayments[monthKey] ? (
+                            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, marginTop: 3, backgroundColor: '#FFF3E0', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Ionicons name="close-circle" size={12} color="#F44336" />
+                              <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#F44336', fontWeight: 'bold' }}>تم إلغاء الدفع بواسطة {subscriber.rejectedPayments[monthKey].ownerName}</Text>
+                            </View>
+                          ) : null}
                           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, marginTop: IS_SMALL ? 1 : 2 }}>
                               <TouchableOpacity
                                 onLongPress={() => {
@@ -3250,6 +3273,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
         goldenPrices={goldenPrices}
         monthKey={monthKey}
         onConfirm={(amount) => onPartialPayment(partialPaymentSubscriber.id, amount, monthKey)}
+        darkMode={darkMode}
       />
 
       <MonthPickerModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
@@ -3618,8 +3642,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
                         </View>
                       )}
                       <View style={{flex: 1.5}}>
-                        <Text style={styles.reportTableCellSmall}>{lastEntry ? lastEntry.timestamp : '-'}</Text>
-                        {lastEntry && lastEntry.ownerName ? <Text style={styles.reportTableCellSmall}>{lastEntry.ownerName}</Text> : null}
+                        <Text style={styles.reportTableCellSmall}>{lastEntry ? lastEntry.timestamp : '-'}{lastEntry && lastEntry.ownerName ? ' (' + lastEntry.ownerName + ')' : ''}</Text>
                       </View>
                     </View>
                   );
@@ -3812,7 +3835,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
                 <Ionicons name="calendar-outline" size={IS_SMALL ? 14 : 16} color="#1565C0" />
               </TouchableOpacity>
               <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setMonthPickerVisible(true)}>
-                <Text style={[styles.filterTabText, { color: '#1565C0', fontSize: IS_SMALL ? 12 : 14 }]}>{m}/{selectedYear}</Text>
+                <Text style={[styles.filterTabText, { color: '#1565C0', fontSize: IS_SMALL ? 12 : 14 }]}>{m}</Text>
                 <Ionicons name="chevron-down" size={IS_SMALL ? 14 : 16} color="#1565C0" />
               </TouchableOpacity>
             </View>
@@ -3864,27 +3887,18 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
             <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 12 : 16 }}>
               <View style={{ height: 1, backgroundColor: '#ddd', marginBottom: IS_SMALL ? 8 : 12 }} />
 
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12 }}>
-                <Ionicons name="wallet" size={IS_SMALL ? 18 : 22} color="#4CAF50" />
-                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المبلغ المستوفى من المشتركين</Text>
-              </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
-                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
-              </View>
-
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 12 : 16 }}>
-                <Ionicons name="cash" size={IS_SMALL ? 18 : 22} color="#1565C0" />
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 16, backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1, borderRadius: IS_SMALL ? 6 : 10 }}>
                 <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
-              </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
                 <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
               </View>
 
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 5 : 8, marginBottom: IS_SMALL ? 8 : 12, marginTop: IS_SMALL ? 12 : 16 }}>
-                <Ionicons name="alert-circle" size={IS_SMALL ? 18 : 22} color="#FF9800" />
-                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المطلوبين</Text>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 16, backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1, borderRadius: IS_SMALL ? 6 : 10 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المبلغ المستوفى من المشتركين</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
               </View>
-              <View style={[styles.settingsInput, { backgroundColor: '#FFF3E0', borderColor: '#FF9800', borderWidth: 1, padding: IS_SMALL ? 10 : 16 }]}>
+
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 16, backgroundColor: '#FFF3E0', borderColor: '#FF9800', borderWidth: 1, borderRadius: IS_SMALL ? 6 : 10 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المطلوبين</Text>
                 <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#E65100', fontWeight: '600' }}>د.ع {formatNumber(stats.requiredAmount)}</Text>
               </View>
 
@@ -3946,8 +3960,8 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
         </View>
 
         {yearPickerVisible && (
-          <Modal visible={yearPickerVisible} transparent animationType="slide">
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setYearPickerVisible(false)}>
+          <Modal visible={yearPickerVisible} transparent animationType="fade">
+            <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={() => setYearPickerVisible(false)}>
               <View style={[styles.partialModalContent, { maxHeight: '50%' }]} onStartShouldSetResponder={() => true}>
                 <Text style={styles.modalTitle}>اختر السنة</Text>
                 <ScrollView style={{ maxHeight: 300 }}>
@@ -3964,8 +3978,8 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
         )}
 
         {monthPickerVisible && (
-          <Modal visible={monthPickerVisible} transparent animationType="slide">
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMonthPickerVisible(false)}>
+          <Modal visible={monthPickerVisible} transparent animationType="fade">
+            <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={() => setMonthPickerVisible(false)}>
               <View style={[styles.partialModalContent, { maxHeight: '50%' }]} onStartShouldSetResponder={() => true}>
                 <Text style={styles.modalTitle}>اختر الشهر</Text>
                 <ScrollView style={{ maxHeight: 350 }}>
@@ -3985,7 +3999,368 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onAddGenerator, onSwitchGenerator, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
+const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, onSwitchGenerator, onAddGenerator, onDeleteGenerator, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses, darkMode, currentUser, deletedGenerators, onRestoreGenerator }) => {
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newGenName, setNewGenName] = useState('');
+  const [deletePasswordModal, setDeletePasswordModal] = useState(null);
+  const [restoreModalVisible, setRestoreModalVisible] = useState(false);
+  const [restorePasswordVisible, setRestorePasswordVisible] = useState(null);
+  const [restorePassword, setRestorePassword] = useState('');
+
+  const getGeneratorStats = (gen) => {
+    var subs = gen.subscribers || [];
+    var activeSubs = subs.filter(function(s) { return !s.deletedFromMonth; });
+    var totalAmper = 0;
+    activeSubs.forEach(function(s) { totalAmper += (s.amper || 0); });
+    var exp = gen.monthlyExpenses || {};
+    var totalExpenses = (parseFloat(exp.gas) || 0) + (parseFloat(exp.oil) || 0) + (parseFloat(exp.repairs) || 0) + (parseFloat(exp.salaries) || 0);
+    var workerExp = gen.workerExpenses || {};
+    var workerExpensesTotal = 0;
+    Object.keys(workerExp).forEach(function(mk) {
+      (workerExp[mk] || []).forEach(function(e) { workerExpensesTotal += (parseFloat(e.amount) || 0); });
+    });
+    return { subscriberCount: activeSubs.length, totalAmper: totalAmper, totalExpenses: totalExpenses, workerExpensesTotal: workerExpensesTotal };
+  };
+
+  var totalSubscribers = 0;
+  var totalAmperAll = 0;
+  (generators || []).forEach(function(gen) {
+    var s = getGeneratorStats(gen);
+    totalSubscribers += s.subscriberCount;
+    totalAmperAll += s.totalAmper;
+  });
+
+  var handleAdd = function() {
+    if (!newGenName.trim()) {
+      Alert.alert('تنبيه', 'ادخل اسم المولد');
+      return;
+    }
+    onAddGenerator(newGenName);
+    setNewGenName('');
+    setAddModalVisible(false);
+  };
+
+  var handleDelete = function(gen) {
+    if ((generators || []).length <= 1) {
+      Alert.alert('تنبيه', 'لا يمكن حذف المولد الوحيد');
+      return;
+    }
+    Alert.alert('حذف المولد', 'هل أنت متأكد من حذف "' + gen.name + '"؟\nسيتم طلب كلمة المرور للتأكيد.', [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'حذف', style: 'destructive', onPress: function() { setDeletePasswordModal(gen); } },
+    ]);
+  };
+
+  var confirmDelete = async function(gen, password) {
+    if (!password || !password.trim()) {
+      Alert.alert('تنبيه', 'ادخل كلمة المرور');
+      return;
+    }
+    var result = await onDeleteGenerator(gen.id, password);
+    if (result === false) {
+      Alert.alert('خطأ', 'كلمة المرور غير صحيحة');
+    } else {
+      setDeletePasswordModal(null);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <View style={[styles.mainContainer, darkMode && { backgroundColor: '#121212' }]}>
+      <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <View style={{ backgroundColor: '#1565C0', paddingTop: IS_SMALL ? 36 : 44, paddingBottom: IS_SMALL ? 12 : 16, paddingHorizontal: 16, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
+        <TouchableOpacity onPress={function() { setAddModalVisible(true); setNewGenName(''); }} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: IS_SMALL ? 10 : 14, paddingVertical: IS_SMALL ? 6 : 8 }}>
+          <Ionicons name="add-circle" size={IS_SMALL ? 20 : 22} color="white" />
+          <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: 'white', fontWeight: 'bold' }}>إضافة مولد</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: IS_SMALL ? 18 : 22, fontWeight: 'bold', color: 'white', textAlign: 'center', flex: 1 }}>المولدات</Text>
+        <TouchableOpacity onPress={onClose} style={{ padding: 6 }}>
+          <Ionicons name="arrow-forward" size={IS_SMALL ? 22 : 26} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
+        <View style={{ margin: IS_SMALL ? 12 : 16, backgroundColor: '#1565C0', borderRadius: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 14 : 20 }}>
+          <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#B3D4FF', fontWeight: '600', marginBottom: IS_SMALL ? 10 : 14, textAlign: 'center' }}>إحصائيات مشتركة</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: IS_SMALL ? 20 : 26, fontWeight: 'bold', color: 'white' }}>{generators ? generators.length : 0}</Text>
+              <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#B3D4FF' }}>المولدات</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: '#4A90D9' }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: IS_SMALL ? 20 : 26, fontWeight: 'bold', color: 'white' }}>{totalSubscribers}</Text>
+              <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#B3D4FF' }}>مشتركين</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: '#4A90D9' }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: IS_SMALL ? 20 : 26, fontWeight: 'bold', color: 'white' }}>{formatNumber(totalAmperAll)}</Text>
+              <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#B3D4FF' }}>أميبر</Text>
+            </View>
+          </View>
+        </View>
+
+        {(!generators || generators.length === 0) ? (
+          <View style={{ alignItems: 'center', marginTop: IS_SMALL ? 40 : 60, paddingHorizontal: 30 }}>
+            <Ionicons name="flash-outline" size={60} color="#ccc" />
+            <Text style={{ fontSize: IS_SMALL ? 15 : 18, color: '#999', marginTop: IS_SMALL ? 10 : 16, textAlign: 'center' }}>لا يوجد مولدات بعد</Text>
+            <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#bbb', marginTop: 6, textAlign: 'center' }}>اضغط على "إضافة مولد" لإضافة مولد جديد</Text>
+          </View>
+        ) : (
+          generators.map(function(gen) {
+            var stats = getGeneratorStats(gen);
+            var isCurrent = gen.id === currentGeneratorId;
+            return (
+              <TouchableOpacity
+                key={gen.id}
+                style={{
+                  marginHorizontal: IS_SMALL ? 12 : 16,
+                  marginBottom: IS_SMALL ? 10 : 12,
+                  backgroundColor: darkMode ? '#1e1e1e' : 'white',
+                  borderRadius: IS_SMALL ? 10 : 14,
+                  borderLeftWidth: isCurrent ? 4 : 0,
+                  borderLeftColor: isCurrent ? '#2196F3' : 'transparent',
+                  borderWidth: isCurrent ? 2 : 1,
+                  borderColor: isCurrent ? '#2196F3' : (darkMode ? '#333' : '#eee'),
+                  padding: IS_SMALL ? 12 : 16,
+                  elevation: isCurrent ? 4 : 2,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: isCurrent ? 0.15 : 0.08,
+                  shadowRadius: 4,
+                  flexDirection: 'row-reverse',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+                onPress={function() { if (!isCurrent) { onSwitchGenerator(gen.id); } }}
+                activeOpacity={isCurrent ? 1 : 0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: IS_SMALL ? 6 : 8 }}>
+                    <Ionicons name="flash" size={IS_SMALL ? 18 : 22} color={isCurrent ? '#2196F3' : '#999'} />
+                    <Text style={{ fontSize: IS_SMALL ? 15 : 17, fontWeight: isCurrent ? 'bold' : '600', color: darkMode ? '#fff' : '#333', flex: 1 }}>{gen.name}</Text>
+                    {isCurrent && (
+                      <View style={{ backgroundColor: '#E3F2FD', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#1565C0', fontWeight: '600' }}>الحالي</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: IS_SMALL ? 8 : 12, marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="people-outline" size={IS_SMALL ? 13 : 15} color="#666" />
+                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>{stats.subscriberCount} مشترك</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="flash-outline" size={IS_SMALL ? 13 : 15} color="#FF9800" />
+                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>{formatNumber(stats.totalAmper)} أميبر</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="receipt-outline" size={IS_SMALL ? 13 : 15} color="#F44336" />
+                      <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#666' }}>د.ع {formatNumber(stats.totalExpenses)}</Text>
+                    </View>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={function() { handleDelete(gen); }}
+                  style={{ padding: IS_SMALL ? 6 : 8, marginLeft: 8 }}
+                >
+                  <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 22} color="#F44336" />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            );
+          })
+        )}
+
+        {deletedGenerators && deletedGenerators.length > 0 && (
+          <TouchableOpacity
+            onPress={function() { setRestoreModalVisible(true); }}
+            style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 6 : 8, paddingVertical: IS_SMALL ? 6 : 8 }}
+          >
+            <Ionicons name="refresh-outline" size={IS_SMALL ? 14 : 16} color="#999" />
+            <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#999' }}>استرداد بيانات المولد ({deletedGenerators.length})</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={{ height: IS_SMALL ? 20 : 30 }} />
+      </ScrollView>
+
+      {addModalVisible && (
+        <Modal visible={addModalVisible} animationType="fade" transparent>
+          <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={function() { setAddModalVisible(false); }}>
+            <View style={[styles.partialModalContent, { maxHeight: '40%' }]} onStartShouldSetResponder={function() { return true; }}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={function() { setAddModalVisible(false); }}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>إضافة مولد جديد</Text>
+                <View style={{ width: 28 }} />
+              </View>
+              <View style={{ padding: IS_SMALL ? 14 : 20 }}>
+                <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: darkMode ? '#fff' : '#333', marginBottom: 10, textAlign: 'right' }}>ادخل اسم المولد الجديد</Text>
+                <TextInput
+                  style={[styles.formInput, { textAlign: 'right', marginBottom: 15 }]}
+                  placeholder="ادخل اسم المولد"
+                  placeholderTextColor="#999"
+                  value={newGenName}
+                  onChangeText={setNewGenName}
+                />
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: '#2196F3', paddingVertical: 14, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }]}
+                  onPress={handleAdd}
+                >
+                  <Ionicons name="save-outline" size={20} color="white" />
+                  <Text style={[styles.addButtonText, { color: 'white' }]}>حفظ</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {deletePasswordModal && (
+        <Modal visible={!!deletePasswordModal} animationType="fade" transparent>
+          <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={function() { setDeletePasswordModal(null); }}>
+            <DeletePasswordModal
+              gen={deletePasswordModal}
+              onConfirm={confirmDelete}
+              onCancel={function() { setDeletePasswordModal(null); }}
+              darkMode={darkMode}
+            />
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {restoreModalVisible && (
+        <Modal visible={restoreModalVisible} transparent animationType="fade">
+          <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={function() { setRestoreModalVisible(false); }}>
+            <View style={[styles.partialModalContent, { maxHeight: '60%' }]} onStartShouldSetResponder={function() { return true; }}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={function() { setRestoreModalVisible(false); }}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>استرداد بيانات المولد</Text>
+                <View style={{ width: 28 }} />
+              </View>
+              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#666', textAlign: 'center', marginBottom: 8 }}>المولدات المحذوفة (تُحذف نهائياً بعد شهر):</Text>
+              <ScrollView style={{ maxHeight: 300 }}>
+                {(deletedGenerators || []).map(function(dg) {
+                  var daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - dg.deletedAt)) / (24 * 60 * 60 * 1000)));
+                  var dgData = dg.data || {};
+                  var subCount = (dgData.subscribers || []).length;
+                  return (
+                    <TouchableOpacity key={dg.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingVertical: IS_SMALL ? 10 : 14, borderBottomWidth: 1, borderBottomColor: '#eee' }} onPress={function() {
+                      setRestorePasswordVisible(dg);
+                      setRestorePassword('');
+                      setRestoreModalVisible(false);
+                    }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333', fontWeight: 'bold' }}>{dg.name}</Text>
+                        <Text style={{ fontSize: IS_SMALL ? 11 : 13, color: '#999', marginTop: 2 }}>{subCount} مشترك - يتبقى {daysLeft} يوم</Text>
+                      </View>
+                      <Ionicons name="refresh-outline" size={22} color="#4CAF50" />
+                    </TouchableOpacity>
+                  );
+                })}
+                {(!deletedGenerators || deletedGenerators.length === 0) && (
+                  <Text style={{ fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 }}>لا توجد مولدات محذوفة</Text>
+                )}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {restorePasswordVisible && (
+        <Modal visible={!!restorePasswordVisible} animationType="fade" transparent>
+          <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]} activeOpacity={1} onPress={function() { setRestorePasswordVisible(null); }}>
+            <View style={[styles.partialModalContent, { maxHeight: '35%' }]} onStartShouldSetResponder={function() { return true; }}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={function() { setRestorePasswordVisible(null); }}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>استرداد "{restorePasswordVisible.name}"</Text>
+                <View style={{ width: 28 }} />
+              </View>
+              <View style={{ padding: IS_SMALL ? 14 : 20 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333', marginBottom: 10, textAlign: 'right' }}>ادخل كلمة المرور للتأكيد</Text>
+                <TextInput
+                  style={[styles.formInput, { textAlign: 'right', marginBottom: 15 }]}
+                  placeholder="كلمة المرور"
+                  placeholderTextColor="#999"
+                  value={restorePassword}
+                  onChangeText={setRestorePassword}
+                  secureTextEntry
+                />
+                <TouchableOpacity
+                  style={{ backgroundColor: '#4CAF50', paddingVertical: 14, borderRadius: 10, alignItems: 'center' }}
+                  onPress={async function() {
+                    if (!restorePassword || !restorePassword.trim()) {
+                      Alert.alert('تنبيه', 'ادخل كلمة المرور');
+                      return;
+                    }
+                    try {
+                      var usersResult = await loadFromFile('registered_users');
+                      var usersList = usersResult || [];
+                      var user = usersList.find(function(u) { return u.phone === currentUser; });
+                      if (!user) { Alert.alert('خطأ', 'حدث خطأ'); return; }
+                      var verifyResult = await verifyOwnerPassword(user.password, restorePassword.trim(), currentUser);
+                      if (verifyResult.match) {
+                        onRestoreGenerator(restorePasswordVisible.id);
+                        setRestorePasswordVisible(null);
+                        setRestorePassword('');
+                      } else {
+                        Alert.alert('خطأ', 'كلمة المرور غير صحيحة');
+                      }
+                    } catch (e) {
+                      Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
+                    }
+                  }}
+                >
+                  <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>تأكيد الاسترداد</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+    </View>
+  );
+};
+
+const DeletePasswordModal = ({ gen, onConfirm, onCancel, darkMode }) => {
+  const [password, setPassword] = useState('');
+  return (
+    <View style={[styles.partialModalContent, { maxHeight: '35%' }]} onStartShouldSetResponder={function() { return true; }}>
+      <View style={styles.modalHeader}>
+        <TouchableOpacity onPress={onCancel}>
+          <Ionicons name="close" size={28} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>حذف "{gen.name}"</Text>
+        <View style={{ width: 28 }} />
+      </View>
+      <View style={{ padding: IS_SMALL ? 14 : 20 }}>
+        <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#fff' : '#333', marginBottom: 10, textAlign: 'right' }}>ادخل كلمة المرور للتأكيد</Text>
+        <TextInput
+          style={[styles.formInput, { textAlign: 'right', marginBottom: 15 }]}
+          placeholder="كلمة المرور"
+          placeholderTextColor="#999"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+        <TouchableOpacity
+          style={{ backgroundColor: '#F44336', paddingVertical: 14, borderRadius: 10, alignItems: 'center' }}
+          onPress={function() { onConfirm(gen, password); }}
+        >
+          <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>تأكيد الحذف</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -4113,6 +4488,28 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
     setAddExpenseVisible(false);
   };
 
+  const handleDeleteWorkerExpense = async (expenseIndex) => {
+    Alert.alert('حذف صرفية العامل', 'هل تريد بالتأكيد حذف هذه الصرفية؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'نعم', onPress: async () => {
+          const mk = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
+          const newWorkerExpenses = Object.assign({}, workerExpenses);
+          const monthArr = newWorkerExpenses[mk] ? newWorkerExpenses[mk].slice() : [];
+          monthArr.splice(expenseIndex, 1);
+          if (monthArr.length === 0) {
+            delete newWorkerExpenses[mk];
+          } else {
+            newWorkerExpenses[mk] = monthArr;
+          }
+          setWorkerExpenses(newWorkerExpenses);
+          workerExpensesRef.current = newWorkerExpenses;
+          if (currentUser) await saveUserData(currentUser, 'workerExpenses', newWorkerExpenses);
+        }
+      }
+    ]);
+  };
+
   return (
     <View style={[styles.mainContainer, darkMode && { backgroundColor: '#121212' }]}>
       <StatusBar backgroundColor={isOnline ? "#2196F3" : "#FF5722"} barStyle="light-content" />
@@ -4122,31 +4519,12 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           <Text style={styles.offlineBannerText}>لا يوجد اتصال بالإنترنت - البيانات قد لا تُحفظ</Text>
         </View>
       )}
-      <View style={styles.header}>
-        <View style={{ width: IS_SMALL ? 32 : Math.round(40 * SCALE) }} />
-        <Text style={styles.headerTitle}>{generatorName || 'مولدي'}</Text>
-        <View style={{ width: IS_SMALL ? 32 : Math.round(40 * SCALE) }} />
-      </View>
-
       <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={[styles.addButton, { paddingHorizontal: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 6 : 8 }]} onPress={onAddGenerator}>
-            <Ionicons name="add-circle-outline" size={IS_SMALL ? 14 : 16} color="white" />
-            <Text style={[styles.addButtonText, { fontSize: IS_SMALL ? 12 : 13 }]}>إضافة مولد</Text>
-          </TouchableOpacity>
-          {generators && generators.length > 1 && (
-            <TouchableOpacity style={[styles.addButton, { paddingHorizontal: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 6 : 8 }]} onPress={onSwitchGenerator}>
-              <Ionicons name="swap-horizontal-outline" size={IS_SMALL ? 14 : 16} color="white" />
-              <Text style={[styles.addButtonText, { fontSize: IS_SMALL ? 12 : 13 }]}>تبديل المولد ({generators.length})</Text>
-            </TouchableOpacity>
-          )}
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 4 : 6 }}>
           <TouchableOpacity style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
             <Text style={styles.monthlyDataButtonText}>بيانات كل شهر</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.dateContainer}>
-          <Text style={[styles.dateText, { textAlign: 'right', flex: 1 }]}>{getCurrentDate()}</Text>
+          <Text style={[styles.dateText, { fontSize: IS_SMALL ? 12 : 14 }]}>{getCurrentDate()}</Text>
         </View>
 
         {hasGoldenSubscribers ? (
@@ -4271,7 +4649,12 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
                 <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#333', fontWeight: 'bold' }}>{e.type}</Text>
                 <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>({e.workerName})</Text>
               </View>
-              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8 }}>
+                <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(e.amount)}</Text>
+                <TouchableOpacity onPress={() => handleDeleteWorkerExpense(idx)} style={{ padding: 4 }}>
+                  <Ionicons name="trash-outline" size={18} color="#F44336" />
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </View>
@@ -4472,6 +4855,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
 };
 
 export default function App() {
+  const insets = useSafeAreaInsets();
   const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -4499,8 +4883,7 @@ export default function App() {
   const [workers, setWorkers] = useState([]);
   const [generators, setGenerators] = useState([]);
   const [currentGeneratorId, setCurrentGeneratorId] = useState(null);
-  const [addGeneratorVisible, setAddGeneratorVisible] = useState(false);
-  const [switchGeneratorVisible, setSwitchGeneratorVisible] = useState(false);
+
   const [workerAssignedGeneratorId, setWorkerAssignedGeneratorId] = useState(null);
   const [workerAssignedGenerators, setWorkerAssignedGenerators] = useState([]);
   const [workerSwitchGeneratorVisible, setWorkerSwitchGeneratorVisible] = useState(false);
@@ -4511,6 +4894,14 @@ export default function App() {
   const [deletedGenerators, setDeletedGenerators] = useState([]);
   const [globalLoading, setGlobalLoading] = useState('');
   const [activeTab, setActiveTab] = useState('home');
+  const [addWorkerModalVisible, setAddWorkerModalVisible] = useState(false);
+  const [addWorkerName, setAddWorkerName] = useState('');
+  const [addWorkerPerms, setAddWorkerPerms] = useState([]);
+  const [addWorkerAssignedGens, setAddWorkerAssignedGens] = useState([]);
+  const [editWorkerModalVisible, setEditWorkerModalVisible] = useState(false);
+  const [editWorkerSel, setEditWorkerSel] = useState(null);
+  const [editWorkerPerms, setEditWorkerPerms] = useState([]);
+  const [editWorkerAssignedGens, setEditWorkerAssignedGens] = useState([]);
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -4542,24 +4933,6 @@ export default function App() {
       loadAllUserData();
     }
   }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser || userRole !== 'owner') return;
-    const checkDeleted = async () => {
-      try {
-        const usersResult = await loadFromFile('registered_users');
-        if (!usersResult || !Array.isArray(usersResult) || usersResult.length === 0) return;
-        const exists = usersResult.find(function(u) { return u.phone === currentUser; });
-        if (!exists) {
-          Alert.alert('تم الحذف', 'تم حذف حسابك من قبل الإدارة. سيتم تسجيل الخروج تلقائياً.');
-          handleLogout();
-        }
-      } catch (e) {}
-    };
-    checkDeleted();
-    const interval = setInterval(checkDeleted, 60000);
-    return () => clearInterval(interval);
-  }, [currentUser, userRole]);
 
   const isFirstRender = React.useRef(true);
   const generatorsRef = React.useRef(generators);
@@ -4702,9 +5075,14 @@ export default function App() {
 
   const loadAllUserData = async () => {
     if (!currentUser) return;
-    await syncPendingChanges(currentUser);
     const all = await loadAllUserKeys(currentUser);
-    if (all.ownerName !== undefined) setOwnerName(all.ownerName);
+    if (all.ownerName !== undefined && all.ownerName.trim()) setOwnerName(all.ownerName);
+    else {
+      var usersResult = await loadFromFile('registered_users');
+      var usersList = usersResult || [];
+      var user = usersList.find(function(u) { return u.phone === currentUser; });
+      if (user && user.ownerName && user.ownerName.trim()) setOwnerName(user.ownerName.trim());
+    }
     if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(normalizeBatches(all.pending_worker_updates));
     if (all.worker_activity_log !== undefined) setWorkerActivityLog(all.worker_activity_log);
     if (all.workers !== undefined) setWorkers(all.workers);
@@ -4760,6 +5138,7 @@ export default function App() {
       if (all.subscribers !== undefined) setSubscribers(all.subscribers);
       if (all.monthlyExpenses !== undefined) setMonthlyExpenses(all.monthlyExpenses);
     }
+    syncPendingChanges(currentUser);
   };
 
   const saveCurrentGeneratorData = async (updatedGenerators) => {
@@ -4816,7 +5195,9 @@ export default function App() {
       setGeneratorName(target.name);
       setSubscribers(target.subscribers || []);
       setAmperPrices(target.amperPrices || {});
+      setGoldenPrices(target.goldenPrices || {});
       setMonthlyExpenses(target.monthlyExpenses || {});
+      setWorkerExpenses(target.workerExpenses || {});
       if (currentUser) {
         await saveUserData(currentUser, 'generators', updatedGenerators);
         await saveUserData(currentUser, 'currentGeneratorId', genId);
@@ -4892,13 +5273,18 @@ export default function App() {
   const handleLogin = (userPhone) => {
     if (userRole === 'worker') return;
     setCurrentUser(userPhone);
+    setActiveTab('home');
     setScreen('main');
   };
 
   const handleOnboardingComplete = async () => {
     await saveToFile('onboarding_done', true);
     setShowOnboarding(false);
-    setScreen('welcome');
+    if (currentUser) {
+      setScreen('');
+    } else {
+      setScreen('welcome');
+    }
   };
 
   const handleChangePassword = async (oldPassword, newPassword) => {
@@ -5011,6 +5397,7 @@ export default function App() {
         workerName: workerName || workerCode || '',
         workerCode: workerCode || '',
         updates: workerUpdates,
+        generatorId: workerAssignedGeneratorId || null,
       };
       const merged = [...existing, batch];
       const result = await saveUserData(workerOwnerPhone, 'pending_worker_updates', merged);
@@ -5038,7 +5425,11 @@ export default function App() {
     if (!batch) return;
 
     setGlobalLoading('جاري تطبيق التحديثات...');
-    let newSubs = [...subscribers];
+    const targetGenId = batch.generatorId || currentGeneratorId;
+    const isDifferentGen = targetGenId && targetGenId !== currentGeneratorId;
+    const targetGen = isDifferentGen ? generators.find(g => g.id === targetGenId) : null;
+    let newSubs = isDifferentGen ? [...(targetGen?.subscribers || [])] : [...subscribers];
+    let newWorkerExpenses = isDifferentGen ? { ...(targetGen?.workerExpenses || {}) } : { ...workerExpenses };
     for (const update of batch.updates) {
       switch (update.type) {
         case 'add': {
@@ -5081,6 +5472,10 @@ export default function App() {
             sub.partialPayments = { ...sub.partialPayments };
             if (update.type === 'cancelled') {
               delete sub.partialPayments[update.monthKey];
+            }
+            if (sub.rejectedPayments) {
+              sub.rejectedPayments = { ...sub.rejectedPayments };
+              delete sub.rejectedPayments[update.monthKey];
             }
             newSubs[subIndex] = sub;
           }
@@ -5174,27 +5569,32 @@ export default function App() {
             date: update.date,
             workerName: update.ownerName || '',
           };
-          const newWorkerExpenses = { ...workerExpenses };
           if (!newWorkerExpenses[monthKey]) newWorkerExpenses[monthKey] = [];
           newWorkerExpenses[monthKey] = [...newWorkerExpenses[monthKey], expenseEntry];
-          setWorkerExpenses(newWorkerExpenses);
-          workerExpensesRef.current = newWorkerExpenses;
           break;
         }
       }
     }
 
     setSubscribers(newSubs);
+    if (!isDifferentGen) { setWorkerExpenses(newWorkerExpenses); workerExpensesRef.current = newWorkerExpenses; }
     const remainingBatches = pendingWorkerUpdates.filter(b => b.id !== batchId);
     const existingLog = await loadUserData(currentUser, 'worker_activity_log') || [];
     const updatedLog = existingLog.map(b => b.id === batchId ? { ...b, status: 'applied' } : b);
     await saveUserData(currentUser, 'worker_activity_log', updatedLog);
-    const updatedWorkerExpenses = workerExpensesRef.current || workerExpenses;
-    if (currentGeneratorId && generators.length > 0) {
-      const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs, workerExpenses: updatedWorkerExpenses } : g);
+    if (generators.length > 0) {
+      const updated = generators.map(g => {
+        if (g.id === targetGenId) {
+          return { ...g, subscribers: newSubs, workerExpenses: newWorkerExpenses };
+        }
+        return g;
+      });
       setGenerators(updated);
+      if (isDifferentGen) {
+        const currentGen = updated.find(g => g.id === currentGeneratorId);
+        if (currentGen) { setSubscribers(currentGen.subscribers || []); setWorkerExpenses(currentGen.workerExpenses || {}); }
+      }
       await Promise.all([
-        saveUserData(currentUser, 'subscribers', newSubs),
         saveUserData(currentUser, 'generators', updated),
         saveUserData(currentUser, 'pending_worker_updates', remainingBatches),
       ]);
@@ -5217,14 +5617,133 @@ export default function App() {
       setPendingWorkerUpdates(remaining);
       await saveUserData(currentUser, 'pending_worker_updates', remaining);
       if (batch) {
-        const log = await loadUserData(currentUser, 'worker_activity_log') || [];
-        log.push({ ...batch, status: 'rejected' });
+        const now = new Date();
+        const hours = now.getHours();
+        const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+        const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+        const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+        const rejectedTimestamp = now.toISOString();
+        const rejectedDate = dateStr + ' - ' + timeStr + ' ' + ampm;
+        const targetGenId = batch.generatorId || currentGeneratorId;
+        const isDifferentGen = targetGenId && targetGenId !== currentGeneratorId;
+        const targetGen = isDifferentGen ? generators.find(function(g) { return g.id === targetGenId; }) : null;
+        var newSubs = isDifferentGen ? (targetGen ? targetGen.subscribers || [] : []) : [...subscribers];
+        var newWorkerExpenses = isDifferentGen ? (targetGen ? Object.assign({}, targetGen.workerExpenses || {}) : {}) : Object.assign({}, workerExpenses);
+        for (var i = 0; i < (batch.updates || []).length; i++) {
+          var update = batch.updates[i];
+          switch (update.type) {
+            case 'paid': {
+              var subIdx = newSubs.findIndex(function(s) { return s.id === update.subscriberId; });
+              if (subIdx >= 0) {
+                var sub = Object.assign({}, newSubs[subIdx]);
+                sub.paidMonths = Object.assign({}, sub.paidMonths || {});
+                sub.paidMonths[update.monthKey] = false;
+                sub.partialPayments = Object.assign({}, sub.partialPayments || {});
+                delete sub.partialPayments[update.monthKey];
+                sub.paymentHistory = (sub.paymentHistory || []).concat([{
+                  monthKey: update.monthKey,
+                  action: 'rejected_by_owner',
+                  timestamp: rejectedTimestamp,
+                  date: rejectedDate,
+                  ownerName: currentUser,
+                }]);
+                sub.rejectedPayments = sub.rejectedPayments || {};
+                sub.rejectedPayments[update.monthKey] = { ownerName: currentUser, timestamp: rejectedTimestamp, date: rejectedDate };
+                newSubs[subIdx] = sub;
+              }
+              break;
+            }
+            case 'cancelled': {
+              var subIdx = newSubs.findIndex(function(s) { return s.id === update.subscriberId; });
+              if (subIdx >= 0) {
+                var sub = Object.assign({}, newSubs[subIdx]);
+                sub.paidMonths = Object.assign({}, sub.paidMonths || {});
+                sub.paidMonths[update.monthKey] = false;
+                sub.partialPayments = Object.assign({}, sub.partialPayments || {});
+                delete sub.partialPayments[update.monthKey];
+                newSubs[subIdx] = sub;
+              }
+              break;
+            }
+            case 'partialPayment': {
+              var subIdx = newSubs.findIndex(function(s) { return s.id === update.subscriberId; });
+              if (subIdx >= 0) {
+                var sub = Object.assign({}, newSubs[subIdx]);
+                sub.partialPayments = Object.assign({}, sub.partialPayments || {});
+                delete sub.partialPayments[update.monthKey];
+                sub.paidMonths = Object.assign({}, sub.paidMonths || {});
+                sub.paidMonths[update.monthKey] = false;
+                sub.paymentHistory = (sub.paymentHistory || []).concat([{
+                  monthKey: update.monthKey,
+                  action: 'rejected_by_owner',
+                  timestamp: rejectedTimestamp,
+                  date: rejectedDate,
+                  ownerName: currentUser,
+                }]);
+                sub.rejectedPayments = sub.rejectedPayments || {};
+                sub.rejectedPayments[update.monthKey] = { ownerName: currentUser, timestamp: rejectedTimestamp, date: rejectedDate };
+                newSubs[subIdx] = sub;
+              }
+              break;
+            }
+            case 'delete': {
+              var subIdx = newSubs.findIndex(function(s) { return s.id === update.subscriberId; });
+              if (subIdx >= 0) {
+                var sub = Object.assign({}, newSubs[subIdx]);
+                delete sub.deletedFromMonth;
+                delete sub.deletedAt;
+                delete sub.deletedByOwner;
+                newSubs[subIdx] = sub;
+              }
+              break;
+            }
+            case 'restore': {
+              var subIdx = newSubs.findIndex(function(s) { return s.id === update.subscriberId; });
+              if (subIdx >= 0) {
+                var sub = Object.assign({}, newSubs[subIdx]);
+                sub.deletedFromMonth = update.monthKey;
+                sub.deletedAt = update.timestamp;
+                sub.deletedByOwner = currentUser;
+                newSubs[subIdx] = sub;
+              }
+              break;
+            }
+            case 'addExpense': {
+              var mk = update.monthKey || '';
+              if (newWorkerExpenses[mk]) {
+                newWorkerExpenses[mk] = newWorkerExpenses[mk].filter(function(e) {
+                  return !(e.type === (update.details ? update.details.expenseType : '') && e.amount === (update.details ? update.details.amount : 0));
+                });
+              }
+              break;
+            }
+          }
+        }
+        if (!isDifferentGen) {
+          setSubscribers(newSubs);
+          setWorkerExpenses(newWorkerExpenses);
+          workerExpensesRef.current = newWorkerExpenses;
+        }
+        if (generators.length > 0) {
+          var updatedGens = generators.map(function(g) {
+            if (g.id === targetGenId) {
+              return Object.assign({}, g, { subscribers: newSubs, workerExpenses: newWorkerExpenses });
+            }
+            return g;
+          });
+          setGenerators(updatedGens);
+          await saveUserData(currentUser, 'generators', updatedGens);
+        }
+        await saveUserData(currentUser, 'subscribers', newSubs);
+        await saveUserData(currentUser, 'workerExpenses', newWorkerExpenses);
+        var log = await loadUserData(currentUser, 'worker_activity_log') || [];
+        log.push(Object.assign({}, batch, { status: 'rejected', rejectedBy: currentUser, rejectedAt: rejectedTimestamp, rejectedDate: rejectedDate }));
         await saveUserData(currentUser, 'worker_activity_log', log);
         setWorkerActivityLog(log);
       }
-      Alert.alert('تم', 'تم حذف التحديث');
+      Alert.alert('تم', 'تم رفض التحديث وإلغاء الدفع');
     } catch (e) {
-      Alert.alert('خطأ', 'حدث خطأ أثناء حذف التحديث');
+      Alert.alert('خطأ', 'حدث خطأ أثناء رفض التحديث');
     }
   };
 
@@ -5325,8 +5844,9 @@ export default function App() {
   };
 
   const saveOwnerName = async (name) => {
-    setOwnerName(name);
-    if (currentUser) await saveUserData(currentUser, 'ownerName', name);
+    if (!name || !name.trim()) return;
+    setOwnerName(name.trim());
+    if (currentUser) await saveUserData(currentUser, 'ownerName', name.trim());
   };
 
   const saveAmperPrice = async (monthKey, price) => {
@@ -5382,6 +5902,14 @@ export default function App() {
     } finally {
       setGlobalLoading('');
     }
+  };
+
+  const handleConfirmCreateWorker = (name, permissions, assignedGenerators) => {
+    if (!name || !name.trim()) { Alert.alert('تنبيه', 'يرجى إدخال اسم العامل'); return; }
+    if (!permissions || permissions.length === 0) { Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل'); return; }
+    if (!assignedGenerators || assignedGenerators.length === 0) { Alert.alert('تنبيه', 'اختر مولداً واحداً على الأقل'); return; }
+    handleCreateWorker(name.trim(), permissions, assignedGenerators);
+    setAddWorkerModalVisible(false);
   };
 
   const handleUpdateWorker = async (code, permissions, assignedGenerators) => {
@@ -5591,7 +6119,11 @@ export default function App() {
           if (isCurrentlyPaid) {
             delete partialPayments[monthKey];
           }
-          return { ...s, paidMonths, paymentHistory, partialPayments };
+          const rejectedPayments = s.rejectedPayments ? { ...s.rejectedPayments } : {};
+          if (rejectedPayments[monthKey]) {
+            delete rejectedPayments[monthKey];
+          }
+          return { ...s, paidMonths, paymentHistory, partialPayments, rejectedPayments: Object.keys(rejectedPayments).length > 0 ? rejectedPayments : undefined };
         }
         return s;
       });
@@ -5766,18 +6298,20 @@ export default function App() {
     const onBackPress = () => {
       if (showOnboarding) return false;
       if (screen === 'welcome' || screen === 'login' || screen === 'register' || screen === 'workerLogin') return false;
-      if (addGeneratorVisible) { setAddGeneratorVisible(false); return true; }
-      if (switchGeneratorVisible) { setSwitchGeneratorVisible(false); return true; }
+
       if (workerSwitchGeneratorVisible) { setWorkerSwitchGeneratorVisible(false); return true; }
       if (monthlyDataVisible) { setMonthlyDataVisible(false); return true; }
       if (updatesModalVisible) { setUpdatesModalVisible(false); return true; }
       if (settingsVisible) { setSettingsVisible(false); setActiveTab('home'); return true; }
+      if (subscribersVisible) { setSubscribersVisible(false); return true; }
+      if (reportsVisible) { setReportsVisible(false); return true; }
+      if (workerTrackingVisible) { setWorkerTrackingVisible(false); return true; }
       if (activeTab !== 'home') { setActiveTab('home'); return true; }
       return false;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [showOnboarding, screen, activeTab, settingsVisible, addGeneratorVisible, switchGeneratorVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible]);
+  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible]);
 
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
@@ -5831,6 +6365,11 @@ export default function App() {
       <WorkerLoginScreen
         onBack={() => setScreen('login')}
         onLogin={async (code, pin) => {
+          const net = await NetInfo.fetch();
+          if (!net.isConnected) {
+            Alert.alert('تنبيه', 'يجب الاتصال بالإنترنت لتسجيل الدخول');
+            return;
+          }
           const result = await handleWorkerLogin(code, pin);
           if (result.success) {
             setWorkerOwnerPhone(result.ownerPhone);
@@ -5916,6 +6455,7 @@ export default function App() {
           ownerName={ownerName}
           userRole={userRole}
           workerPermissions={workerPermissions}
+          darkMode={darkMode}
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -6009,6 +6549,7 @@ export default function App() {
           ownerName={ownerName}
           userRole={userRole}
           workerPermissions={workerPermissions}
+          darkMode={darkMode}
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -6087,8 +6628,6 @@ export default function App() {
           onLogout={handleLogout}
           isOnline={isOnline}
           generators={generators}
-          onAddGenerator={() => setAddGeneratorVisible(true)}
-          onSwitchGenerator={() => setSwitchGeneratorVisible(true)}
           onShowMonthlyData={() => setMonthlyDataVisible(true)}
           darkMode={darkMode}
           pendingUpdatesCount={pendingWorkerUpdates.length}
@@ -6117,6 +6656,7 @@ export default function App() {
           ownerName={ownerName}
           userRole={userRole}
           workerPermissions={workerPermissions}
+          darkMode={darkMode}
         />
       )}
 
@@ -6131,7 +6671,7 @@ export default function App() {
         />
       )}
 
-      {activeTab === 'workers' && (
+      {activeTab === 'workers' && !editWorkerModalVisible && !addWorkerModalVisible && (
         <WorkerTrackingScreen
           fullScreen
           visible={true}
@@ -6145,6 +6685,29 @@ export default function App() {
           rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
           onReapplyBatch={handleReapplyBatch}
           currentUser={currentUser}
+          onAddWorker={() => setAddWorkerModalVisible(true)}
+          onEditWorker={() => setEditWorkerModalVisible(true)}
+        />
+      )}
+
+      {activeTab === 'generators' && (
+        <GeneratorsScreen
+          visible={true}
+          onClose={() => setActiveTab('home')}
+          generators={generators}
+          currentGeneratorId={currentGeneratorId}
+          onSwitchGenerator={handleSwitchGenerator}
+          onAddGenerator={handleCreateGenerator}
+          onDeleteGenerator={handleDeleteGenerator}
+          subscribers={subscribers}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          monthlyExpenses={monthlyExpenses}
+          workerExpenses={workerExpenses}
+          darkMode={darkMode}
+          currentUser={currentUser}
+          deletedGenerators={deletedGenerators}
+          onRestoreGenerator={handleRestoreGenerator}
         />
       )}
 
@@ -6179,7 +6742,34 @@ export default function App() {
         deletedGenerators={deletedGenerators}
         currentGeneratorId={currentGeneratorId}
         onChangePassword={handleChangePassword}
+        currentUser={currentUser}
       />
+
+      {addWorkerModalVisible && (
+        <AddWorkerScreen
+          visible={addWorkerModalVisible}
+          onClose={() => { setAddWorkerModalVisible(false); setAddWorkerPerms([]); setAddWorkerAssignedGens([]); setAddWorkerName(''); }}
+          generators={generators}
+          darkMode={darkMode}
+          currentUser={currentUser}
+          onConfirmCreate={handleConfirmCreateWorker}
+        />
+      )}
+
+      {editWorkerModalVisible && (
+        <EditWorkerScreen
+          visible={editWorkerModalVisible}
+          onClose={() => { setEditWorkerModalVisible(false); setEditWorkerSel(null); setEditWorkerPerms([]); setEditWorkerAssignedGens([]); }}
+          workers={workers}
+          generators={generators}
+          onUpdateWorker={handleUpdateWorker}
+          onDeleteWorker={handleDeleteWorker}
+          onResetWorkerPin={handleResetWorkerPin}
+          darkMode={darkMode}
+          currentUser={currentUser}
+        />
+      )}
+
       <MonthlyDataScreen
         visible={monthlyDataVisible}
         onClose={() => setMonthlyDataVisible(false)}
@@ -6189,75 +6779,9 @@ export default function App() {
         monthlyExpenses={monthlyExpenses}
         workerExpenses={workerExpenses}
       />
-      {addGeneratorVisible && (
-        <Modal visible={addGeneratorVisible} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.partialModalContent}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setAddGeneratorVisible(false)}>
-                  <Ionicons name="close" size={28} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>إضافة مولد جديد</Text>
-                <View style={{ width: 28 }} />
-              </View>
-              <View style={{ padding: 20 }}>
-                <Text style={{ fontSize: 16, color: '#333', marginBottom: 10, textAlign: 'right' }}>ادخل اسم المولد الجديد</Text>
-                <AddGeneratorInput
-                  onAdd={(name) => {
-                    handleCreateGenerator(name);
-                    setAddGeneratorVisible(false);
-                  }}
-                />
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-      {switchGeneratorVisible && (
-        <Modal visible={switchGeneratorVisible} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.partialModalContent}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setSwitchGeneratorVisible(false)}>
-                  <Ionicons name="close" size={28} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>تبديل المولد</Text>
-                <View style={{ width: 28 }} />
-              </View>
-              <ScrollView style={{ maxHeight: 400 }}>
-                {generators.map(gen => (
-                  <TouchableOpacity
-                    key={gen.id}
-                    style={{
-                      padding: 16,
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#eee',
-                      flexDirection: 'row-reverse',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      backgroundColor: gen.id === currentGeneratorId ? '#E3F2FD' : 'white',
-                    }}
-                    onPress={() => {
-                      handleSwitchGenerator(gen.id);
-                      setSwitchGeneratorVisible(false);
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
-                      <Ionicons name="flash" size={24} color={gen.id === currentGeneratorId ? '#2196F3' : '#999'} />
-                      <Text style={{ fontSize: 16, color: '#333', fontWeight: gen.id === currentGeneratorId ? 'bold' : 'normal' }}>{gen.name}</Text>
-                    </View>
-                    {gen.id === currentGeneratorId && (
-                      <Ionicons name="checkmark-circle" size={24} color="#2196F3" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      )}
 
-      <View style={styles.tabBar}>
+      {!editWorkerModalVisible && !addWorkerModalVisible && (
+      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
         <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
           <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'home' ? '#2196F3' : '#999' }]}>الرئيسية</Text>
@@ -6279,11 +6803,16 @@ export default function App() {
           <Ionicons name={activeTab === 'reports' ? 'bar-chart' : 'bar-chart-outline'} size={24} color={activeTab === 'reports' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'reports' ? '#2196F3' : '#999' }]}>التقارير</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('generators')}>
+          <Ionicons name={activeTab === 'generators' ? 'flash' : 'flash-outline'} size={24} color={activeTab === 'generators' ? '#2196F3' : '#999'} />
+          <Text style={[styles.tabLabel, { color: activeTab === 'generators' ? '#2196F3' : '#999' }]}>المولدات</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => { setSettingsVisible(true); setActiveTab('more'); }}>
           <Ionicons name={activeTab === 'more' ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline'} size={24} color={activeTab === 'more' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'more' ? '#2196F3' : '#999' }]}>المزيد</Text>
         </TouchableOpacity>
       </View>
+      )}
     </View>
   );
 }
@@ -7675,8 +8204,8 @@ partialSubscriberName: {
   expensesSection: {
     backgroundColor: 'white',
     borderRadius: IS_SMALL ? 12 : Math.round(16 * SCALE),
-    padding: IS_SMALL ? 14 : Math.round(18 * SCALE),
-    marginTop: IS_SMALL ? 10 : Math.round(16 * SCALE),
+    padding: IS_SMALL ? 10 : Math.round(14 * SCALE),
+    marginTop: IS_SMALL ? 8 : Math.round(12 * SCALE),
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
@@ -7685,10 +8214,10 @@ partialSubscriberName: {
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 8,
-    marginBottom: IS_SMALL ? 10 : 16,
+    marginBottom: IS_SMALL ? 6 : 10,
   },
   expensesTitle: {
-    fontSize: IS_SMALL ? 14 : Math.round(17 * SCALE),
+    fontSize: IS_SMALL ? 13 : Math.round(15 * SCALE),
     fontWeight: '700',
     color: '#333',
   },
@@ -7696,31 +8225,31 @@ partialSubscriberName: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: IS_SMALL ? 8 : Math.round(14 * SCALE),
+    marginBottom: IS_SMALL ? 4 : Math.round(6 * SCALE),
   },
   expenseAddButton: {
-    padding: IS_SMALL ? 2 : 4,
+    padding: IS_SMALL ? 1 : 2,
   },
   expenseLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: IS_SMALL ? 5 : 8,
-    width: IS_SMALL ? 60 : Math.round(90 * SCALE),
+    gap: IS_SMALL ? 3 : 5,
+    width: IS_SMALL ? 55 : Math.round(80 * SCALE),
   },
   expenseLabel: {
-    fontSize: IS_SMALL ? 11 : Math.round(15 * SCALE),
+    fontSize: IS_SMALL ? 10 : Math.round(13 * SCALE),
     fontWeight: '600',
     color: '#555',
   },
   expenseInput: {
     flex: 1,
     backgroundColor: '#f9f9f9',
-    borderRadius: IS_SMALL ? 8 : 10,
-    padding: IS_SMALL ? 8 : Math.round(12 * SCALE),
-    fontSize: IS_SMALL ? 13 : Math.round(15 * SCALE),
+    borderRadius: IS_SMALL ? 6 : 8,
+    padding: IS_SMALL ? 5 : Math.round(8 * SCALE),
+    fontSize: IS_SMALL ? 12 : Math.round(14 * SCALE),
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    marginHorizontal: IS_SMALL ? 6 : 10,
+    marginHorizontal: IS_SMALL ? 4 : 6,
     textAlign: 'center',
   },
   netExpectedContainer: {
@@ -7793,7 +8322,6 @@ partialSubscriberName: {
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 6,
     paddingTop: 6,
     elevation: 8,
     shadowColor: '#000',
