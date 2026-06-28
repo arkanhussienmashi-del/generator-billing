@@ -2825,6 +2825,11 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   if (!visible && !fullScreen) return null;
 
   if (editPickerVisible) {
+    const editResults = editPickerSearch.trim() ? visibleSubscribers.filter(sub =>
+      sub.name.includes(editPickerSearch) ||
+      (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
+      (sub.meterNumber && sub.meterNumber.includes(editPickerSearch))
+    ) : [];
     return (
       <View style={styles.subscribersOverlay}>
         <View style={styles.subscribersContainer}>
@@ -2839,18 +2844,21 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
             <View style={styles.searchContainer}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="ابحث عن مشترك بالاسم أو رقم الهاتف أو رقم الجوزة..."
+                placeholder="اكتب اسم المشترك للبحث..."
                 placeholderTextColor="#999"
                 value={editPickerSearch}
                 onChangeText={setEditPickerSearch}
                 textAlign="right"
+                autoFocus
               />
             </View>
-            {visibleSubscribers.filter(sub =>
-              sub.name.includes(editPickerSearch) ||
-              (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
-              (sub.meterNumber && sub.meterNumber.includes(editPickerSearch))
-            ).map(sub => (
+            {editPickerSearch.trim() === '' && (
+              <View style={styles.emptyState}>
+                <Ionicons name="search-outline" size={80} color="#90A4AE" />
+                <Text style={styles.emptyStateText}>اكتب اسم المشترك للبحث</Text>
+              </View>
+            )}
+            {editResults.map(sub => (
               <TouchableOpacity
                 key={sub.id}
                 style={[styles.subscriberCard, styles.unpaidCardBorder, { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }]}
@@ -2871,14 +2879,10 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
                 <Ionicons name="chevron-back" size={22} color="#2196F3" />
               </TouchableOpacity>
             ))}
-            {visibleSubscribers.filter(sub =>
-              sub.name.includes(editPickerSearch) ||
-              (sub.subscriberNumber && sub.subscriberNumber.includes(editPickerSearch)) ||
-              (sub.meterNumber && sub.meterNumber.includes(editPickerSearch))
-            ).length === 0 && (
+            {editPickerSearch.trim() !== '' && editResults.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="search-outline" size={80} color="#90A4AE" />
-                <Text style={styles.emptyStateText}>لا يوجد مشتركين</Text>
+                <Text style={styles.emptyStateText}>لا يوجد مشتركين بهذا الاسم</Text>
               </View>
             )}
           </ScrollView>
