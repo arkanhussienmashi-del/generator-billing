@@ -3841,18 +3841,17 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { flex: 1, paddingTop: IS_SMALL ? 30 : 40 }]}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={onClose} style={styles.backButton}>
-              <Ionicons name="arrow-forward" size={IS_SMALL ? 22 : 26} color="#333" />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { fontSize: IS_SMALL ? 16 : 18 }]}>بيانات كل شهر</Text>
-            <View style={{ width: IS_SMALL ? 22 : 28 }} />
-          </View>
+    <View style={styles.subscribersOverlay}>
+      <View style={styles.subscribersContainer}>
+        <View style={styles.subscribersHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.backButton}>
+            <Ionicons name="arrow-forward" size={26} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.subscribersTitle}>بيانات كل شهر</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
             <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 6 : 10, paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 8 : 12 }}>
               <TouchableOpacity style={[styles.filterTab, { flex: 1 }]} onPress={() => setYearPickerVisible(true)}>
                 <Text style={[styles.filterTabText, { color: '#1565C0', fontSize: IS_SMALL ? 12 : 14 }]}>{selectedYear}</Text>
@@ -3981,7 +3980,6 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
 
             <View style={{ height: IS_SMALL ? 20 : 30 }} />
           </ScrollView>
-        </View>
 
         {yearPickerVisible && (
           <Modal visible={yearPickerVisible} transparent animationType="fade">
@@ -4019,7 +4017,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
           </Modal>
         )}
       </View>
-    </Modal>
+    </View>
   );
 };
 
