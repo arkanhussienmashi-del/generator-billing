@@ -3038,7 +3038,9 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
               const hasMultipleActions = historyForMonth.length > 1;
               const isExpanded = expandedCard === subscriber.id;
           const price = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, subscriber.subscriptionType);
-              const totalDue = currentAmper * price;
+              const calculatedDue = currentAmper * price;
+              const paidAmount = subscriber.paidMonths && subscriber.paidMonths[monthKey];
+              const totalDue = (paidAmount && typeof paidAmount === 'number') ? paidAmount : calculatedDue;
               const partialPayments = (subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
               const totalPartialPaid = partialPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
               const hasPartialPayments = partialPayments.length > 0;
@@ -3742,7 +3744,8 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
       const isPaid = s.paidMonths && s.paidMonths[monthKey];
       const pp = s.partialPayments && s.partialPayments[monthKey];
       if (isPaid) {
-        totalCollected += monthDue;
+        const paidAmt = (typeof isPaid === 'number') ? isPaid : monthDue;
+        totalCollected += paidAmt;
       } else if (pp && pp.length > 0) {
         const ppSum = pp.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         totalCollected += ppSum;
@@ -4438,7 +4441,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
       const hasPartial = pp && pp.length > 0;
       if (isPaid) {
         paidCount++;
-        collectedAmount += amp * subPrice;
+        collectedAmount += (typeof isPaid === 'number') ? isPaid : (amp * subPrice);
       } else if (hasPartial) {
         requiredCount++;
         const ppSum = pp.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
@@ -6231,7 +6234,7 @@ export default function App() {
       const newSubs = subscribers.map(s => {
         if (s.id === id) {
           const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
-          paidMonths[monthKey] = !isCurrentlyPaid;
+          paidMonths[monthKey] = !isCurrentlyPaid ? amount : false;
           const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
           paymentHistory.push({
             monthKey,
