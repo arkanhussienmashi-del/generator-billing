@@ -2440,14 +2440,17 @@ const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, golden
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <Ionicons name="arrow-forward" size={26} color="white" />
           </TouchableOpacity>
-          <Text style={styles.subscribersTitle}>دفع جزئي</Text>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.subscribersTitle}>دفع جزئي</Text>
+            <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: 'rgba(255,255,255,0.85)', fontWeight: 'bold', marginTop: 2 }}>{subscriber ? subscriber.name : ''}</Text>
+          </View>
           <View style={{ width: 40 }} />
         </View>
         <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
           <View style={{ padding: IS_SMALL ? 12 : 16 }}>
-            <View style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 14 }}>
-              <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'right' }}>{subscriber ? subscriber.name : ''}</Text>
-              <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#999', textAlign: 'right', marginTop: 4 }}>{subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0} أميبر</Text>
+            <View style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 14, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#999' }}>{subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0} أميبر</Text>
+              <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#999' }}>{subscriber && subscriber.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي'}</Text>
             </View>
 
             <View style={{ backgroundColor: darkMode ? '#2a2a2a' : '#fff', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 10 : 14, borderWidth: 1, borderColor: darkMode ? '#333' : '#eee' }}>
