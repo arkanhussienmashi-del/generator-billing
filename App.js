@@ -4854,34 +4854,17 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           <Text style={styles.dateText}>{currentMonth} / {currentYear}</Text>
         </View>
 
-        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-around', marginHorizontal: 16, marginTop: 8, marginBottom: 4 }}>
-          <View style={{ alignItems: 'center', flex: 1 }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="flash" size={16} color="#FF9800" />
-              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>سعر الأمبير</Text>
-            </View>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{formatNumber(normalPrice)} د.ع</Text>
-          </View>
-          <View style={{ alignItems: 'center', flex: 1 }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="star" size={16} color="#FFD700" />
-              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>سعر الذهبي</Text>
-            </View>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{formatNumber(goldenPriceVal)} د.ع</Text>
-          </View>
-          <View style={{ alignItems: 'center', flex: 1 }}>
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="flash-outline" size={16} color="#2196F3" />
-              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>إجمالي الأمبير</Text>
-            </View>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{totalAmper}</Text>
-          </View>
-        </View>
-
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, styles.totalCard]}>
             <Text style={[styles.statNumber, styles.totalNumber]} numberOfLines={1} adjustsFontSizeToFit>{totalSubscribers}</Text>
             <Text style={[styles.statLabel, styles.totalLabel]} numberOfLines={1} adjustsFontSizeToFit>عدد المشتركين</Text>
+          </View>
+          <View style={[styles.statCard, styles.amperCard]}>
+            <Text style={[styles.statNumber, styles.amperNumber]} numberOfLines={1} adjustsFontSizeToFit>{formatNumber(totalAmper)}</Text>
+            <View style={styles.amperLabelContainer}>
+              <Text style={[styles.statLabel, styles.amperLabel]} numberOfLines={1} adjustsFontSizeToFit>أميبر</Text>
+              <Ionicons name="flash" size={IS_SMALL ? 12 : 14} color="#FF9800" />
+            </View>
           </View>
           <View style={[styles.statCard, styles.paidCard]}>
             <Text style={[styles.statNumber, styles.paidNumber]} numberOfLines={1} adjustsFontSizeToFit>{paidCount}</Text>
@@ -4894,6 +4877,23 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           <View style={[styles.statCard, styles.requiredCard]}>
             <Text style={[styles.statNumber, styles.requiredNumber]} numberOfLines={1} adjustsFontSizeToFit>{requiredCount}</Text>
             <Text style={[styles.statLabel, styles.requiredLabel]} numberOfLines={1} adjustsFontSizeToFit>المطلوبين</Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-around', marginHorizontal: 16, marginTop: 4, marginBottom: 8 }}>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="flash" size={14} color="#FF9800" />
+              <Text style={{ fontSize: 12, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>سعر الأمبير</Text>
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{formatNumber(normalPrice)} د.ع</Text>
+          </View>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="star" size={14} color="#FFD700" />
+              <Text style={{ fontSize: 12, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>سعر الذهبي</Text>
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{formatNumber(goldenPriceVal)} د.ع</Text>
           </View>
         </View>
 
