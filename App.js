@@ -5076,7 +5076,18 @@ export default function App() {
     if (userRole !== 'worker' || !workerOwnerPhone) return;
     const pollInterval = setInterval(async () => {
       try {
-        const all = await loadAllUserKeys(workerOwnerPhone);
+        var all = {};
+        const keys = ['generators', 'workers'];
+        for (var ki = 0; ki < keys.length; ki++) {
+          try {
+            var r = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(workerOwnerPhone) + '&key=' + keys[ki]);
+            if (Array.isArray(r) && r.length > 0) {
+              var v = r[0].data_value;
+              if (typeof v === 'string') { try { v = JSON.parse(v); } catch(pe) {} }
+              all[keys[ki]] = v;
+            }
+          } catch(e) {}
+        }
         const ownerWorkers = all.workers || [];
         if (ownerWorkers.length > 0) {
           const stillExists = ownerWorkers.find(function(w) { return w.code === workerCode; });
