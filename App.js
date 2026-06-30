@@ -6533,6 +6533,22 @@ export default function App() {
   }
 
   if (screen === 'workerMain' && userRole === 'worker') {
+    if (appPartialPaymentVisible && appPartialPaymentSubscriber) {
+      return (
+        <View style={styles.mainContainer}>
+          <PartialPaymentModal
+            visible={appPartialPaymentVisible}
+            onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
+            subscriber={appPartialPaymentSubscriber}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+            monthKey={appPartialPaymentMonthKey}
+            onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
+            darkMode={darkMode}
+          />
+        </View>
+      );
+    }
     return (
       <View style={styles.mainContainer}>
         <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
@@ -6627,24 +6643,27 @@ export default function App() {
             </View>
           </View>
         </Modal>
-
-        {appPartialPaymentVisible && appPartialPaymentSubscriber && (
-        <PartialPaymentModal
-          visible={appPartialPaymentVisible}
-          onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
-          subscriber={appPartialPaymentSubscriber}
-          amperPrices={amperPrices}
-          goldenPrices={goldenPrices}
-          monthKey={appPartialPaymentMonthKey}
-          onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
-          darkMode={darkMode}
-        />
-        )}
       </View>
     );
   }
 
   if (userRole === 'worker') {
+    if (appPartialPaymentVisible && appPartialPaymentSubscriber) {
+      return (
+        <View style={styles.mainContainer}>
+          <PartialPaymentModal
+            visible={appPartialPaymentVisible}
+            onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
+            subscriber={appPartialPaymentSubscriber}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+            monthKey={appPartialPaymentMonthKey}
+            onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
+            darkMode={darkMode}
+          />
+        </View>
+      );
+    }
     return (
       <View style={styles.mainContainer}>
         <WorkerMainScreen
@@ -6738,8 +6757,13 @@ export default function App() {
             </View>
           </View>
         </Modal>
+      </View>
+    );
+  }
 
-        {appPartialPaymentVisible && appPartialPaymentSubscriber && (
+  if (appPartialPaymentVisible && appPartialPaymentSubscriber) {
+    return (
+      <View style={styles.mainContainer}>
         <PartialPaymentModal
           visible={appPartialPaymentVisible}
           onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
@@ -6750,7 +6774,6 @@ export default function App() {
           onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
           darkMode={darkMode}
         />
-        )}
       </View>
     );
   }
@@ -6758,19 +6781,6 @@ export default function App() {
   return (
     <View style={styles.mainContainer}>
       <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
-
-      {appPartialPaymentVisible && appPartialPaymentSubscriber && (
-      <PartialPaymentModal
-        visible={appPartialPaymentVisible}
-        onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
-        subscriber={appPartialPaymentSubscriber}
-        amperPrices={amperPrices}
-        goldenPrices={goldenPrices}
-        monthKey={appPartialPaymentMonthKey}
-        onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
-        darkMode={darkMode}
-      />
-      )}
 
       {monthlyDataVisible ? (
         <MonthlyDataScreen
