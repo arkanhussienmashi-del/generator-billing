@@ -6582,7 +6582,7 @@ export default function App() {
     return (
       <View style={styles.mainContainer}>
         <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
-        {!reportsVisible && !subscribersVisible && (
+        {!reportsVisible && !subscribersVisible && !workerExpenseVisible && (
         <WorkerMainScreen
           generatorName={generatorName}
           onShowSubscribers={() => setSubscribersVisible(true)}
@@ -6741,7 +6741,7 @@ export default function App() {
     }
     return (
       <View style={styles.mainContainer}>
-        {!reportsVisible && !subscribersVisible && (
+        {!reportsVisible && !subscribersVisible && !workerExpenseVisible && (
         <WorkerMainScreen
           generatorName={generatorName}
           onShowSubscribers={() => setSubscribersVisible(true)}
