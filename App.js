@@ -4947,6 +4947,7 @@ export default function App() {
   const [appPartialPaymentMonthKey, setAppPartialPaymentMonthKey] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricSaved, setBiometricSaved] = useState({ owner: null, worker: null });
+  const [pendingAutoLogin, setPendingAutoLogin] = useState(null);
   const lastActivity = React.useRef(Date.now());
   const loginScreenPasswordRef = React.useRef('');
 
@@ -4974,20 +4975,26 @@ export default function App() {
         }
         const savedUser = await loadLocalCache('current_user');
         if (savedUser && savedUser.phone) {
-          setCurrentUser(savedUser.phone);
-          setUserRole(savedUser.role || 'owner');
-          if (savedUser.role === 'worker') {
-            setWorkerCode(savedUser.workerCode || '');
-            setWorkerName(savedUser.workerName || '');
-            setWorkerPermissions(savedUser.permissions || []);
-            setWorkerOwnerPhone(savedUser.phone);
-            setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
-            if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
-            setScreen('workerMain');
+          const savedBioCheck = await loadLocalCache('biometric_credentials');
+          const hasSavedBio = savedBioCheck && (savedBioCheck.owner || savedBioCheck.worker);
+          if (hasSavedBio && isEnrolled) {
+            setPendingAutoLogin(savedUser);
           } else {
-            setScreen('main');
+            setCurrentUser(savedUser.phone);
+            setUserRole(savedUser.role || 'owner');
+            if (savedUser.role === 'worker') {
+              setWorkerCode(savedUser.workerCode || '');
+              setWorkerName(savedUser.workerName || '');
+              setWorkerPermissions(savedUser.permissions || []);
+              setWorkerOwnerPhone(savedUser.phone);
+              setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
+              if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
+              setScreen('workerMain');
+            } else {
+              setScreen('main');
+            }
+            setActiveTab('home');
           }
-          setActiveTab('home');
         }
       } catch (e) {
         setShowOnboarding(true);
@@ -6507,6 +6514,67 @@ export default function App() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <Ionicons name="flash" size={60} color="#FFD700" />
           <Text style={{ color: '#333', fontSize: 18, marginTop: 20 }}>جاري التحميل...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (pendingAutoLogin) {
+    return (
+      <View style={styles.loginContainer}>
+        <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+        <View style={styles.loginContent}>
+          <View style={styles.logoContainer}>
+            <Ionicons name="finger-print" size={80} color="#FFD700" />
+            <Text style={styles.appTitle}>مولدي</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 8 }}>سجّل دخولك بالبصمة أو رمز الجهاز</Text>
+          </View>
+          <View style={styles.loginCard}>
+            <TouchableOpacity style={styles.loginButton} onPress={async () => {
+              const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false });
+              if (result.success) {
+                const savedUser = pendingAutoLogin;
+                setPendingAutoLogin(null);
+                setCurrentUser(savedUser.phone);
+                setUserRole(savedUser.role || 'owner');
+                if (savedUser.role === 'worker') {
+                  setWorkerCode(savedUser.workerCode || '');
+                  setWorkerName(savedUser.workerName || '');
+                  setWorkerPermissions(savedUser.permissions || []);
+                  setWorkerOwnerPhone(savedUser.phone);
+                  setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
+                  if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
+                  setScreen('workerMain');
+                } else {
+                  setScreen('main');
+                }
+                setActiveTab('home');
+              }
+            }}>
+              <Ionicons name="finger-print" size={30} color="white" style={{ marginRight: 10 }} />
+              <Text style={styles.loginButtonText}>فتح بالبصمة</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              const savedUser = pendingAutoLogin;
+              setPendingAutoLogin(null);
+              setCurrentUser(savedUser.phone);
+              setUserRole(savedUser.role || 'owner');
+              if (savedUser.role === 'worker') {
+                setWorkerCode(savedUser.workerCode || '');
+                setWorkerName(savedUser.workerName || '');
+                setWorkerPermissions(savedUser.permissions || []);
+                setWorkerOwnerPhone(savedUser.phone);
+                setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
+                if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
+                setScreen('workerMain');
+              } else {
+                setScreen('main');
+              }
+              setActiveTab('home');
+            }} style={{ marginTop: 15 }}>
+              <Text style={{ color: '#666', fontSize: 14, textAlign: 'center' }}>دخول بكلمة المرور</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
