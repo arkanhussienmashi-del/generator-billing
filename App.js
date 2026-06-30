@@ -6487,6 +6487,16 @@ export default function App() {
     return () => sub.remove();
   }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible, reportsVisible, subscribersVisible, workerExpenseVisible]);
 
+  useEffect(() => {
+    if (appLocked) {
+      LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false }).then(result => {
+        if (result.success) {
+          setAppLocked(false);
+        }
+      });
+    }
+  }, [appLocked]);
+
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
@@ -6512,17 +6522,6 @@ export default function App() {
             <Ionicons name="finger-print" size={80} color="#FFD700" />
             <Text style={styles.appTitle}>مولدي</Text>
             <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 8 }}>سجّل دخولك بالبصمة أو رمز الجهاز</Text>
-          </View>
-          <View style={styles.loginCard}>
-            <TouchableOpacity style={styles.loginButton} onPress={async () => {
-              const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false });
-              if (result.success) {
-                setAppLocked(false);
-              }
-            }}>
-              <Ionicons name="finger-print" size={30} color="white" style={{ marginRight: 10 }} />
-              <Text style={styles.loginButtonText}>فتح التطبيق</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </View>
