@@ -6570,6 +6570,7 @@ export default function App() {
     return (
       <View style={styles.mainContainer}>
         <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
+        {!reportsVisible && !subscribersVisible && (
         <WorkerMainScreen
           generatorName={generatorName}
           onShowSubscribers={() => setSubscribersVisible(true)}
@@ -6589,6 +6590,17 @@ export default function App() {
           workerAssignedGenerators={workerAssignedGenerators}
           onAddExpense={handleWorkerAddExpense}
         />
+        )}
+        {reportsVisible && (
+          <ReportsScreen
+            fullScreen
+            visible={true}
+            onClose={() => setReportsVisible(false)}
+            subscribers={subscribers}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+          />
+        )}
         <SubscribersScreen
           visible={subscribersVisible}
           onClose={() => setSubscribersVisible(false)}
@@ -6662,16 +6674,6 @@ export default function App() {
             </View>
           </View>
         </Modal>
-        {reportsVisible && (
-          <ReportsScreen
-            fullScreen
-            visible={true}
-            onClose={() => setReportsVisible(false)}
-            subscribers={subscribers}
-            amperPrices={amperPrices}
-            goldenPrices={goldenPrices}
-          />
-        )}
       </View>
     );
   }
@@ -6695,6 +6697,7 @@ export default function App() {
     }
     return (
       <View style={styles.mainContainer}>
+        {!reportsVisible && !subscribersVisible && (
         <WorkerMainScreen
           generatorName={generatorName}
           onShowSubscribers={() => setSubscribersVisible(true)}
@@ -6714,6 +6717,17 @@ export default function App() {
           workerAssignedGenerators={workerAssignedGenerators}
           onAddExpense={handleWorkerAddExpense}
         />
+        )}
+        {reportsVisible && (
+          <ReportsScreen
+            fullScreen
+            visible={true}
+            onClose={() => setReportsVisible(false)}
+            subscribers={subscribers}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+          />
+        )}
         <SubscribersScreen
           visible={subscribersVisible}
           onClose={() => setSubscribersVisible(false)}
@@ -6787,16 +6801,6 @@ export default function App() {
             </View>
           </View>
         </Modal>
-        {reportsVisible && (
-          <ReportsScreen
-            fullScreen
-            visible={true}
-            onClose={() => setReportsVisible(false)}
-            subscribers={subscribers}
-            amperPrices={amperPrices}
-            goldenPrices={goldenPrices}
-          />
-        )}
       </View>
     );
   }
