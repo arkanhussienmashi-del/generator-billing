@@ -5521,13 +5521,17 @@ export default function App() {
   };
 
   const handleWorkerAddExpense = (expenseType, amount, monthKey) => {
-    setGlobalLoading('جاري حفظ الصرفية...');
-    try {
-      trackWorkerUpdate('addExpense', '', expenseType, 0, monthKey, { expenseType, amount });
-    } catch (e) {
-    } finally {
-      setGlobalLoading('');
-    }
+    const timestamp = new Date();
+    const hours = timestamp.getHours();
+    const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+    const dateStr = timestamp.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+    const timeStr = timestamp.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+    const newExpense = { type: expenseType, amount: amount, timestamp: `${dateStr} - ${timeStr} ${ampm}`, date: timestamp.toISOString(), workerName: workerName || '' };
+    const current = workerExpenses[monthKey] || [];
+    const updated = { ...workerExpenses };
+    updated[monthKey] = [...current, newExpense];
+    setWorkerExpenses(updated);
+    trackWorkerUpdate('addExpense', '', expenseType, 0, monthKey, { expenseType, amount });
   };
 
   const handleWorkerSync = async () => {
@@ -6493,7 +6497,7 @@ export default function App() {
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible]);
+  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible, reportsVisible, subscribersVisible]);
 
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
