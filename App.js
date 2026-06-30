@@ -6730,6 +6730,7 @@ export default function App() {
     <View style={styles.mainContainer}>
       <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
 
+      {appPartialPaymentVisible && appPartialPaymentSubscriber && (
       <PartialPaymentModal
         visible={appPartialPaymentVisible}
         onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
@@ -6740,6 +6741,7 @@ export default function App() {
         onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
         darkMode={darkMode}
       />
+      )}
 
       {monthlyDataVisible ? (
         <MonthlyDataScreen
