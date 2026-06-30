@@ -4728,7 +4728,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, goldenPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
@@ -4837,6 +4837,10 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
               <Text style={styles.showSubscribersText}>إضافة صرفية</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#9C27B0', marginTop: 10 }]} onPress={onShowReports}>
+            <Ionicons name="bar-chart-outline" size={20} color="white" />
+            <Text style={styles.showSubscribersText}>التقارير</Text>
+          </TouchableOpacity>
         </View>
 
         {workerUpdates.length > 0 && isOnline && (
@@ -6572,6 +6576,7 @@ export default function App() {
           onShowReports={() => setReportsVisible(true)}
           subscribers={subscribers}
           amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
           onLogout={handleLogout}
           isOnline={isOnline}
           workerUpdates={workerUpdates}
@@ -6657,6 +6662,16 @@ export default function App() {
             </View>
           </View>
         </Modal>
+        {reportsVisible && (
+          <ReportsScreen
+            fullScreen
+            visible={true}
+            onClose={() => setReportsVisible(false)}
+            subscribers={subscribers}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+          />
+        )}
       </View>
     );
   }
@@ -6686,6 +6701,7 @@ export default function App() {
           onShowReports={() => setReportsVisible(true)}
           subscribers={subscribers}
           amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
           onLogout={handleLogout}
           isOnline={isOnline}
           workerUpdates={workerUpdates}
@@ -6771,6 +6787,16 @@ export default function App() {
             </View>
           </View>
         </Modal>
+        {reportsVisible && (
+          <ReportsScreen
+            fullScreen
+            visible={true}
+            onClose={() => setReportsVisible(false)}
+            subscribers={subscribers}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+          />
+        )}
       </View>
     );
   }
