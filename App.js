@@ -6627,6 +6627,19 @@ export default function App() {
             </View>
           </View>
         </Modal>
+
+        {appPartialPaymentVisible && appPartialPaymentSubscriber && (
+        <PartialPaymentModal
+          visible={appPartialPaymentVisible}
+          onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
+          subscriber={appPartialPaymentSubscriber}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          monthKey={appPartialPaymentMonthKey}
+          onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
+          darkMode={darkMode}
+        />
+        )}
       </View>
     );
   }
@@ -6725,6 +6738,19 @@ export default function App() {
             </View>
           </View>
         </Modal>
+
+        {appPartialPaymentVisible && appPartialPaymentSubscriber && (
+        <PartialPaymentModal
+          visible={appPartialPaymentVisible}
+          onClose={() => { setAppPartialPaymentVisible(false); setAppPartialPaymentSubscriber(null); setAppPartialPaymentMonthKey(''); }}
+          subscriber={appPartialPaymentSubscriber}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          monthKey={appPartialPaymentMonthKey}
+          onConfirm={(amount) => { handlePartialPayment(appPartialPaymentSubscriber.id, amount, appPartialPaymentMonthKey); }}
+          darkMode={darkMode}
+        />
+        )}
       </View>
     );
   }
