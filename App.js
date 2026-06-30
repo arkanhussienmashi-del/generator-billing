@@ -4761,13 +4761,24 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, goldenPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, goldenPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense, darkMode }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
   const [expenseModalVisible, setExpenseModalVisible] = useState(false);
   const [expenseType, setExpenseType] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
+
+  const normalPrice = (amperPrices && amperPrices[currentMonthKey]) || 0;
+  const goldenPriceVal = (goldenPrices && goldenPrices[currentMonthKey]) || 0;
+  const totalAmper = useMemo(() => {
+    let total = 0;
+    subscribers.forEach(s => {
+      if (isDeletedForReport(s, currentMonth, currentYear)) return;
+      total += getAmperForMonth(s, currentMonth, currentYear);
+    });
+    return total;
+  }, [subscribers, currentMonth, currentYear]);
 
   React.useEffect(() => {
     if (!expenseModalVisible) return;
@@ -4841,6 +4852,30 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.dateContainer}>
           <Text style={styles.dateText}>{currentMonth} / {currentYear}</Text>
+        </View>
+
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-around', marginHorizontal: 16, marginTop: 8, marginBottom: 4 }}>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="flash" size={16} color="#FF9800" />
+              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>سعر الأمبير</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{formatNumber(normalPrice)} د.ع</Text>
+          </View>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="star" size={16} color="#FFD700" />
+              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>سعر الذهبي</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{formatNumber(goldenPriceVal)} د.ع</Text>
+          </View>
+          <View style={{ alignItems: 'center', flex: 1 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="flash-outline" size={16} color="#2196F3" />
+              <Text style={{ fontSize: 13, color: darkMode ? '#aaa' : '#666', textAlign: 'center' }}>إجمالي الأمبير</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: darkMode ? '#fff' : '#333', textAlign: 'center' }}>{totalAmper}</Text>
+          </View>
         </View>
 
         <View style={styles.statsContainer}>
@@ -6603,6 +6638,7 @@ export default function App() {
           onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
           workerAssignedGenerators={workerAssignedGenerators}
           onAddExpense={handleWorkerAddExpense}
+          darkMode={darkMode}
         />
         )}
         {reportsVisible && (
@@ -6730,6 +6766,7 @@ export default function App() {
           onShowWorkerSwitchGenerator={() => setWorkerSwitchGeneratorVisible(true)}
           workerAssignedGenerators={workerAssignedGenerators}
           onAddExpense={handleWorkerAddExpense}
+          darkMode={darkMode}
         />
         )}
         {reportsVisible && (
