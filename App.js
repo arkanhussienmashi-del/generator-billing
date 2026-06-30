@@ -687,7 +687,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   );
 };
 
-const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin, biometricAvailable, biometricOwnerSaved, onBiometricLogin, onSetPassword }) => {
+const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -756,7 +756,6 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin, biometricAvai
       setLoginAttempts(0);
       setLockUntil(null);
       await saveToFile('current_user', { phone: phone.trim(), role: 'owner' });
-      if (onSetPassword) onSetPassword(password);
       onLogin(phone.trim());
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
@@ -820,20 +819,13 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin, biometricAvai
           <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: IS_SMALL ? 10 : IS_TABLET ? 20 : 15 }}>
             <Text style={[styles.linkText, { color: '#FF9800' }]}>دخول العامل</Text>
           </TouchableOpacity>
-
-          {biometricAvailable && biometricOwnerSaved && (
-            <TouchableOpacity onPress={onBiometricLogin} style={{ marginTop: IS_SMALL ? 15 : 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, backgroundColor: '#E3F2FD', borderRadius: 12 }}>
-              <Ionicons name="finger-print" size={28} color="#2196F3" />
-              <Text style={{ color: '#2196F3', fontSize: 16, fontWeight: 'bold' }}>دخول بالبصمة</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </View>
   );
 };
 
-const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName, biometricAvailable, biometricWorkerSaved, onBiometricLogin }) => {
+const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -902,13 +894,6 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName, biometricAvailabl
           <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
             <Text style={styles.loginButtonText}>دخول</Text>
           </TouchableOpacity>
-
-          {biometricAvailable && biometricWorkerSaved && (
-            <TouchableOpacity onPress={onBiometricLogin} style={{ marginTop: IS_SMALL ? 15 : 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, backgroundColor: '#E3F2FD', borderRadius: 12 }}>
-              <Ionicons name="finger-print" size={28} color="#2196F3" />
-              <Text style={{ color: '#2196F3', fontSize: 16, fontWeight: 'bold' }}>دخول بالبصمة</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </View>
@@ -4945,11 +4930,8 @@ export default function App() {
   const [appPartialPaymentVisible, setAppPartialPaymentVisible] = useState(false);
   const [appPartialPaymentSubscriber, setAppPartialPaymentSubscriber] = useState(null);
   const [appPartialPaymentMonthKey, setAppPartialPaymentMonthKey] = useState('');
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricSaved, setBiometricSaved] = useState({ owner: null, worker: null });
-  const [pendingAutoLogin, setPendingAutoLogin] = useState(null);
+  const [appLocked, setAppLocked] = useState(false);
   const lastActivity = React.useRef(Date.now());
-  const loginScreenPasswordRef = React.useRef('');
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
 
@@ -4961,10 +4943,8 @@ export default function App() {
       try {
         const hasHardware = await LocalAuthentication.hasHardwareAsync();
         const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-        setBiometricAvailable(isEnrolled);
         if (isEnrolled) {
-          const savedBio = await loadLocalCache('biometric_credentials');
-          setBiometricSaved(savedBio || { owner: null, worker: null });
+          setAppLocked(true);
         }
         const onboardingResult = await Promise.race([
           loadLocalCache('app_onboarding_done'),
@@ -4975,26 +4955,20 @@ export default function App() {
         }
         const savedUser = await loadLocalCache('current_user');
         if (savedUser && savedUser.phone) {
-          const savedBioCheck = await loadLocalCache('biometric_credentials');
-          const hasSavedBio = savedBioCheck && (savedBioCheck.owner || savedBioCheck.worker);
-          if (hasSavedBio && isEnrolled) {
-            setPendingAutoLogin(savedUser);
+          setCurrentUser(savedUser.phone);
+          setUserRole(savedUser.role || 'owner');
+          if (savedUser.role === 'worker') {
+            setWorkerCode(savedUser.workerCode || '');
+            setWorkerName(savedUser.workerName || '');
+            setWorkerPermissions(savedUser.permissions || []);
+            setWorkerOwnerPhone(savedUser.phone);
+            setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
+            if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
+            setScreen('workerMain');
           } else {
-            setCurrentUser(savedUser.phone);
-            setUserRole(savedUser.role || 'owner');
-            if (savedUser.role === 'worker') {
-              setWorkerCode(savedUser.workerCode || '');
-              setWorkerName(savedUser.workerName || '');
-              setWorkerPermissions(savedUser.permissions || []);
-              setWorkerOwnerPhone(savedUser.phone);
-              setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
-              if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
-              setScreen('workerMain');
-            } else {
-              setScreen('main');
-            }
-            setActiveTab('home');
+            setScreen('main');
           }
+          setActiveTab('home');
         }
       } catch (e) {
         setShowOnboarding(true);
@@ -5057,6 +5031,28 @@ export default function App() {
       setIsOnline(state.isConnected);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const hasHardware = LocalAuthentication.hasHardwareAsync();
+    const checkLock = async () => {
+      const hw = await LocalAuthentication.hasHardwareAsync();
+      const en = hw ? await LocalAuthentication.isEnrolledAsync() : false;
+      if (!en) return;
+      const onAppStateChange = async (nextState) => {
+        if (nextState === 'active') {
+          const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false });
+          if (!result.success) {
+            setAppLocked(true);
+          }
+        }
+      };
+      const sub = AppState.addEventListener('change', onAppStateChange);
+      return () => sub.remove();
+    };
+    let cleanupFn;
+    checkLock().then(fn => { cleanupFn = fn; });
+    return () => { if (cleanupFn) cleanupFn(); };
   }, []);
 
   useEffect(() => {
@@ -5381,18 +5377,6 @@ export default function App() {
     setCurrentUser(userPhone);
     setActiveTab('home');
     setScreen('main');
-    if (biometricAvailable && !biometricSaved.owner) {
-      const phoneRef = userPhone;
-      const passRef = loginScreenPasswordRef.current;
-      Alert.alert('تفعيل الدخول بالبصمة', 'هل تريد تفعيل الدخول السريع بالبصمة أو رمز الجهاز؟', [
-        { text: 'لاحقاً', style: 'cancel' },
-        { text: 'نعم', onPress: async () => {
-          const saved = { owner: { phone: phoneRef, password: passRef }, worker: biometricSaved.worker };
-          setBiometricSaved(saved);
-          await saveToFile('biometric_credentials', saved);
-        }},
-      ]);
-    }
   };
 
   const handleOnboardingComplete = async () => {
@@ -6519,7 +6503,7 @@ export default function App() {
     );
   }
 
-  if (pendingAutoLogin) {
+  if (appLocked) {
     return (
       <View style={styles.loginContainer}>
         <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
@@ -6533,46 +6517,11 @@ export default function App() {
             <TouchableOpacity style={styles.loginButton} onPress={async () => {
               const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false });
               if (result.success) {
-                const savedUser = pendingAutoLogin;
-                setPendingAutoLogin(null);
-                setCurrentUser(savedUser.phone);
-                setUserRole(savedUser.role || 'owner');
-                if (savedUser.role === 'worker') {
-                  setWorkerCode(savedUser.workerCode || '');
-                  setWorkerName(savedUser.workerName || '');
-                  setWorkerPermissions(savedUser.permissions || []);
-                  setWorkerOwnerPhone(savedUser.phone);
-                  setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
-                  if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
-                  setScreen('workerMain');
-                } else {
-                  setScreen('main');
-                }
-                setActiveTab('home');
+                setAppLocked(false);
               }
             }}>
               <Ionicons name="finger-print" size={30} color="white" style={{ marginRight: 10 }} />
-              <Text style={styles.loginButtonText}>فتح بالبصمة</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => {
-              const savedUser = pendingAutoLogin;
-              setPendingAutoLogin(null);
-              setCurrentUser(savedUser.phone);
-              setUserRole(savedUser.role || 'owner');
-              if (savedUser.role === 'worker') {
-                setWorkerCode(savedUser.workerCode || '');
-                setWorkerName(savedUser.workerName || '');
-                setWorkerPermissions(savedUser.permissions || []);
-                setWorkerOwnerPhone(savedUser.phone);
-                setWorkerAssignedGenerators(savedUser.assignedGenerators || []);
-                if (savedUser.assignedGeneratorId) setWorkerAssignedGeneratorId(savedUser.assignedGeneratorId);
-                setScreen('workerMain');
-              } else {
-                setScreen('main');
-              }
-              setActiveTab('home');
-            }} style={{ marginTop: 15 }}>
-              <Text style={{ color: '#666', fontSize: 14, textAlign: 'center' }}>دخول بكلمة المرور</Text>
+              <Text style={styles.loginButtonText}>فتح التطبيق</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -6607,26 +6556,6 @@ export default function App() {
         onRegister={() => setScreen('register')}
         onLogin={handleLogin}
         onWorkerLogin={() => setScreen('workerLogin')}
-        biometricAvailable={biometricAvailable}
-        biometricOwnerSaved={!!biometricSaved.owner}
-        onSetPassword={(p) => { loginScreenPasswordRef.current = p; }}
-        onBiometricLogin={async () => {
-          const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة', cancelLabel: 'إلغاء', disableDeviceFallback: false });
-          if (result.success && biometricSaved.owner) {
-            const creds = biometricSaved.owner;
-            const net = await NetInfo.fetch();
-            if (!net.isConnected) { Alert.alert('تنبيه', 'يجب الاتصال بالإنترنت'); return; }
-            const usersResult = await loadFromFile('registered_users');
-            if (usersResult === null) { Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر'); return; }
-            const user = (usersResult || []).find(u => u.phone === creds.phone);
-            if (!user) { Alert.alert('خطأ', 'الحساب غير موجود'); return; }
-            const verifyResult = await verifyOwnerPassword(user.password, creds.password, creds.phone);
-            if (verifyResult.migrated) { user.password = await pbkdf2Hash(creds.password, creds.phone); await saveToFile('registered_users', usersResult); }
-            if (!verifyResult.match) { Alert.alert('خطأ', 'كلمة المرور غير صحيحة'); setBiometricSaved(prev => ({ ...prev, owner: null })); await saveToFile('biometric_credentials', { ...biometricSaved, owner: null }); return; }
-            await saveToFile('current_user', { phone: creds.phone, role: 'owner' });
-            onLogin(creds.phone);
-          }
-        }}
       />
     );
   }
@@ -6635,47 +6564,6 @@ export default function App() {
     return (
       <WorkerLoginScreen
         onBack={() => setScreen('login')}
-        biometricAvailable={biometricAvailable}
-        biometricWorkerSaved={!!biometricSaved.worker}
-        onBiometricLogin={async () => {
-          const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة', cancelLabel: 'إلغاء', disableDeviceFallback: false });
-          if (result.success && biometricSaved.worker) {
-            const creds = biometricSaved.worker;
-            const workerLoginResult = await handleWorkerLogin(creds.code, creds.pin);
-            if (workerLoginResult.success) {
-              setWorkerOwnerPhone(workerLoginResult.ownerPhone);
-              setUserRole('worker');
-              setWorkerPermissions(workerLoginResult.permissions);
-              setWorkerCode(creds.code.toUpperCase());
-              setWorkerName(workerLoginResult.savedName);
-              setCurrentUser(workerLoginResult.ownerPhone);
-              const assignedGens = workerLoginResult.assignedGenerators || [];
-              setWorkerAssignedGenerators(assignedGens);
-              await saveToFile('current_user', { phone: workerLoginResult.ownerPhone, role: 'worker', workerCode: creds.code.toUpperCase(), workerName: workerLoginResult.savedName || '', permissions: workerLoginResult.permissions, assignedGeneratorId: workerLoginResult.assignedGeneratorId || null, assignedGenerators: assignedGens });
-              const ownerData = await loadAllUserKeys(workerLoginResult.ownerPhone);
-              const ownerGens = ownerData.generators || [];
-              const assignedId = workerLoginResult.assignedGeneratorId;
-              let targetGen = null;
-              if (assignedId && ownerGens.length > 0) { targetGen = ownerGens.find(function(g) { return g.id === assignedId; }); }
-              if (!targetGen && ownerGens.length > 0) { targetGen = ownerGens[0]; }
-              if (targetGen) {
-                setGenerators(ownerGens);
-                setCurrentGeneratorId(targetGen.id);
-                setWorkerAssignedGeneratorId(targetGen.id);
-                setGeneratorName(targetGen.name);
-                setSubscribers(targetGen.subscribers || []);
-                setAmperPrices(targetGen.amperPrices || {});
-                setGoldenPrices(targetGen.goldenPrices || {});
-                setMonthlyExpenses(targetGen.monthlyExpenses || {});
-              }
-              setScreen('workerMain');
-            } else {
-              Alert.alert('خطأ', 'بيانات الدخول غير صحيحة');
-              setBiometricSaved(prev => ({ ...prev, worker: null }));
-              await saveToFile('biometric_credentials', { ...biometricSaved, worker: null });
-            }
-          }
-        }}
         onLogin={async (code, pin) => {
           const net = await NetInfo.fetch();
           if (!net.isConnected) {
@@ -6722,18 +6610,6 @@ export default function App() {
               setMonthlyExpenses(targetGen.monthlyExpenses || {});
             }
             setScreen('workerMain');
-            if (biometricAvailable && !biometricSaved.worker) {
-              const wCode = code.toUpperCase();
-              const wPin = pin.toUpperCase();
-              Alert.alert('تفعيل الدخول بالبصمة', 'هل تريد تفعيل الدخول السريع بالبصمة أو رمز الجهاز؟', [
-                { text: 'لاحقاً', style: 'cancel' },
-                { text: 'نعم', onPress: async () => {
-                  const saved = { owner: biometricSaved.owner, worker: { code: wCode, pin: wPin } };
-                  setBiometricSaved(saved);
-                  await saveToFile('biometric_credentials', saved);
-                }},
-              ]);
-            }
           }
           return result;
         }}
