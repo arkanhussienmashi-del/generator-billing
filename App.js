@@ -2135,40 +2135,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                             <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#F44336' }}>التحديثات المرفوضة ({safeRejected.length})</Text>
                           </TouchableOpacity>
                           {showRejected && safeRejected.map(function(batch) {
-  if (expenseModalVisible) {
-    return (
-      <View style={styles.mainContainer}>
-        <StatusBar backgroundColor="#FF5722" barStyle="light-content" />
-        <View style={[styles.header, { backgroundColor: '#FF5722' }]}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity onPress={() => { setExpenseModalVisible(false); setExpenseType(''); setExpenseAmount(''); }}>
-              <Ionicons name="arrow-forward" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.headerTitle}>إضافة صرفية</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <View style={{ padding: 16 }}>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>نوع الصرفية <Text style={styles.required}>*</Text></Text>
-              <TextInput style={styles.formInput} value={expenseType} onChangeText={setExpenseType} placeholder="مثال: دهن، كاز، صيانة" placeholderTextColor="#999" textAlign="right" autoFocus />
-            </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>المبلغ <Text style={styles.required}>*</Text></Text>
-              <TextInput style={styles.formInput} value={expenseAmount} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); setExpenseAmount(raw ? formatNumber(parseInt(raw)) : ''); }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-            </View>
-            <TouchableOpacity style={[styles.saveSubscriberButton, { backgroundColor: '#FF5722' }]} onPress={handleSaveExpense}>
-              <Ionicons name="checkmark-circle" size={22} color="white" />
-              <Text style={styles.saveSubscriberText}>حفظ الصرفية</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  return (
+                            return (
                               <TouchableOpacity key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFCDD2' }} onPress={() => { Alert.alert('اعادة التحديث', 'هل تريد اعادة تطبيق هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', onPress: () => onReapplyBatch(batch.id) }]); }}>
                                 <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
@@ -4761,13 +4728,10 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
   );
 };
 
-const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, goldenPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense, darkMode }) => {
+const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, goldenPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense, darkMode, onShowExpense }) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
-  const [expenseModalVisible, setExpenseModalVisible] = useState(false);
-  const [expenseType, setExpenseType] = useState('');
-  const [expenseAmount, setExpenseAmount] = useState('');
 
   const normalPrice = (amperPrices && amperPrices[currentMonthKey]) || 0;
   const goldenPriceVal = (goldenPrices && goldenPrices[currentMonthKey]) || 0;
@@ -4779,32 +4743,6 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
     });
     return total;
   }, [subscribers, currentMonth, currentYear]);
-
-  React.useEffect(() => {
-    if (!expenseModalVisible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setExpenseModalVisible(false);
-      return true;
-    });
-    return () => sub.remove();
-  }, [expenseModalVisible]);
-
-  const handleSaveExpense = () => {
-    if (!expenseType.trim()) {
-      Alert.alert('تنبيه', 'أدخل نوع الصرفية');
-      return;
-    }
-    const parsed = parseFloat(expenseAmount.replace(/,/g, ''));
-    if (!parsed || parsed <= 0) {
-      Alert.alert('تنبيه', 'أدخل مبلغ صحيح');
-      return;
-    }
-    onAddExpense(expenseType.trim(), parsed, currentMonthKey);
-    setExpenseType('');
-    setExpenseAmount('');
-    setExpenseModalVisible(false);
-    Alert.alert('تم', 'تم تسجيل الصرفية بنجاح');
-  };
 
   const { totalSubscribers, paidCount, requiredCount, unpaidCount } = useMemo(() => {
     let ts = 0, pc = 0, rc = 0, uc = 0;
@@ -4909,7 +4847,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
             <Text style={styles.showSubscribersText}>عرض المشتركين</Text>
           </TouchableOpacity>
           {workerPermissions.includes('addExpense') && (
-            <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF5722', marginTop: 10 }]} onPress={() => setExpenseModalVisible(true)}>
+            <TouchableOpacity style={[styles.showSubscribersButton, { backgroundColor: '#FF5722', marginTop: 10 }]} onPress={onShowExpense}>
               <Ionicons name="receipt-outline" size={20} color="white" />
               <Text style={styles.showSubscribersText}>إضافة صرفية</Text>
             </TouchableOpacity>
@@ -4942,6 +4880,9 @@ export default function App() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [subscribersVisible, setSubscribersVisible] = useState(false);
   const [reportsVisible, setReportsVisible] = useState(false);
+  const [workerExpenseVisible, setWorkerExpenseVisible] = useState(false);
+  const [workerExpenseType, setWorkerExpenseType] = useState('');
+  const [workerExpenseAmount, setWorkerExpenseAmount] = useState('');
   const [subscribers, setSubscribers] = useState([]);
   const [amperPrices, setAmperPrices] = useState({});
   const [goldenPrices, setGoldenPrices] = useState({});
@@ -5578,6 +5519,23 @@ export default function App() {
     } finally {
       setGlobalLoading('');
     }
+  };
+
+  const handleSaveWorkerExpense = () => {
+    if (!workerExpenseType.trim()) {
+      Alert.alert('تنبيه', 'أدخل نوع الصرفية');
+      return;
+    }
+    const parsed = parseFloat(workerExpenseAmount.replace(/,/g, ''));
+    if (!parsed || parsed <= 0) {
+      Alert.alert('تنبيه', 'أدخل مبلغ صحيح');
+      return;
+    }
+    const currentMonthKey2 = `${new Date().getMonth() + 1}_${new Date().getFullYear()}`;
+    handleWorkerAddExpense(workerExpenseType.trim(), parsed, currentMonthKey2);
+    setWorkerExpenseType('');
+    setWorkerExpenseAmount('');
+    setWorkerExpenseVisible(false);
   };
 
   const handleApplyBatch = async (batchId) => {
@@ -6491,13 +6449,14 @@ export default function App() {
       if (settingsVisible) { setSettingsVisible(false); setActiveTab('home'); return true; }
       if (subscribersVisible) { setSubscribersVisible(false); return true; }
       if (reportsVisible) { setReportsVisible(false); return true; }
+      if (workerExpenseVisible) { setWorkerExpenseVisible(false); return true; }
       if (workerTrackingVisible) { setWorkerTrackingVisible(false); return true; }
       if (activeTab !== 'home') { setActiveTab('home'); return true; }
       return false;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible, reportsVisible, subscribersVisible]);
+  }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible, reportsVisible, subscribersVisible, workerExpenseVisible]);
 
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
@@ -6643,6 +6602,7 @@ export default function App() {
           workerAssignedGenerators={workerAssignedGenerators}
           onAddExpense={handleWorkerAddExpense}
           darkMode={darkMode}
+          onShowExpense={() => setWorkerExpenseVisible(true)}
         />
         )}
         {reportsVisible && (
@@ -6654,6 +6614,36 @@ export default function App() {
             amperPrices={amperPrices}
             goldenPrices={goldenPrices}
           />
+        )}
+        {workerExpenseVisible && (
+          <View style={styles.mainContainer}>
+            <StatusBar backgroundColor="#FF5722" barStyle="light-content" />
+            <View style={[styles.header, { backgroundColor: '#FF5722' }]}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity onPress={() => { setWorkerExpenseVisible(false); setWorkerExpenseType(''); setWorkerExpenseAmount(''); }}>
+                  <Ionicons name="arrow-forward" size={24} color="white" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.headerTitle}>إضافة صرفية</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+              <View style={{ padding: 16 }}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>نوع الصرفية <Text style={styles.required}>*</Text></Text>
+                  <TextInput style={[styles.formInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={workerExpenseType} onChangeText={setWorkerExpenseType} placeholder="مثال: دهن، كاز، صيانة" placeholderTextColor="#999" textAlign="right" autoFocus />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>المبلغ <Text style={styles.required}>*</Text></Text>
+                  <TextInput style={[styles.formInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={workerExpenseAmount ? formatNumber(parseInt(workerExpenseAmount.replace(/,/g, ''))) : ''} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); setWorkerExpenseAmount(raw); }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+                </View>
+                <TouchableOpacity style={[styles.saveSubscriberButton, { backgroundColor: '#FF5722' }]} onPress={handleSaveWorkerExpense}>
+                  <Ionicons name="checkmark-circle" size={22} color="white" />
+                  <Text style={styles.saveSubscriberText}>حفظ الصرفية</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
         )}
         <SubscribersScreen
           visible={subscribersVisible}
@@ -6771,6 +6761,7 @@ export default function App() {
           workerAssignedGenerators={workerAssignedGenerators}
           onAddExpense={handleWorkerAddExpense}
           darkMode={darkMode}
+          onShowExpense={() => setWorkerExpenseVisible(true)}
         />
         )}
         {reportsVisible && (
@@ -6782,6 +6773,36 @@ export default function App() {
             amperPrices={amperPrices}
             goldenPrices={goldenPrices}
           />
+        )}
+        {workerExpenseVisible && (
+          <View style={styles.mainContainer}>
+            <StatusBar backgroundColor="#FF5722" barStyle="light-content" />
+            <View style={[styles.header, { backgroundColor: '#FF5722' }]}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity onPress={() => { setWorkerExpenseVisible(false); setWorkerExpenseType(''); setWorkerExpenseAmount(''); }}>
+                  <Ionicons name="arrow-forward" size={24} color="white" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.headerTitle}>إضافة صرفية</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+              <View style={{ padding: 16 }}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>نوع الصرفية <Text style={styles.required}>*</Text></Text>
+                  <TextInput style={[styles.formInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={workerExpenseType} onChangeText={setWorkerExpenseType} placeholder="مثال: دهن، كاز، صيانة" placeholderTextColor="#999" textAlign="right" autoFocus />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>المبلغ <Text style={styles.required}>*</Text></Text>
+                  <TextInput style={[styles.formInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={workerExpenseAmount ? formatNumber(parseInt(workerExpenseAmount.replace(/,/g, ''))) : ''} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); setWorkerExpenseAmount(raw); }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+                </View>
+                <TouchableOpacity style={[styles.saveSubscriberButton, { backgroundColor: '#FF5722' }]} onPress={handleSaveWorkerExpense}>
+                  <Ionicons name="checkmark-circle" size={22} color="white" />
+                  <Text style={styles.saveSubscriberText}>حفظ الصرفية</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
         )}
         <SubscribersScreen
           visible={subscribersVisible}
