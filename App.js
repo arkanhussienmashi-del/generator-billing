@@ -2135,7 +2135,40 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                             <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#F44336' }}>التحديثات المرفوضة ({safeRejected.length})</Text>
                           </TouchableOpacity>
                           {showRejected && safeRejected.map(function(batch) {
-                            return (
+  if (expenseModalVisible) {
+    return (
+      <View style={styles.mainContainer}>
+        <StatusBar backgroundColor="#FF5722" barStyle="light-content" />
+        <View style={[styles.header, { backgroundColor: '#FF5722' }]}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={() => { setExpenseModalVisible(false); setExpenseType(''); setExpenseAmount(''); }}>
+              <Ionicons name="arrow-forward" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.headerTitle}>إضافة صرفية</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: 16 }}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>نوع الصرفية <Text style={styles.required}>*</Text></Text>
+              <TextInput style={styles.formInput} value={expenseType} onChangeText={setExpenseType} placeholder="مثال: دهن، كاز، صيانة" placeholderTextColor="#999" textAlign="right" autoFocus />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>المبلغ <Text style={styles.required}>*</Text></Text>
+              <TextInput style={styles.formInput} value={expenseAmount} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); setExpenseAmount(raw ? formatNumber(parseInt(raw)) : ''); }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
+            </View>
+            <TouchableOpacity style={[styles.saveSubscriberButton, { backgroundColor: '#FF5722' }]} onPress={handleSaveExpense}>
+              <Ionicons name="checkmark-circle" size={22} color="white" />
+              <Text style={styles.saveSubscriberText}>حفظ الصرفية</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  return (
                               <TouchableOpacity key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFCDD2' }} onPress={() => { Alert.alert('اعادة التحديث', 'هل تريد اعادة تطبيق هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', onPress: () => onReapplyBatch(batch.id) }]); }}>
                                 <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
@@ -4859,34 +4892,6 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
           </TouchableOpacity>
         )}
       </ScrollView>
-
-      <Modal visible={expenseModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingTop: 20, paddingBottom: 30 }]}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setExpenseModalVisible(false)}>
-                <Ionicons name="close" size={28} color="#333" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>إضافة صرفية</Text>
-              <View style={{ width: 30 }} />
-            </View>
-            <View style={{ padding: 16 }}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>نوع الصرفية <Text style={styles.required}>*</Text></Text>
-                <TextInput style={styles.formInput} value={expenseType} onChangeText={setExpenseType} placeholder="مثال: دهن، كاز، صيانة" placeholderTextColor="#999" textAlign="right" />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>المبلغ <Text style={styles.required}>*</Text></Text>
-                <TextInput style={styles.formInput} value={expenseAmount} onChangeText={(t) => { const raw = t.replace(/[^0-9]/g, ''); setExpenseAmount(raw ? formatNumber(parseInt(raw)) : ''); }} placeholder="0" placeholderTextColor="#999" keyboardType="numeric" textAlign="right" />
-              </View>
-              <TouchableOpacity style={[styles.saveSubscriberButton, { backgroundColor: '#FF5722' }]} onPress={handleSaveExpense}>
-                <Ionicons name="checkmark-circle" size={22} color="white" />
-                <Text style={styles.saveSubscriberText}>حفظ الصرفية</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
