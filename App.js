@@ -4736,6 +4736,15 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
   const [expenseType, setExpenseType] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
 
+  React.useEffect(() => {
+    if (!expenseModalVisible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setExpenseModalVisible(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [expenseModalVisible]);
+
   const handleSaveExpense = () => {
     if (!expenseType.trim()) {
       Alert.alert('تنبيه', 'أدخل نوع الصرفية');
