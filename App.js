@@ -6780,7 +6780,7 @@ export default function App() {
         />
       )}
 
-      {activeTab === 'subscribers' && (
+      {activeTab === 'subscribers' && !appPartialPaymentVisible && (
         <SubscribersScreen
           fullScreen
           visible={true}
