@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم - مولدي</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; min-height: 100vh; direction: rtl; }
+  .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  .login-box { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+  .login-box h1 { color: #1565C0; margin-bottom: 8px; font-size: 24px; }
+  .login-box p { color: #666; margin-bottom: 24px; }
+  .login-box input { width: 100%; padding: 14px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px; text-align: center; margin-bottom: 16px; outline: none; }
+  .login-box input:focus { border-color: #1565C0; }
+  .login-box button { width: 100%; padding: 14px; background: #1565C0; color: white; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; font-weight: bold; }
+  .login-box button:hover { background: #0D47A1; }
+  .login-box button:disabled { background: #ccc; cursor: not-allowed; }
+  .error-msg { color: #D32F2F; margin-bottom: 12px; font-size: 14px; display: none; }
+
+  .dashboard { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .header { background: #1565C0; color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .header h1 { font-size: 20px; }
+  .header button { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .header button:hover { background: rgba(255,255,255,0.3); }
+
+  .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: white; padding: 16px; border-radius: 10px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .stat-card .num { font-size: 28px; font-weight: bold; color: #1565C0; }
+  .stat-card .label { font-size: 13px; color: #888; margin-top: 4px; }
+
+  .owner-card { background: white; border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.06); border: 1px solid #e8e8e8; }
+  .owner-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s; }
+  .owner-header:hover { background: #f8f9fa; }
+  .owner-info { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; flex: 1; }
+  .owner-name { font-size: 17px; font-weight: bold; color: #333; }
+  .owner-phone { font-size: 13px; color: #888; }
+  .owner-code { background: #E3F2FD; color: #1565C0; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+  .owner-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .badge-workers { background: #FFF3E0; color: #E65100; }
+  .badge-subs { background: #E8F5E9; color: #2E7D32; }
+  .expand-icon { font-size: 18px; color: #999; transition: transform 0.3s; }
+  .expand-icon.open { transform: rotate(180deg); }
+
+  .owner-details { display: none; border-top: 1px solid #eee; padding: 16px 20px; }
+  .owner-details.open { display: block; }
+
+  .workers-table { width: 100%; border-collapse: collapse; }
+  .workers-table th { background: #f5f5f5; padding: 10px 12px; text-align: right; font-size: 13px; color: #666; font-weight: 600; }
+  .workers-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; color: #333; }
+  .workers-table tr:last-child td { border-bottom: none; }
+  .pin-code { background: #f5f5f5; padding: 3px 8px; border-radius: 4px; font-family: monospace; font-size: 13px; direction: ltr; display: inline-block; }
+
+  .no-workers { color: #999; font-size: 14px; padding: 12px 0; text-align: center; }
+  .loading { text-align: center; padding: 40px; color: #888; }
+  .search-bar { width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; margin-bottom: 16px; outline: none; text-align: right; }
+  .search-bar:focus { border-color: #1565C0; }
+
+  .btn-delete { background: #D32F2F; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn-delete:hover { background: #B71C1C; }
+  .btn-edit { background: #FF9800; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px; }
+  .btn-edit:hover { background: #F57C00; }
+  .action-buttons { display: flex; gap: 6px; margin-top: 12px; justify-content: flex-start; }
+
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: white; border-radius: 12px; padding: 24px; width: 90%; max-width: 420px; }
+  .modal-box h3 { margin-bottom: 16px; color: #333; }
+  .modal-box label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; font-weight: 600; }
+  .modal-box input { width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 12px; outline: none; text-align: right; }
+  .modal-box input:focus { border-color: #1565C0; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .modal-actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600; }
+  .btn-confirm { background: #1565C0; color: white; }
+  .btn-cancel { background: #f0f0f0; color: #333; }
+  .btn-danger { background: #D32F2F; color: white; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-container">
+  <div class="login-box">
+    <h1>مولدي</h1>
+    <p>لوحة التحكم</p>
+    <div id="errorMsg" class="error-msg"></div>
+    <input type="password" id="passwordInput" placeholder="كلمة المرور" onkeypress="if(event.key==='Enter')doLogin()">
+    <button id="loginBtn" onclick="doLogin()">تسجيل الدخول</button>
+  </div>
+</div>
+
+<div id="dashboardScreen" style="display:none">
+  <div class="dashboard">
+    <div class="header">
+      <h1>لوحة التحكم - مولدي</h1>
+      <div style="display:flex;gap:8px">
+        <button onclick="loadData()">تحديث</button>
+        <button onclick="doLogout()">خروج</button>
+      </div>
+    </div>
+    <input class="search-bar" type="text" id="searchInput" placeholder="بحث بالاسم أو رقم الهاتف..." oninput="filterOwners()">
+    <div class="stats-bar" id="statsBar"></div>
+    <div id="ownersList"><div class="loading">جاري التحميل...</div></div>
+  </div>
+</div>
+
+<div id="editModal" class="modal-overlay">
+  <div class="modal-box">
+    <h3 id="editModalTitle">تعديل الحساب</h3>
+    <label>رقم الهاتف</label>
+    <input type="text" id="editPhone" placeholder="رقم الهاتف">
+    <label>الرمز السري</label>
+    <input type="text" id="editCode" placeholder="الرمز السري">
+    <label>كلمة المرور الجديدة (اترك فارغ إذا لا تغيير)</label>
+    <input type="text" id="editPassword" placeholder="كلمة المرور الجديدة">
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">إلغاء</button>
+      <button class="btn-confirm" onclick="saveEdit()">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<div id="deleteModal" class="modal-overlay">
+  <div class="modal-box">
+    <h3>حذف الحساب</h3>
+    <p id="deleteModalText" style="margin-bottom:16px;color:#555;font-size:14px;"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteModal()">إلغاء</button>
+      <button class="btn-danger" onclick="confirmDelete()">حذف</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var API = 'https://server-ten-wheat.vercel.app/api';
+var token = localStorage.getItem('admin_token') || '';
+var allOwners = [];
+var editTarget = null;
+var deleteTarget = null;
+
+function show(el) { document.getElementById(el).style.display = ''; }
+function hide(el) { document.getElementById(el).style.display = 'none'; }
+
+async function doLogin() {
+  var pw = document.getElementById('passwordInput').value.trim();
+  if (!pw) return;
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري...';
+  document.getElementById('errorMsg').style.display = 'none';
+  try {
+    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'adminLogin', password: pw }) });
+    var d = await r.json();
+    if (d.ok && d.token) {
+      token = d.token;
+      localStorage.setItem('admin_token', token);
+      hide('loginScreen');
+      show('dashboardScreen');
+      loadData();
+    } else {
+      document.getElementById('errorMsg').textContent = 'كلمة المرور خاطئة';
+      document.getElementById('errorMsg').style.display = '';
+    }
+  } catch (e) {
+    document.getElementById('errorMsg').textContent = 'خطأ في الاتصال بالخادم';
+    document.getElementById('errorMsg').style.display = '';
+  }
+  btn.disabled = false;
+  btn.textContent = 'تسجيل الدخول';
+}
+
+function doLogout() {
+  token = '';
+  localStorage.removeItem('admin_token');
+  hide('dashboardScreen');
+  show('loginScreen');
+  document.getElementById('passwordInput').value = '';
+}
+
+async function loadData() {
+  document.getElementById('ownersList').innerHTML = '<div class="loading">جاري التحميل...</div>';
+  try {
+    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'adminGetAllOwners', _adminToken: token }) });
+    if (r.status === 401) { doLogout(); return; }
+    var d = await r.json();
+    allOwners = d.owners || [];
+    renderOwners(allOwners);
+    renderStats(allOwners);
+  } catch (e) {
+    document.getElementById('ownersList').innerHTML = '<div class="loading">خطأ في تحميل البيانات</div>';
+  }
+}
+
+function renderStats(owners) {
+  var totalWorkers = 0, totalSubs = 0;
+  owners.forEach(function(o) { totalWorkers += o.workerCount; totalSubs += o.subscriberCount; });
+  document.getElementById('statsBar').innerHTML =
+    '<div class="stat-card"><div class="num">' + owners.length + '</div><div class="label"> أصحاب مولد</div></div>' +
+    '<div class="stat-card"><div class="num">' + totalWorkers + '</div><div class="label"> العمال</div></div>' +
+    '<div class="stat-card"><div class="num">' + totalSubs + '</div><div class="label"> المشتركين</div></div>';
+}
+
+function renderOwners(owners) {
+  if (owners.length === 0) {
+    document.getElementById('ownersList').innerHTML = '<div class="loading">لا يوجد أصحاب مولد مسجلين</div>';
+    return;
+  }
+  var html = '';
+  owners.forEach(function(o, idx) {
+    html += '<div class="owner-card">';
+    html += '<div class="owner-header" onclick="toggleOwner(' + idx + ')">';
+    html += '<div class="owner-info">';
+    html += '<span class="owner-name">' + esc(o.ownerName || 'بدون اسم') + '</span>';
+    html += '<span class="owner-phone">' + esc(o.phone) + '</span>';
+    html += '<span class="owner-code">الرمز: ' + esc(o.ownerCode || '-') + '</span>';
+    html += '</div>';
+    html += '<div class="owner-badges">';
+    html += '<span class="badge badge-workers">العمال: ' + o.workerCount + '</span>';
+    html += '<span class="badge badge-subs">المشتركين: ' + o.subscriberCount + '</span>';
+    html += '<span class="expand-icon" id="expand_' + idx + '">&#9660;</span>';
+    html += '</div>';
+    html += '</div>';
+    html += '<div class="owner-details" id="details_' + idx + '">';
+    if (o.workers.length === 0) {
+      html += '<div class="no-workers">لا يوجد عمال مسجلين</div>';
+    } else {
+      html += '<table class="workers-table">';
+      html += '<tr><th>اسم العامل</th><th>الكود</th><th>الرمز (PIN)</th></tr>';
+      o.workers.forEach(function(w) {
+        html += '<tr>';
+        html += '<td>' + esc(w.name) + '</td>';
+        html += '<td><span class="pin-code">' + esc(w.code || '-') + '</span></td>';
+        html += '<td><span class="pin-code">' + esc(w.pin || '-') + '</span></td>';
+        html += '</tr>';
+      });
+      html += '</table>';
+    }
+    html += '<div class="action-buttons">';
+    html += '<button class="btn-edit" onclick="openEdit(' + idx + ')">تعديل</button>';
+    html += '<button class="btn-delete" onclick="openDelete(' + idx + ')">حذف الحساب</button>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+  });
+  document.getElementById('ownersList').innerHTML = html;
+}
+
+function toggleOwner(idx) {
+  var det = document.getElementById('details_' + idx);
+  var icon = document.getElementById('expand_' + idx);
+  if (det.classList.contains('open')) {
+    det.classList.remove('open');
+    icon.classList.remove('open');
+  } else {
+    det.classList.add('open');
+    icon.classList.add('open');
+  }
+}
+
+function openEdit(idx) {
+  var o = allOwners[idx];
+  editTarget = o;
+  document.getElementById('editPhone').value = o.phone;
+  document.getElementById('editCode').value = o.ownerCode || '';
+  document.getElementById('editPassword').value = '';
+  document.getElementById('editModalTitle').textContent = 'تعديل حساب ' + (o.ownerName || o.phone);
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  editTarget = null;
+}
+
+async function saveEdit() {
+  if (!editTarget) return;
+  var newPhone = document.getElementById('editPhone').value.trim();
+  var newCode = document.getElementById('editCode').value.trim();
+  var newPassword = document.getElementById('editPassword').value.trim();
+  if (!newPhone) { alert('رقم الهاتف مطلوب'); return; }
+  try {
+    var body = { _action: 'updateRegisteredUser', _adminToken: token, oldPhone: editTarget.phone };
+    if (newPhone !== editTarget.phone) body.newPhone = newPhone;
+    if (newCode && newCode !== editTarget.ownerCode) body.newOwnerCode = newCode;
+    if (newPassword) body.newPassword = newPassword;
+    var r = await fetch(API, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    var d = await r.json();
+    if (d.ok) {
+      closeModal();
+      loadData();
+    } else {
+      alert('خطأ: ' + (d.error || 'فشل التعديل'));
+    }
+  } catch (e) {
+    alert('خطأ في الاتصال بالخادم');
+  }
+}
+
+function openDelete(idx) {
+  var o = allOwners[idx];
+  deleteTarget = o;
+  document.getElementById('deleteModalText').textContent = 'هل تريد حذف حساب "' + (o.ownerName || o.phone) + '" نهائياً؟ جميع البيانات ستُحذف.';
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+  deleteTarget = null;
+}
+
+async function confirmDelete() {
+  if (!deleteTarget) return;
+  try {
+    var r = await fetch(API + '?_action=deleteUser&phone=' + encodeURIComponent(deleteTarget.phone) + '&_adminToken=' + encodeURIComponent(token), { method: 'DELETE' });
+    var d = await r.json();
+    if (d.ok) {
+      closeDeleteModal();
+      loadData();
+    } else {
+      alert('خطأ: ' + (d.error || 'فشل الحذف'));
+    }
+  } catch (e) {
+    alert('خطأ في الاتصال بالخادم');
+  }
+}
+
+function filterOwners() {
+  var q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!q) { renderOwners(allOwners); return; }
+  var filtered = allOwners.filter(function(o) {
+    return (o.ownerName || '').toLowerCase().indexOf(q) >= 0 || (o.phone || '').indexOf(q) >= 0;
+  });
+  renderOwners(filtered);
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+if (token) {
+  fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'adminGetAllOwners', _adminToken: token }) })
+    .then(function(r) { if (r.ok) return r.json(); throw new Error(); })
+    .then(function(d) {
+      if (d.owners) { hide('loginScreen'); show('dashboardScreen'); allOwners = d.owners; renderOwners(allOwners); renderStats(allOwners); }
+    }).catch(function() { token = ''; localStorage.removeItem('admin_token'); });
+}
+</script>
+</body>
+</html>

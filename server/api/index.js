@@ -111,6 +111,59 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, token });
       }
 
+      if (body._action === 'adminGetAllOwners') {
+        if (!verifyAdminToken(body._adminToken)) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const [appRows] = await p.query('SELECT * FROM app_data WHERE filename = ?', ['registered_users']);
+        if (appRows.length === 0) return res.status(200).json({ owners: [] });
+
+        let val = appRows[0].data_value;
+        if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = []; } }
+        const users = Array.isArray(val) ? val : [];
+
+        const owners = [];
+        for (const user of users) {
+          const phone = user.phone;
+          const [workerRows] = await p.query("SELECT data_key, data_value FROM user_data WHERE phone = ? AND data_key = 'workers'", [phone]);
+          let workers = [];
+          if (workerRows.length > 0) {
+            try {
+              const wv = typeof workerRows[0].data_value === 'string' ? JSON.parse(workerRows[0].data_value) : workerRows[0].data_value;
+              workers = Array.isArray(wv) ? wv : [];
+            } catch (e) { workers = []; }
+          }
+
+          const [subRows] = await p.query("SELECT data_key, data_value FROM user_data WHERE phone = ? AND data_key = 'subscribers'", [phone]);
+          let subscriberCount = 0;
+          if (subRows.length > 0) {
+            try {
+              const sv = typeof subRows[0].data_value === 'string' ? JSON.parse(subRows[0].data_value) : subRows[0].data_value;
+              subscriberCount = Array.isArray(sv) ? sv.length : 0;
+            } catch (e) { subscriberCount = 0; }
+          }
+
+          const [nameRows] = await p.query("SELECT data_key, data_value FROM user_data WHERE phone = ? AND data_key = 'ownerName'", [phone]);
+          let ownerName = '';
+          if (nameRows.length > 0) {
+            try {
+              ownerName = typeof nameRows[0].data_value === 'string' ? JSON.parse(nameRows[0].data_value) : nameRows[0].data_value;
+            } catch (e) { ownerName = nameRows[0].data_value || ''; }
+          }
+
+          owners.push({
+            phone,
+            ownerName: ownerName || '',
+            ownerCode: user.ownerCode || '',
+            workerCount: workers.length,
+            subscriberCount,
+            workers: workers.map(w => ({ name: w.name || '', code: w.code || '', pin: w.plainPin || '', generatorId: w.generatorId || '' })),
+          });
+        }
+
+        return res.status(200).json({ owners });
+      }
+
       if (body._table === 'app_data') {
         await p.query('INSERT INTO app_data (filename, data_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [body.filename, JSON.stringify(body.data_value)]);
         return res.status(200).json({ ok: true });

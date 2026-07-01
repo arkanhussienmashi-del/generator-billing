@@ -6493,7 +6493,7 @@ export default function App() {
         if (result.success) {
           setAppLocked(false);
         }
-      });
+      }).catch(() => {});
     }
   }, [appLocked]);
 
