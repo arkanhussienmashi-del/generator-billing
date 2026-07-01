@@ -3847,12 +3847,12 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
 
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 16, backgroundColor: '#E3F2FD', borderColor: '#1565C0', borderWidth: 1, borderRadius: IS_SMALL ? 6 : 10 }}>
                 <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المتوقع</Text>
-                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#0D47A1', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333', fontWeight: '600' }}>د.ع {formatNumber(stats.totalExpected)}</Text>
               </View>
 
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 16, backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderWidth: 1, borderRadius: IS_SMALL ? 6 : 10 }}>
                 <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: '700', color: '#333' }}>المبلغ المستوفى من المشتركين</Text>
-                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#1B5E20', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333', fontWeight: '600' }}>د.ع {formatNumber(stats.totalCollected)}</Text>
               </View>
 
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: IS_SMALL ? 10 : 14, padding: IS_SMALL ? 10 : 16, backgroundColor: '#FFF3E0', borderColor: '#FF9800', borderWidth: 1, borderRadius: IS_SMALL ? 6 : 10 }}>
@@ -4597,11 +4597,11 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 
 
         <View style={[styles.financialSummary, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }]}>
-          <View style={styles.summaryRow}>
+          <View style={[styles.summaryRow, { flexDirection: 'row-reverse' }]}>
             <Text style={[styles.summaryLabel, darkMode && { color: '#aaa' }]}>المتوقع:</Text>
             <Text style={[styles.summaryValue, darkMode && { color: '#fff' }]}>د.ع {formatNumber(expectedAmount)}</Text>
           </View>
-          <View style={styles.summaryRow}>
+          <View style={[styles.summaryRow, { flexDirection: 'row-reverse' }]}>
             <Text style={[styles.summaryLabel, darkMode && { color: '#aaa' }]}>المبلغ المستوفى من المشتركين:</Text>
             <Text style={[styles.summaryValue, styles.collectedValue, darkMode && { color: '#4CAF50' }]}>د.ع {formatNumber(collectedAmount)}</Text>
           </View>
@@ -4618,44 +4618,44 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
             )}
           </View>
           <View style={styles.expenseRow}>
-            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('gas', 'كاز')}>
-              <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
-            </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={gas ? formatNumber(gas) : ''} onChangeText={(v) => handleExpenseChange('gas', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="water" size={IS_SMALL ? 14 : 16} color="#2196F3" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>كاز</Text>
             </View>
-          </View>
-          <View style={styles.expenseRow}>
-            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('oil', 'دهن')}>
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={gas ? formatNumber(gas) : ''} onChangeText={(v) => handleExpenseChange('gas', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('gas', 'كاز')}>
               <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={oil ? formatNumber(oil) : ''} onChangeText={(v) => handleExpenseChange('oil', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+          </View>
+          <View style={styles.expenseRow}>
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="flask" size={IS_SMALL ? 14 : 16} color="#9C27B0" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>دهن</Text>
             </View>
-          </View>
-          <View style={styles.expenseRow}>
-            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('repairs', 'إصلاحات')}>
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={oil ? formatNumber(oil) : ''} onChangeText={(v) => handleExpenseChange('oil', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('oil', 'دهن')}>
               <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={repairs ? formatNumber(repairs) : ''} onChangeText={(v) => handleExpenseChange('repairs', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+          </View>
+          <View style={styles.expenseRow}>
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="build" size={IS_SMALL ? 14 : 16} color="#FF5722" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>إصلاحات</Text>
             </View>
-          </View>
-          <View style={styles.expenseRow}>
-            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('salaries', 'رواتب')}>
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={repairs ? formatNumber(repairs) : ''} onChangeText={(v) => handleExpenseChange('repairs', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('repairs', 'إصلاحات')}>
               <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
             </TouchableOpacity>
-            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={salaries ? formatNumber(salaries) : ''} onChangeText={(v) => handleExpenseChange('salaries', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+          </View>
+          <View style={styles.expenseRow}>
             <View style={styles.expenseLabelContainer}>
               <Ionicons name="people" size={IS_SMALL ? 14 : 16} color="#607D8B" />
               <Text style={[styles.expenseLabel, darkMode && { color: '#ccc' }]}>رواتب</Text>
             </View>
+            <TextInput style={[styles.expenseInput, darkMode && { backgroundColor: '#2a2a2a', color: '#fff', borderColor: '#444' }]} value={salaries ? formatNumber(salaries) : ''} onChangeText={(v) => handleExpenseChange('salaries', onlyDigits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor="#999" />
+            <TouchableOpacity style={styles.expenseAddButton} onPress={() => openAddExpense('salaries', 'رواتب')}>
+              <Ionicons name="add-circle" size={IS_SMALL ? 20 : 24} color="#4CAF50" />
+            </TouchableOpacity>
           </View>
           {workerExpenses.length > 0 && (
             <TouchableOpacity style={styles.expenseRow} onPress={() => setShowWorkerExpenses(!showWorkerExpenses)}>
@@ -4684,7 +4684,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           ))}
         </View>
 
-        <View style={[styles.netExpectedContainer, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, netExpected < 0 && styles.netExpectedNegative]}>
+        <View style={[styles.netExpectedContainer, { flexDirection: 'row-reverse' }, darkMode && { backgroundColor: '#1e1e1e', borderColor: '#333' }, netExpected < 0 && styles.netExpectedNegative]}>
           <Text style={[styles.netExpectedLabel, darkMode && { color: '#aaa' }]}>الصافي:</Text>
           <Text style={[styles.netExpectedValue, netExpected < 0 && styles.netExpectedValueNegative]}>
             {netExpected < 0 ? `${formatNumber(Math.abs(netExpected))} - د.ع` : `د.ع ${formatNumber(netExpected)}`}
