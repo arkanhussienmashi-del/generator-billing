@@ -1148,7 +1148,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   </>);
 };
 
-const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices, rejectedBatches, onReapplyBatch }) => {
+const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices, rejectedBatches }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showRejected, setShowRejected] = useState(false);
 
@@ -1402,7 +1402,7 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
                 <View style={{ marginTop: 20 }}>
                   <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', marginBottom: 10 }} onPress={() => setShowRejected(!showRejected)}>
                     <Ionicons name={showRejected ? "chevron-down" : "chevron-back"} size={20} color="#F44336" />
-                    <Text style={{ fontSize: 15, color: '#F44336', fontWeight: 'bold', marginRight: 6 }}>التحديثات المحذوفة ({safeRejected.length})</Text>
+                    <Text style={{ fontSize: 15, color: '#F44336', fontWeight: 'bold', marginRight: 6 }}>المرفوضات ({safeRejected.length})</Text>
                   </TouchableOpacity>
                   {showRejected && safeRejected.map(function(batch) {
                     let updates = Array.isArray(batch.updates) ? batch.updates : [];
@@ -1411,22 +1411,25 @@ const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteB
                         <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                           <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
                             <View style={{ backgroundColor: '#F44336', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, marginRight: 8 }}>
-                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>محذوف</Text>
+                              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>مرفوض</Text>
                             </View>
                             <Text style={{ fontSize: 13, color: '#666' }}>{batch.workerName || ''}</Text>
                           </View>
                           <Text style={{ fontSize: 11, color: '#999' }}>{batch.timestamp || ''}</Text>
                         </View>
-                        <Text style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>عدد التحديثات: {updates.length}</Text>
-                        <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: 8, padding: 8, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={() => {
-                          Alert.alert('إعادة التحديث', 'هل تريد إعادة هذه الدفعة إلى قائمة التحديثات المعلقة؟', [
-                            { text: 'إلغاء', style: 'cancel' },
-                            { text: 'نعم', onPress: () => onReapplyBatch(batch.id) },
-                          ]);
-                        }}>
-                          <Ionicons name="refresh" size={16} color="white" />
-                          <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>إعادة التحديث</Text>
-                        </TouchableOpacity>
+                        {updates.map(function(update, idx) {
+                          const typeLabels = { paid: 'دفع', cancelled: 'إلغاء دفع', add: 'إضافة مشترك', edit: 'تعديل', delete: 'حذف', restore: 'استعادة', addExpense: 'صرفية', partialPayment: 'دفع جزئي' };
+                          const typeColors = { paid: '#4CAF50', cancelled: '#FF9800', add: '#2196F3', edit: '#9C27B0', delete: '#F44336', restore: '#00BCD4', addExpense: '#FF5722', partialPayment: '#FF9800' };
+                          return (
+                            <View key={idx} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
+                              <View style={{ backgroundColor: typeColors[update.type] || '#999', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>{typeLabels[update.type] || update.type}</Text>
+                              </View>
+                              <Text style={{ fontSize: 12, color: '#555', flex: 1 }}>{update.subscriberName || ''}</Text>
+                            </View>
+                          );
+                        })}
+                        <Text style={{ fontSize: 11, color: '#F44336', marginTop: 6, fontWeight: 'bold' }}>تم الرفض نهائياً - لا يمكن التراجع</Text>
                       </View>
                     );
                   })}
@@ -1474,7 +1477,7 @@ const MonthPickerModal = ({ visible, onClose, onSelect, selectedMonth }) => {
 
 const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 11 }, (_, i) => String(currentYear - 2 + i));
+  const years = Array.from({ length: 11 }, (_, i) => String(currentYear - 5 + i));
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -1794,7 +1797,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, onReapplyBatch, currentUser, fullScreen, onAddWorker, onEditWorker }) => {
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, currentUser, fullScreen, onAddWorker, onEditWorker }) => {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
@@ -1830,6 +1833,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
   const safeRejected = Array.isArray(rejectedBatches) ? rejectedBatches : [];
   const totalPendingCollected = useMemo(() => {
     let total = 0;
+    const monthKey = `${selectedMonth}_${selectedYear}`;
     const allBatches = Array.isArray(activityLog) ? activityLog : [];
     allBatches.forEach(function(batch) {
       if (batch.status === 'rejected') return;
@@ -1839,13 +1843,13 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
         if (bCode !== selectedWorker.code && bName !== selectedWorker.workerName) return;
       }
       (batch.updates || []).forEach(function(u) {
-        if (u && (u.type === 'paid' || u.type === 'partialPayment') && u.details && u.details.amount) {
+        if (u && u.monthKey === monthKey && (u.type === 'paid' || u.type === 'partialPayment') && u.details && u.details.amount) {
           total += parseFloat(u.details.amount);
         }
       });
     });
     return total;
-  }, [activityLog, selectedWorker]);
+  }, [activityLog, selectedWorker, selectedMonth, selectedYear]);
 
   useEffect(() => {
     if (visible && workers.length === 1) {
@@ -2035,21 +2039,36 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                       {(() => {
                         const selUpdates = selectedBatch.updates || [];
                         let selCollected = 0;
-                        let selExpenseOnly = true;
+                        let selExpenses = 0;
                         for (let si = 0; si < selUpdates.length; si++) {
                           const su = selUpdates[si];
                           if (!su) continue;
                           if ((su.type === 'paid' || su.type === 'partialPayment') && su.details && su.details.amount) {
                             selCollected += parseFloat(su.details.amount);
-                            selExpenseOnly = false;
                           } else if (su.type === 'addExpense') {
-                            selCollected += (su.details && su.details.amount) ? parseFloat(su.details.amount) : 0;
+                            selExpenses += (su.details && su.details.amount) ? parseFloat(su.details.amount) : 0;
                           }
                         }
                         return (
-                          <View style={{ backgroundColor: selExpenseOnly ? '#C62828' : '#1565C0', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 12 : 14, marginBottom: IS_SMALL ? 10 : 12 }}>
-                            <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: IS_SMALL ? 4 : 6 }}>د.ع {formatNumber(selCollected)}</Text>
-                            <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{selectedBatch.workerName || ''} - {selectedBatch.timestamp || ''}</Text>
+                          <View style={{ borderRadius: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 10 : 12, overflow: 'hidden' }}>
+                            {selCollected > 0 && (
+                              <View style={{ backgroundColor: '#1565C0', padding: IS_SMALL ? 12 : 14 }}>
+                                <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: IS_SMALL ? 4 : 6 }}>د.ع {formatNumber(selCollected)}</Text>
+                                <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{selectedBatch.workerName || ''} - {selectedBatch.timestamp || ''}</Text>
+                              </View>
+                            )}
+                            {selExpenses > 0 && (
+                              <View style={{ backgroundColor: '#C62828', padding: IS_SMALL ? 12 : 14, marginTop: selCollected > 0 ? 2 : 0 }}>
+                                <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: IS_SMALL ? 4 : 6 }}>د.ع {formatNumber(selExpenses)}</Text>
+                                <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>صرفيات - {selectedBatch.workerName || ''}</Text>
+                              </View>
+                            )}
+                            {selCollected === 0 && selExpenses === 0 && (
+                              <View style={{ backgroundColor: '#9E9E9E', padding: IS_SMALL ? 12 : 14 }}>
+                                <Text style={{ fontSize: IS_SMALL ? 16 : 18, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: IS_SMALL ? 4 : 6 }}>د.ع 0</Text>
+                                <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>{selectedBatch.workerName || ''} - {selectedBatch.timestamp || ''}</Text>
+                              </View>
+                            )}
                           </View>
                         );
                       })()}
@@ -2133,17 +2152,35 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                         <View style={{ marginTop: IS_SMALL ? 10 : 12 }}>
                           <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 6 : 8 }} onPress={() => setShowRejected(!showRejected)}>
                             <Ionicons name={showRejected ? "chevron-down" : "chevron-forward"} size={IS_SMALL ? 16 : 18} color="#F44336" />
-                            <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#F44336' }}>التحديثات المرفوضة ({safeRejected.length})</Text>
+                            <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#F44336' }}>المرفوضات ({safeRejected.length})</Text>
                           </TouchableOpacity>
                           {showRejected && safeRejected.map(function(batch) {
+                            let updates = Array.isArray(batch.updates) ? batch.updates : [];
                             return (
-                              <TouchableOpacity key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFCDD2' }} onPress={() => { Alert.alert('اعادة التحديث', 'هل تريد اعادة تطبيق هذا التحديث؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', onPress: () => onReapplyBatch(batch.id) }]); }}>
-                                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
+                              <View key={batch.id || 'rb'} style={{ backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1, borderColor: '#FFCDD2' }}>
+                                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: IS_SMALL ? 4 : 6 }}>
+                                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6 }}>
+                                    <View style={{ backgroundColor: '#F44336', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 11 : 12 }}>مرفوض</Text>
+                                    </View>
+                                    <Text style={{ fontSize: IS_SMALL ? 12 : 13, fontWeight: 'bold', color: '#C62828' }}>#{batch.number || ''} - {batch.workerName || ''}</Text>
+                                  </View>
                                   <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#999' }}>{batch.timestamp || ''}</Text>
                                 </View>
-                                <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#666', marginTop: IS_SMALL ? 2 : 4 }}>عدد التحديثات: {(batch.updates || []).length} - اضغط للاعادة</Text>
-                              </TouchableOpacity>
+                                {updates.map(function(update, idx) {
+                                  const typeLabels = { paid: 'دفع', cancelled: 'إلغاء دفع', add: 'إضافة مشترك', edit: 'تعديل', delete: 'حذف', restore: 'استعادة', addExpense: 'صرفية', partialPayment: 'دفع جزئي' };
+                                  const typeColors = { paid: '#4CAF50', cancelled: '#FF9800', add: '#2196F3', edit: '#9C27B0', delete: '#F44336', restore: '#00BCD4', addExpense: '#FF5722', partialPayment: '#FF9800' };
+                                  return (
+                                    <View key={idx} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 4 : 6, paddingVertical: 2 }}>
+                                      <View style={{ backgroundColor: typeColors[update.type] || '#999', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                        <Text style={{ color: 'white', fontSize: IS_SMALL ? 10 : 11, fontWeight: 'bold' }}>{typeLabels[update.type] || update.type}</Text>
+                                      </View>
+                                      <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#555', flex: 1 }}>{update.subscriberName || ''}</Text>
+                                    </View>
+                                  );
+                                })}
+                                <Text style={{ fontSize: IS_SMALL ? 10 : 11, color: '#F44336', marginTop: IS_SMALL ? 4 : 6, fontWeight: 'bold' }}>تم الرفض نهائياً - لا يمكن التراجع</Text>
+                              </View>
                             );
                           })}
                         </View>
@@ -2161,7 +2198,13 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
   );
 
   if (fullScreen) {
-    return trackingModalContent;
+    return (
+      <View style={{ flex: 1 }}>
+        {trackingModalContent}
+        <MonthPickerModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
+        <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
+      </View>
+    );
   }
   return (
     <View style={{ flex: 1 }}>
@@ -4779,7 +4822,7 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
       )}
       <View style={[styles.header, { backgroundColor: '#FF9800' }]}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+          <TouchableOpacity style={styles.logoutButton} onPress={() => Alert.alert('تسجيل الخروج', 'هل أنت متأكد أنك تريد تسجيل الخروج؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', style: 'destructive', onPress: onLogout }])}>
             <Ionicons name="log-out-outline" size={24} color="white" />
           </TouchableOpacity>
         </View>
@@ -4914,6 +4957,9 @@ export default function App() {
   const [lastSubscribersYear, setLastSubscribersYear] = useState(String(new Date().getFullYear()));
   const [deletedGenerators, setDeletedGenerators] = useState([]);
   const [globalLoading, setGlobalLoading] = useState('');
+  const [batchDeleteVisible, setBatchDeleteVisible] = useState(false);
+  const [batchDeletePassword, setBatchDeletePassword] = useState('');
+  const [pendingDeleteBatchId, setPendingDeleteBatchId] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [addWorkerModalVisible, setAddWorkerModalVisible] = useState(false);
   const [addWorkerName, setAddWorkerName] = useState('');
@@ -5266,6 +5312,17 @@ export default function App() {
   const saveCurrentGeneratorData = async (updatedGenerators) => {
     setGenerators(updatedGenerators);
     if (currentUser) await saveUserData(currentUser, 'generators', updatedGenerators);
+  };
+
+  const syncSubscribersToGenerator = async (newSubs) => {
+    const updated = generators.map(g => {
+      if (g.id === currentGeneratorId) {
+        return { ...g, subscribers: newSubs };
+      }
+      return g;
+    });
+    setGenerators(updated);
+    if (currentUser) await saveUserData(currentUser, 'generators', updated);
   };
 
   const handleCreateGenerator = async (name) => {
@@ -5777,6 +5834,35 @@ export default function App() {
     Alert.alert('تم', 'تم تطبيق التحديثات بنجاح');
   };
 
+  const requestDeleteBatch = (batchId) => {
+    setPendingDeleteBatchId(batchId);
+    setBatchDeletePassword('');
+    setBatchDeleteVisible(true);
+  };
+
+  const confirmDeleteBatch = async () => {
+    if (!batchDeletePassword.trim()) {
+      Alert.alert('تنبيه', 'أدخل رمز البرنامج');
+      return;
+    }
+    try {
+      const usersResult = await loadFromFile('registered_users');
+      const usersList = usersResult || [];
+      const user = usersList.find(function(u) { return u.phone === currentUser; });
+      if (!user) { Alert.alert('خطأ', 'حدث خطأ'); return; }
+      const verifyResult = await verifyOwnerPassword(user.password, batchDeletePassword.trim(), currentUser);
+      if (verifyResult.match) {
+        setBatchDeleteVisible(false);
+        setBatchDeletePassword('');
+        await handleDeleteBatch(pendingDeleteBatchId);
+      } else {
+        Alert.alert('خطأ', 'الرمز غير صحيح');
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
+    }
+  };
+
   const handleDeleteBatch = async (batchId) => {
     try {
       const batch = pendingWorkerUpdates.find(b => b.id === batchId);
@@ -5813,10 +5899,10 @@ export default function App() {
                   action: 'rejected_by_owner',
                   timestamp: rejectedTimestamp,
                   date: rejectedDate,
-                  ownerName: currentUser,
+                  ownerName: ownerName,
                 }]);
                 sub.rejectedPayments = sub.rejectedPayments || {};
-                sub.rejectedPayments[update.monthKey] = { ownerName: currentUser, timestamp: rejectedTimestamp, date: rejectedDate };
+                sub.rejectedPayments[update.monthKey] = { ownerName: ownerName, timestamp: rejectedTimestamp, date: rejectedDate };
                 newSubs[subIdx] = sub;
               }
               break;
@@ -5846,10 +5932,10 @@ export default function App() {
                   action: 'rejected_by_owner',
                   timestamp: rejectedTimestamp,
                   date: rejectedDate,
-                  ownerName: currentUser,
+                  ownerName: ownerName,
                 }]);
                 sub.rejectedPayments = sub.rejectedPayments || {};
-                sub.rejectedPayments[update.monthKey] = { ownerName: currentUser, timestamp: rejectedTimestamp, date: rejectedDate };
+                sub.rejectedPayments[update.monthKey] = { ownerName: ownerName, timestamp: rejectedTimestamp, date: rejectedDate };
                 newSubs[subIdx] = sub;
               }
               break;
@@ -5912,28 +5998,6 @@ export default function App() {
       Alert.alert('تم', 'تم رفض التحديث وإلغاء الدفع');
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء رفض التحديث');
-    }
-  };
-
-  const handleReapplyBatch = async (batchId) => {
-    try {
-      const log = await loadUserData(currentUser, 'worker_activity_log') || [];
-      const batch = log.find(b => b.id === batchId);
-      if (!batch) {
-        Alert.alert('خطأ', 'الدفعة غير موجودة');
-        return;
-      }
-      const restoredBatch = { ...batch, status: 'pending', id: Date.now().toString() + Math.random().toString(36).substr(2, 5) };
-      const existing = await loadUserData(currentUser, 'pending_worker_updates') || [];
-      const updated = [...existing, restoredBatch];
-      await saveUserData(currentUser, 'pending_worker_updates', updated);
-      setPendingWorkerUpdates(updated);
-      const updatedLog = log.map(b => b.id === batchId ? { ...b, status: 'restored' } : b);
-      await saveUserData(currentUser, 'worker_activity_log', updatedLog);
-      setWorkerActivityLog(updatedLog);
-      Alert.alert('تم', 'تمت إعادة الدفعة إلى قائمة التحديثات المعلقة');
-    } catch (e) {
-      Alert.alert('خطأ', 'حدث خطأ أثناء إعادة التحديث');
     }
   };
 
@@ -6172,7 +6236,7 @@ export default function App() {
         }
         const newSubs = subscribers.map(s => s.id === subscriber.id ? subscriber : s);
         setSubscribers(newSubs);
-        if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+        if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
         if (userRole === 'worker') {
           const now = new Date();
           const editMonthKey = `${now.getMonth() + 1}_${now.getFullYear()}`;
@@ -6194,7 +6258,7 @@ export default function App() {
         }
         const newSubs = [...subscribers, subscriber];
         setSubscribers(newSubs);
-        if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+        if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
         if (userRole === 'worker') {
           trackWorkerUpdate('add', subscriber.id, subscriber.name, subscriber.amper, subscriber.addedMonth + '_' + subscriber.addedYear, {
             phone: subscriber.phone,
@@ -6240,7 +6304,7 @@ export default function App() {
         return s;
       });
       setSubscribers(newSubs);
-      if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+      if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate('delete', id, sub.name, sub.amper, monthKey);
       }
@@ -6300,13 +6364,15 @@ export default function App() {
           const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
           paidMonths[monthKey] = !isCurrentlyPaid ? amount : false;
           const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
-          paymentHistory.push({
-            monthKey,
-            action: isCurrentlyPaid ? 'cancelled' : 'paid',
-            timestamp,
-            date: now.toISOString(),
-            ownerName: userRole === 'worker' ? workerName : ownerName,
-          });
+          if (userRole !== 'worker') {
+            paymentHistory.push({
+              monthKey,
+              action: isCurrentlyPaid ? 'cancelled' : 'paid',
+              timestamp,
+              date: now.toISOString(),
+              ownerName: ownerName,
+            });
+          }
           const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
           if (isCurrentlyPaid) {
             delete partialPayments[monthKey];
@@ -6320,7 +6386,7 @@ export default function App() {
         return s;
       });
       setSubscribers(newSubs);
-      if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+      if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate(isCurrentlyPaid ? 'cancelled' : 'paid', id, sub.name, sub.amper, monthKey, { amount });
       }
@@ -6393,7 +6459,7 @@ export default function App() {
         return s;
       });
       setSubscribers(newSubs);
-      if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+      if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate('partialPayment', id, sub.name, sub.amper, monthKey, { amount });
       }
@@ -6440,7 +6506,7 @@ export default function App() {
         return s;
       });
       setSubscribers(newSubs);
-      if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+      if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate('restore', id, sub.name, sub.amper, '');
       }
@@ -6475,7 +6541,7 @@ export default function App() {
         return s;
       });
       setSubscribers(newSubs);
-      if (currentUser && userRole !== 'worker') await saveUserData(currentUser, 'subscribers', newSubs);
+      if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate('edit', id, sub.name, newAmper, monthKey, { amper: newAmper });
       }
@@ -7055,9 +7121,8 @@ export default function App() {
           amperPrices={amperPrices}
           pendingWorkerUpdates={pendingWorkerUpdates}
           onApplyBatch={handleApplyBatch}
-          onDeleteBatch={handleDeleteBatch}
+          onDeleteBatch={requestDeleteBatch}
           rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
-          onReapplyBatch={handleReapplyBatch}
           currentUser={currentUser}
           onAddWorker={() => setAddWorkerModalVisible(true)}
           onEditWorker={() => setEditWorkerModalVisible(true)}
@@ -7197,6 +7262,47 @@ export default function App() {
       )}
 
       </>)}
+
+      {batchDeleteVisible && (
+        <Modal visible={batchDeleteVisible} transparent animationType="fade">
+          <View style={styles.subscribersOverlay}>
+            <View style={styles.subscribersContainer}>
+              <View style={styles.subscribersHeader}>
+                <Text style={styles.subscribersTitle}>تأكيد الحذف</Text>
+                <TouchableOpacity onPress={() => { setBatchDeleteVisible(false); setBatchDeletePassword(''); }}>
+                  <Ionicons name="close" size={28} color="#333" />
+                </TouchableOpacity>
+              </View>
+              <View style={{ padding: IS_SMALL ? 14 : 20 }}>
+                <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#666', marginBottom: IS_SMALL ? 10 : 14, textAlign: 'center' }}>أدخل رمز البرنامج للتأكيد</Text>
+                <TextInput
+                  style={[styles.input, { textAlign: 'center', marginBottom: IS_SMALL ? 12 : 16 }]}
+                  placeholder="رمز البرنامج"
+                  value={batchDeletePassword}
+                  onChangeText={setBatchDeletePassword}
+                  secureTextEntry
+                  keyboardType="default"
+                  allowFontScaling={false}
+                />
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#F44336', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
+                    onPress={confirmDeleteBatch}
+                  >
+                    <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تأكيد الحذف</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#eee', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
+                    onPress={() => { setBatchDeleteVisible(false); setBatchDeletePassword(''); }}
+                  >
+                    <Text style={{ color: '#666', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إلغاء</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {!monthlyDataVisible && !editWorkerModalVisible && !addWorkerModalVisible && !changePassVisible && (
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
