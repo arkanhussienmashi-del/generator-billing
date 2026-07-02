@@ -4931,6 +4931,7 @@ export default function App() {
   const [appPartialPaymentSubscriber, setAppPartialPaymentSubscriber] = useState(null);
   const [appPartialPaymentMonthKey, setAppPartialPaymentMonthKey] = useState('');
   const [appLocked, setAppLocked] = useState(false);
+  const biometricTriggered = React.useRef(false);
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -4941,11 +4942,6 @@ export default function App() {
     const timer = setTimeout(safeFinish, 5000);
     const init = async () => {
       try {
-        const hasHardware = await LocalAuthentication.hasHardwareAsync();
-        const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-        if (isEnrolled) {
-          setAppLocked(true);
-        }
         const onboardingResult = await Promise.race([
           loadLocalCache('app_onboarding_done'),
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
@@ -4969,6 +4965,11 @@ export default function App() {
             setScreen('main');
           }
           setActiveTab('home');
+          const hasHardware = await LocalAuthentication.hasHardwareAsync();
+          const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
+          if (isEnrolled) {
+            setAppLocked(true);
+          }
         }
       } catch (e) {
         setShowOnboarding(true);
@@ -4984,6 +4985,29 @@ export default function App() {
       loadAllUserData();
     }
   }, [currentUser]);
+
+  const triggerBiometric = React.useCallback(function() {
+    if (biometricTriggered.current) return;
+    biometricTriggered.current = true;
+    LocalAuthentication.authenticateAsync({
+      promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز',
+      cancelLabel: 'إلغاء',
+      disableDeviceFallback: false,
+    }).then(function(result) {
+      biometricTriggered.current = false;
+      if (result.success) {
+        setAppLocked(false);
+      }
+    }).catch(function() {
+      biometricTriggered.current = false;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (appLocked) {
+      triggerBiometric();
+    }
+  }, [appLocked, triggerBiometric]);
 
   const isFirstRender = React.useRef(true);
   const generatorsRef = React.useRef(generators);
@@ -5034,17 +5058,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const hasHardware = LocalAuthentication.hasHardwareAsync();
     const checkLock = async () => {
       const hw = await LocalAuthentication.hasHardwareAsync();
       const en = hw ? await LocalAuthentication.isEnrolledAsync() : false;
       if (!en) return;
       const onAppStateChange = async (nextState) => {
-        if (nextState === 'active') {
-          const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false });
-          if (!result.success) {
-            setAppLocked(true);
-          }
+        if (nextState === 'active' && !biometricTriggered.current) {
+          setAppLocked(true);
         }
       };
       const sub = AppState.addEventListener('change', onAppStateChange);
@@ -6487,16 +6507,6 @@ export default function App() {
     return () => sub.remove();
   }, [showOnboarding, screen, activeTab, settingsVisible, workerSwitchGeneratorVisible, monthlyDataVisible, updatesModalVisible, changePassVisible, reportsVisible, subscribersVisible, workerExpenseVisible]);
 
-  useEffect(() => {
-    if (appLocked) {
-      LocalAuthentication.authenticateAsync({ promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز', cancelLabel: 'إلغاء', disableDeviceFallback: false }).then(result => {
-        if (result.success) {
-          setAppLocked(false);
-        }
-      }).catch(() => {});
-    }
-  }, [appLocked]);
-
   if (showOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
@@ -6518,11 +6528,12 @@ export default function App() {
       <View style={styles.loginContainer}>
         <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
         <View style={styles.loginContent}>
-          <View style={styles.logoContainer}>
+          <TouchableOpacity style={styles.logoContainer} onPress={triggerBiometric} activeOpacity={0.8}>
             <Ionicons name="finger-print" size={80} color="#FFD700" />
             <Text style={styles.appTitle}>مولدي</Text>
             <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 8 }}>سجّل دخولك بالبصمة أو رمز الجهاز</Text>
-          </View>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 16 }}>اضغط للمحاولة مجدداً</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
