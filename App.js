@@ -31,6 +31,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Crypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 
 Text.defaultProps = { ...(Text.defaultProps || {}), allowFontScaling: false };
 TextInput.defaultProps = { ...(TextInput.defaultProps || {}), allowFontScaling: false };
@@ -755,7 +756,7 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
 
       setLoginAttempts(0);
       setLockUntil(null);
-      await saveToFile('current_user', { phone: phone.trim(), role: 'owner' });
+      await SecureStore.setItemAsync('current_user', JSON.stringify({ phone: phone.trim(), role: 'owner' }));
       onLogin(phone.trim());
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
@@ -4977,7 +4978,8 @@ export default function App() {
   const [appPartialPaymentSubscriber, setAppPartialPaymentSubscriber] = useState(null);
   const [appPartialPaymentMonthKey, setAppPartialPaymentMonthKey] = useState('');
   const [appLocked, setAppLocked] = useState(false);
-  const biometricTriggered = React.useRef(false);
+  const isAuthenticating = useRef(false);
+  const appState = useRef(AppState.currentState);
   const lastActivity = React.useRef(Date.now());
 
   const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -4995,7 +4997,8 @@ export default function App() {
         if (!onboardingResult) {
           setShowOnboarding(true);
         }
-        const savedUser = await loadLocalCache('current_user');
+        const savedUserStr = await SecureStore.getItemAsync('current_user');
+        const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
         if (savedUser && savedUser.phone) {
           setCurrentUser(savedUser.phone);
           setUserRole(savedUser.role || 'owner');
@@ -5032,28 +5035,41 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const triggerBiometric = React.useCallback(function() {
-    if (biometricTriggered.current) return;
-    biometricTriggered.current = true;
-    LocalAuthentication.authenticateAsync({
-      promptMessage: 'سجّل دخولك بالبصمة أو رمز الجهاز',
-      cancelLabel: 'إلغاء',
-      disableDeviceFallback: false,
-    }).then(function(result) {
-      biometricTriggered.current = false;
+  const authenticateUser = React.useCallback(async () => {
+    if (isAuthenticating.current) return;
+
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
+
+    if (!hasHardware || !isEnrolled) {
+      setAppLocked(false);
+      return;
+    }
+
+    isAuthenticating.current = true;
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'ادخل رمز جهازك لفتح مولدي',
+        cancelLabel: 'إلغاء',
+        disableDeviceFallback: false,
+        fallbackLabel: 'استخدم رمز الجهاز',
+      });
+
       if (result.success) {
         setAppLocked(false);
       }
-    }).catch(function() {
-      biometricTriggered.current = false;
-    });
+    } catch (error) {
+    } finally {
+      isAuthenticating.current = false;
+    }
   }, []);
 
   useEffect(() => {
     if (appLocked) {
-      triggerBiometric();
+      authenticateUser();
     }
-  }, [appLocked, triggerBiometric]);
+  }, [appLocked, authenticateUser]);
 
   const isFirstRender = React.useRef(true);
   const generatorsRef = React.useRef(generators);
@@ -5104,22 +5120,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const checkLock = async () => {
-      const hw = await LocalAuthentication.hasHardwareAsync();
-      const en = hw ? await LocalAuthentication.isEnrolledAsync() : false;
-      if (!en) return;
-      const onAppStateChange = async (nextState) => {
-        if (nextState === 'active' && !biometricTriggered.current) {
-          setAppLocked(true);
-        }
-      };
-      const sub = AppState.addEventListener('change', onAppStateChange);
-      return () => sub.remove();
-    };
-    let cleanupFn;
-    checkLock().then(fn => { cleanupFn = fn; });
-    return () => { if (cleanupFn) cleanupFn(); };
-  }, []);
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (
+        (appState.current === 'background' || appState.current === 'inactive')
+        && nextState === 'active'
+      ) {
+        setAppLocked(true);
+        setTimeout(() => authenticateUser(), 150);
+      }
+      appState.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [authenticateUser]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -5490,7 +5502,7 @@ export default function App() {
   const handleLogout = async () => {
     setGlobalLoading('جاري تسجيل الخروج...');
     try {
-      await deleteFile('current_user');
+      await SecureStore.deleteItemAsync('current_user').catch(function() {});
       setCurrentUser(null);
       setUserRole(null);
       setWorkerOwnerPhone(null);
@@ -6591,16 +6603,16 @@ export default function App() {
 
   if (appLocked) {
     return (
-      <View style={styles.loginContainer}>
-        <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
-        <View style={styles.loginContent}>
-          <TouchableOpacity style={styles.logoContainer} onPress={triggerBiometric} activeOpacity={0.8}>
-            <Ionicons name="finger-print" size={80} color="#FFD700" />
-            <Text style={styles.appTitle}>مولدي</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 8 }}>سجّل دخولك بالبصمة أو رمز الجهاز</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 16 }}>اضغط للمحاولة مجدداً</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={{ flex: 1, backgroundColor: '#0A0E1A', justifyContent: 'center', alignItems: 'center' }}>
+        <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+        <TouchableOpacity style={{ alignItems: 'center', justifyContent: 'center', flex: 1, width: '100%' }} onPress={authenticateUser} activeOpacity={0.8}>
+          <View style={{ width: 100, height: 100, borderRadius: 24, backgroundColor: 'rgba(255,215,0,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+            <Ionicons name="flash" size={60} color="#FFD700" />
+          </View>
+          <Text style={{ color: '#FFD700', fontSize: 28, fontWeight: 'bold', marginBottom: 30 }}>مولدي</Text>
+          <Ionicons name="finger-print" size={60} color="#FFD700" />
+          <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginTop: 16 }}>المس للمتابعة</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -6620,7 +6632,7 @@ export default function App() {
       <RegisterScreen
         onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
-        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); saveToFile('current_user', { phone: registeredPhone, role: 'owner' }); setScreen('main'); setActiveTab('home'); }}
+        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner' })); setScreen('main'); setActiveTab('home'); }}
       />
     );
   }
@@ -6656,7 +6668,7 @@ export default function App() {
             setCurrentUser(result.ownerPhone);
             const assignedGens = result.assignedGenerators || [];
             setWorkerAssignedGenerators(assignedGens);
-            await saveToFile('current_user', {
+            await SecureStore.setItemAsync('current_user', JSON.stringify({
               phone: result.ownerPhone,
               role: 'worker',
               workerCode: code.toUpperCase(),
@@ -6664,7 +6676,7 @@ export default function App() {
               permissions: result.permissions,
               assignedGeneratorId: result.assignedGeneratorId || null,
               assignedGenerators: assignedGens,
-            });
+            }));
             const ownerData = await loadAllUserKeys(result.ownerPhone);
             const ownerGens = ownerData.generators || [];
             const assignedId = result.assignedGeneratorId;
