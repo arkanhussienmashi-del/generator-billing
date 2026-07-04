@@ -61,6 +61,11 @@
   .btn-delete:hover { background: #B71C1C; }
   .btn-edit { background: #FF9800; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px; }
   .btn-edit:hover { background: #F57C00; }
+  .btn-activate { background: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px; }
+  .btn-activate:hover { background: #388E3C; }
+  .badge-sub-trial { background: #FFF8E1; color: #F57F17; }
+  .badge-sub-active { background: #E8F5E9; color: #2E7D32; }
+  .badge-sub-expired { background: #FFEBEE; color: #C62828; }
   .action-buttons { display: flex; gap: 6px; margin-top: 12px; justify-content: flex-start; }
 
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
@@ -135,6 +140,7 @@
 var API = 'https://server-ten-wheat.vercel.app/api';
 var token = localStorage.getItem('admin_token') || '';
 var allOwners = [];
+var allSubscriptions = [];
 var editTarget = null;
 var deleteTarget = null;
 
@@ -184,6 +190,11 @@ async function loadData() {
     if (r.status === 401) { doLogout(); return; }
     var d = await r.json();
     allOwners = d.owners || [];
+    try {
+      var sr = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'adminGetAllSubscriptions', _adminToken: token }) });
+      var sd = await sr.json();
+      allSubscriptions = sd.subscriptions || [];
+    } catch(e) { allSubscriptions = []; }
     renderOwners(allOwners);
     renderStats(allOwners);
   } catch (e) {
@@ -192,12 +203,20 @@ async function loadData() {
 }
 
 function renderStats(owners) {
-  var totalWorkers = 0, totalSubs = 0;
+  var totalWorkers = 0, totalSubs = 0, activeTrials = 0, activeSubs = 0, expiredSubs = 0;
   owners.forEach(function(o) { totalWorkers += o.workerCount; totalSubs += o.subscriberCount; });
+  allSubscriptions.forEach(function(s) {
+    if (s.status === 'trial') activeTrials++;
+    else if (s.status === 'active') activeSubs++;
+    else expiredSubs++;
+  });
   document.getElementById('statsBar').innerHTML =
     '<div class="stat-card"><div class="num">' + owners.length + '</div><div class="label"> أصحاب مولد</div></div>' +
     '<div class="stat-card"><div class="num">' + totalWorkers + '</div><div class="label"> العمال</div></div>' +
-    '<div class="stat-card"><div class="num">' + totalSubs + '</div><div class="label"> المشتركين</div></div>';
+    '<div class="stat-card"><div class="num">' + totalSubs + '</div><div class="label"> المشتركين</div></div>' +
+    '<div class="stat-card"><div class="num" style="color:#F57F17">' + activeTrials + '</div><div class="label"> تجارب مجانية</div></div>' +
+    '<div class="stat-card"><div class="num" style="color:#2E7D32">' + activeSubs + '</div><div class="label"> اشتراكات نشطة</div></div>' +
+    '<div class="stat-card"><div class="num" style="color:#C62828">' + expiredSubs + '</div><div class="label"> اشتراكات منتهية</div></div>';
 }
 
 function renderOwners(owners) {
@@ -207,6 +226,11 @@ function renderOwners(owners) {
   }
   var html = '';
   owners.forEach(function(o, idx) {
+    var sub = allSubscriptions.find(function(s) { return s.phone === o.phone; });
+    var subStatus = sub ? sub.status : 'trial';
+    var subLabel = subStatus === 'active' ? 'اشتراك نشط' : subStatus === 'expired' ? 'منتهي' : 'تجربة مجانية';
+    var subBadgeClass = subStatus === 'active' ? 'badge-sub-active' : subStatus === 'expired' ? 'badge-sub-expired' : 'badge-sub-trial';
+    var daysLeft = sub ? (sub.daysLeft || 0) : 0;
     html += '<div class="owner-card">';
     html += '<div class="owner-header" onclick="toggleOwner(' + idx + ')">';
     html += '<div class="owner-info">';
@@ -217,6 +241,7 @@ function renderOwners(owners) {
     html += '<div class="owner-badges">';
     html += '<span class="badge badge-workers">العمال: ' + o.workerCount + '</span>';
     html += '<span class="badge badge-subs">المشتركين: ' + o.subscriberCount + '</span>';
+    html += '<span class="badge ' + subBadgeClass + '">' + subLabel + (sub && daysLeft > 0 ? ' (' + daysLeft + ' يوم)' : '') + '</span>';
     html += '<span class="expand-icon" id="expand_' + idx + '">&#9660;</span>';
     html += '</div>';
     html += '</div>';
@@ -237,6 +262,10 @@ function renderOwners(owners) {
     }
     html += '<div class="action-buttons">';
     html += '<button class="btn-edit" onclick="openEdit(' + idx + ')">تعديل</button>';
+    html += '<button class="btn-activate" onclick="generateActivationCode(\'' + esc(o.phone) + '\')" style="background:#FF9800">كود تفعيل</button>';
+    if (subStatus !== 'active') {
+      html += '<button class="btn-activate" onclick="activateSubscription(\'' + esc(o.phone) + '\')">تفعيل 6 أشهر</button>';
+    }
     html += '<button class="btn-delete" onclick="openDelete(' + idx + ')">حذف الحساب</button>';
     html += '</div>';
     html += '</div>';
@@ -331,6 +360,67 @@ function filterOwners() {
     return (o.ownerName || '').toLowerCase().indexOf(q) >= 0 || (o.phone || '').indexOf(q) >= 0;
   });
   renderOwners(filtered);
+}
+
+async function activateSubscription(phone) {
+  if (!confirm('هل تريد تفعيل اشتراك 6 أشهر لهذا المستخدم؟')) return;
+  try {
+    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'activateSubscription', phone: phone, _adminToken: token }) });
+    var d = await r.json();
+    if (d.ok) {
+      loadData();
+    } else {
+      alert('خطأ: ' + (d.error || 'فشل التفعيل'));
+    }
+  } catch (e) {
+    alert('خطأ في الاتصال بالخادم');
+  }
+}
+
+async function generateActivationCode(phone) {
+  try {
+    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'generateActivationCode', phone: phone, _adminToken: token }) });
+    var d = await r.json();
+    if (d.ok) {
+      alert('تم إنشاء كود التفعيل: ' + d.code + '\n\nأرسل هذا الكود للمستخدم.');
+      showActivationCodes(phone);
+    } else {
+      alert('خطأ: ' + (d.error || 'فشل الإنشاء'));
+    }
+  } catch (e) {
+    alert('خطأ في الاتصال بالخادم');
+  }
+}
+
+async function showActivationCodes(phone) {
+  try {
+    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'getActivationCodes', phone: phone, _adminToken: token }) });
+    var d = await r.json();
+    if (d.codes) {
+      var codesHtml = '<h3 style="margin:16px 0 8px;color:#333">أكواد التفعيل - ' + esc(phone) + '</h3>';
+      if (d.codes.length === 0) {
+        codesHtml += '<p style="color:#888">لا توجد أكواد</p>';
+      } else {
+        codesHtml += '<table class="workers-table"><thead><tr><th>الكود</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>';
+        d.codes.forEach(function(c) {
+          codesHtml += '<tr><td style="font-weight:bold;color:#1565C0">' + esc(c.code) + '</td><td>' + (c.used ? '<span style="color:#D32F2F">مستخدم</span>' : '<span style="color:#2E7D32">متاح</span>') + '</td><td>' + (c.created_at || '') + '</td></tr>';
+        });
+        codesHtml += '</tbody></table>';
+      }
+      var modal = document.getElementById('codesModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'codesModal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:1000';
+        modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+        document.body.appendChild(modal);
+      }
+      modal.innerHTML = '<div style="background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:70vh;overflow-y:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="color:#333">أكواد التفعيل</h2><button onclick="this.closest(\'#codesModal\').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999">&times;</button></div>' + codesHtml + '<button onclick="generateActivationCode(\'' + esc(phone) + '\')" style="width:100%;padding:12px;background:#1565C0;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:12px;font-weight:bold">إنشاء كود جديد</button></div>';
+      modal.style.display = 'flex';
+    }
+  } catch (e) {
+    alert('خطأ في الاتصال بالخادم');
+  }
 }
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }

@@ -164,6 +164,139 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ owners });
       }
 
+      if (body._action === 'checkSubscription') {
+        const { phone } = body;
+        if (!phone) return res.status(400).json({ error: 'Missing phone' });
+        const [rows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
+        if (rows.length === 0) {
+          const trialEnds = new Date(Date.now() + 1 * 60 * 1000).toISOString();
+          const subData = { status: 'trial', trial_ends_at: trialEnds, subscription_ends_at: null, created_at: new Date().toISOString() };
+          await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
+          return res.status(200).json({ status: 'trial', daysLeft: 60, trial_ends_at: trialEnds, subscription_ends_at: null });
+        }
+        let val = rows[0].data_value;
+        if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = {}; } }
+        const now = new Date();
+        if (now < new Date(val.trial_ends_at)) {
+          return res.status(200).json({ status: 'trial', daysLeft: Math.ceil((new Date(val.trial_ends_at) - now) / 86400000), trial_ends_at: val.trial_ends_at, subscription_ends_at: val.subscription_ends_at });
+        }
+        if (val.subscription_ends_at && now < new Date(val.subscription_ends_at)) {
+          return res.status(200).json({ status: 'active', daysLeft: Math.ceil((new Date(val.subscription_ends_at) - now) / 86400000), trial_ends_at: val.trial_ends_at, subscription_ends_at: val.subscription_ends_at });
+        }
+        return res.status(200).json({ status: 'expired', daysLeft: 0, trial_ends_at: val.trial_ends_at, subscription_ends_at: val.subscription_ends_at });
+      }
+
+      if (body._action === 'activateSubscription') {
+        if (!verifyAdminToken(body._adminToken)) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { phone } = body;
+        if (!phone) return res.status(400).json({ error: 'Missing phone' });
+        const subEnds = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+        const [rows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
+        let subData;
+        if (rows.length === 0) {
+          subData = { status: 'active', trial_ends_at: new Date().toISOString(), subscription_ends_at: subEnds, created_at: new Date().toISOString() };
+        } else {
+          let val = rows[0].data_value;
+          if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = {}; } }
+          subData = { ...val, status: 'active', subscription_ends_at: subEnds };
+        }
+        await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
+        return res.status(200).json({ ok: true, subscription_ends_at: subEnds });
+      }
+
+      if (body._action === 'adminGetAllSubscriptions') {
+        if (!verifyAdminToken(body._adminToken)) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const [appRows] = await p.query('SELECT * FROM app_data WHERE filename = ?', ['registered_users']);
+        if (appRows.length === 0) return res.status(200).json({ subscriptions: [] });
+        let val = appRows[0].data_value;
+        if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = []; } }
+        const users = Array.isArray(val) ? val : [];
+        const subscriptions = [];
+        for (const user of users) {
+          const phone = user.phone;
+          const [subRows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
+          let subData = { status: 'trial', trial_ends_at: null, subscription_ends_at: null, created_at: null };
+          if (subRows.length > 0) {
+            let sv = subRows[0].data_value;
+            if (typeof sv === 'string') { try { sv = JSON.parse(sv); } catch (e) { sv = {}; } }
+            subData = sv;
+          }
+          const now = new Date();
+          let computedStatus = subData.status || 'trial';
+          if (subData.trial_ends_at && now > new Date(subData.trial_ends_at)) {
+            if (subData.subscription_ends_at && now < new Date(subData.subscription_ends_at)) {
+              computedStatus = 'active';
+            } else {
+              computedStatus = 'expired';
+            }
+          }
+          subscriptions.push({
+            phone,
+            ownerName: user.ownerName || '',
+            status: computedStatus,
+            trial_ends_at: subData.trial_ends_at,
+            subscription_ends_at: subData.subscription_ends_at,
+            created_at: subData.created_at,
+          });
+        }
+        return res.status(200).json({ subscriptions });
+      }
+
+      if (body._action === 'generateActivationCode') {
+        if (!verifyAdminToken(body._adminToken)) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { phone } = body;
+        if (!phone) return res.status(400).json({ error: 'Missing phone' });
+        const code = 'MWD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        await p.query('INSERT INTO activation_codes (code, phone) VALUES (?, ?)', [code, phone]);
+        return res.status(200).json({ ok: true, code });
+      }
+
+      if (body._action === 'redeemActivationCode') {
+        const { phone, code } = body;
+        if (!phone || !code) return res.status(400).json({ error: 'Missing phone or code' });
+        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        const [rows] = await p.query('SELECT * FROM activation_codes WHERE code = ? AND phone = ? AND used = 0', [code, phone]);
+        if (rows.length === 0) {
+          return res.status(400).json({ error: 'الكود غير صحيح أو مستخدم بالفعل' });
+        }
+        await p.query('UPDATE activation_codes SET used = 1 WHERE code = ?', [code]);
+        const subEnds = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+        const [subRows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
+        let subData;
+        if (subRows.length === 0) {
+          subData = { status: 'active', trial_ends_at: new Date().toISOString(), subscription_ends_at: subEnds, created_at: new Date().toISOString() };
+        } else {
+          let val = subRows[0].data_value;
+          if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = {}; } }
+          const now = new Date();
+          const currentEnd = val.subscription_ends_at ? new Date(val.subscription_ends_at) : now;
+          const newEnd = currentEnd > now ? new Date(currentEnd.getTime() + 180 * 24 * 60 * 60 * 1000) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+          subData = { ...val, status: 'active', subscription_ends_at: newEnd.toISOString() };
+        }
+        await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
+        return res.status(200).json({ ok: true, subscription_ends_at: subData.subscription_ends_at });
+      }
+
+      if (body._action === 'getActivationCodes') {
+        if (!verifyAdminToken(body._adminToken)) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        const { phone } = body;
+        let q = 'SELECT * FROM activation_codes ORDER BY created_at DESC LIMIT 50';
+        let params = [];
+        if (phone) { q = 'SELECT * FROM activation_codes WHERE phone = ? ORDER BY created_at DESC'; params = [phone]; }
+        const [rows] = await p.query(q, params);
+        return res.status(200).json({ codes: rows });
+      }
+
       if (body._table === 'app_data') {
         await p.query('INSERT INTO app_data (filename, data_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [body.filename, JSON.stringify(body.data_value)]);
         return res.status(200).json({ ok: true });
