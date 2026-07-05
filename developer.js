@@ -913,7 +913,7 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser, onChangePassVisible, subscribers, amperPrices, goldenPrices, onReplayTutorial }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser, onChangePassVisible, subscribers, amperPrices, goldenPrices }) => {
   const { showNotification } = useNotification();
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
@@ -1066,11 +1066,6 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => {}}>
                   <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف الحساب والبيانات</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#1565C0', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => { if (onReplayTutorial) onReplayTutorial(); }}>
-                  <Ionicons name="help-circle-outline" size={IS_SMALL ? 18 : 20} color="white" />
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>إعادة جولة التعريف</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => { Alert.alert('تسجيل الخروج', 'هل أنت متأكد أنك تريد تسجيل الخروج؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', style: 'destructive', onPress: onLogout }]); }}>
@@ -1862,7 +1857,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, currentUser, fullScreen, onAddWorker, onEditWorker, tutorialRefs }) => {
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, currentUser, fullScreen, onAddWorker, onEditWorker }) => {
   const { showNotification } = useNotification();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
@@ -1981,7 +1976,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
 
               {onAddWorker && onEditWorker && (
                 <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 10, marginTop: IS_SMALL ? 6 : 8, marginBottom: IS_SMALL ? 12 : 16 }}>
-                  <TouchableOpacity ref={tutorialRefs && tutorialRefs.addWorkerBtnRef} style={{ flex: 1, backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }} onPress={onAddWorker}>
+                  <TouchableOpacity style={{ flex: 1, backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }} onPress={onAddWorker}>
                     <Ionicons name="person-add-outline" size={IS_SMALL ? 18 : 20} color="white" />
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 13 : 15 }}>إضافة عامل</Text>
                   </TouchableOpacity>
@@ -2008,7 +2003,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                       const workerKey = w.code || w.workerName || '';
                       const pendingCount = pendingCounts[workerKey] || 0;
                       return (
-                        <TouchableOpacity ref={idx === 0 && tutorialRefs && tutorialRefs.workerCodeRef ? tutorialRefs.workerCodeRef : undefined} key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
+                        <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
                           <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: IS_SMALL ? 14 : 16, width: IS_SMALL ? 28 : 32, height: IS_SMALL ? 28 : 32, alignItems: 'center', justifyContent: 'center' }}>
                             <Ionicons name="person" size={IS_SMALL ? 16 : 18} color={isSelected ? '#FF9800' : 'white'} />
                           </View>
@@ -2730,7 +2725,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth, onOpenPartialPayment, onMultiMonthPayment, onOpenMultiMonthPayment, tutorialRefs }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth, onOpenPartialPayment, onMultiMonthPayment, onOpenMultiMonthPayment }) => {
   const { showNotification } = useNotification();
   const [selectedMonth, setSelectedMonth] = useState(lastMonth || String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(lastYear || String(new Date().getFullYear()));
@@ -3026,7 +3021,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
           })()}
 
           <View style={styles.subscriberButtonsRow}>
-            <TouchableOpacity ref={tutorialRefs && tutorialRefs.multiMonthBtnRef} style={[styles.deleteSubscriberButtonHalf, { backgroundColor: '#9C27B0' }]} onPress={() => {
+            <TouchableOpacity style={[styles.deleteSubscriberButtonHalf, { backgroundColor: '#9C27B0' }]} onPress={() => {
               if (onOpenMultiMonthPayment) onOpenMultiMonthPayment();
             }}>
               <Text style={[styles.deleteSubscriberText, { color: 'white' }]}>دفع لأكثر من شهر</Text>
@@ -3044,7 +3039,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
               </TouchableOpacity>
             )}
             {canAdd && (
-              <TouchableOpacity ref={tutorialRefs && tutorialRefs.addSubscriberBtnRef} style={styles.addSubscriberButtonHalf} onPress={() => setAddSubscriberVisible(true)}>
+              <TouchableOpacity style={styles.addSubscriberButtonHalf} onPress={() => setAddSubscriberVisible(true)}>
                 <Text style={styles.addSubscriberText}>إضافة مشترك</Text>
               </TouchableOpacity>
             )}
@@ -3160,10 +3155,10 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                       { text: 'نعم', onPress: () => onDeleteSubscriber(subscriber.id, monthKey), style: 'destructive' },
                     ]);
                   }}>
-                  <View ref={subIdx === 0 && tutorialRefs && tutorialRefs.firstSubscriberCardRef ? tutorialRefs.firstSubscriberCardRef : undefined} style={[styles.subscriberCard, isFullyPaid ? styles.paidCardBorder : styles.unpaidCardBorder]}>
+                  <View style={[styles.subscriberCard, isFullyPaid ? styles.paidCardBorder : styles.unpaidCardBorder]}>
                     <View style={styles.cardTopRow}>
                       {(isFullyPaid || !hasPartialPayments) && (
-                      <TouchableOpacity ref={subIdx === 0 && tutorialRefs && tutorialRefs.payToggleRef ? tutorialRefs.payToggleRef : undefined} style={styles.payCheckbox} onPress={() => {
+                      <TouchableOpacity style={styles.payCheckbox} onPress={() => {
                         setExpandedCard(null);
                         if (!price || price === 0) {
                           showNotification('warning', 'تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
@@ -3470,7 +3465,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
   );
 };
 
-const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, fullScreen, tutorialRefs }) => {
+const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, fullScreen }) => {
   const { showNotification } = useNotification();
   const [searchText, setSearchText] = useState('');
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
@@ -3574,7 +3569,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
             </View>
 
             <View style={styles.searchContainer}>
-              <TextInput ref={tutorialRefs && tutorialRefs.reportsSearchRef} style={styles.searchInput} placeholder="ابحث عن مشترك..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} onFocus={() => { setSearchText(''); setSelectedSubscriberId(null); }} textAlign="right" />
+              <TextInput style={styles.searchInput} placeholder="ابحث عن مشترك..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} onFocus={() => { setSearchText(''); setSelectedSubscriberId(null); }} textAlign="right" />
             </View>
 
             {searchText.length > 0 && !selectedSubscriber && (
@@ -4507,7 +4502,7 @@ const DeletePasswordModal = ({ gen, onConfirm, onCancel, darkMode }) => {
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers, onDeleteWorkerExpense, subscriptionData, tutorialRefs }) => {
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers, onDeleteWorkerExpense, subscriptionData }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -4659,7 +4654,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
       <TrialBanner subscriptionData={subscriptionData} onPress={() => Alert.alert('اشتراكك', subscriptionData.status === 'trial' ? 'فترة تجربتك تنتهي بعد ' + (subscriptionData.daysLeft || 0) + ' يوم' : 'اشتراكك منتهي')} />
       <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
         <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 8 : 12 }}>
-          <TouchableOpacity ref={tutorialRefs && tutorialRefs.monthSelectorRef} style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
+          <TouchableOpacity style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
               <Ionicons name="calendar-outline" size={IS_SMALL ? 14 : 16} color="white" />
               <Text style={styles.monthlyDataButtonText}>بيانات كل شهر</Text>
@@ -5284,93 +5279,6 @@ const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeAct
   );
 };
 
-const TUTORIAL_STORAGE_KEY = 'tutorial_done_';
-const TUTORIAL_VERSION = '1.0';
-
-const NEW_TUTORIAL_STEPS = [
-  { id: 'welcome', screen: 'home', targetRef: null, icon: '\uD83D\uDC4B', title: '\u0645\u0631\u062D\u0628\u0627\u064B \u0628\u0643 \u0641\u064A \u0645\u0648\u0644\u062F\u064A!', description: '\u0633\u0646\u0623\u062E\u0630\u0643 \u0641\u064A \u062C\u0648\u0644\u0629 \u0633\u0631\u064A\u0639\u0629 \u0644\u062A\u062A\u0639\u0631\u0641 \u0639\u0644\u0649 \u0643\u064A\u0641\u064A\u0629 \u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0627\u0644\u062A\u0637\u0628\u064A\u0642. \u064A\u0645\u0643\u0646\u0643 \u062A\u062E\u0637\u064A \u0647\u0630\u0647 \u0627\u0644\u062C\u0648\u0644\u0629 \u0641\u064A \u0623\u064A \u0648\u0642\u062A.', cardPosition: 'center', color: '#1565C0' },
-  { id: 'nav_subscribers', screen: 'home', targetRef: 'subscribersTabRef', icon: '\uD83D\uDC65', title: '\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0642\u0627\u0626\u0645\u0629 \u0645\u0634\u062A\u0631\u0643\u064A\u0643 \u0648\u0625\u0636\u0627\u0641\u0629 \u0648\u062A\u0639\u062F\u064A\u0644 \u0648\u062D\u0630\u0641 \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646.', cardPosition: 'top', color: '#4CAF50' },
-  { id: 'add_subscriber', screen: 'subscribers', targetRef: 'addSubscriberBtnRef', icon: '\u2795', title: '\u0625\u0636\u0627\u0641\u0629 \u0645\u0634\u062A\u0631\u0643 \u062C\u062F\u064A\u062F', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0632\u0631 \u0644\u0625\u0636\u0627\u0641\u0629 \u0645\u0634\u062A\u0631\u0643 \u062C\u062F\u064A\u062F. \u0633\u062A\u062F\u062E\u0644 \u0627\u0633\u0645\u0647 \u0648\u0639\u062F\u062F \u0627\u0644\u0623\u0645\u0628\u064A\u0631\u0627\u062A \u0648\u0631\u0642\u0645 \u0647\u0627\u062A\u0641\u0647.', cardPosition: 'bottom', color: '#4CAF50' },
-  { id: 'edit_subscriber', screen: 'subscribers', targetRef: 'firstSubscriberCardRef', icon: '\u270F\uFE0F', title: '\u062A\u0639\u062F\u064A\u0644 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0634\u062A\u0631\u0643', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0627\u0633\u0645 \u0623\u064A \u0645\u0634\u062A\u0631\u0643 \u0644\u062A\u0639\u062F\u064A\u0644 \u0628\u064A\u0627\u0646\u0627\u062A\u0647 \u0645\u062B\u0644 \u0627\u0644\u0627\u0633\u0645 \u0623\u0648 \u0639\u062F\u062F \u0627\u0644\u0623\u0645\u0628\u064A\u0631\u0627\u062A.', cardPosition: 'bottom', color: '#FF9800', emptyMessage: '\u0623\u0636\u0641 \u0645\u0634\u062A\u0631\u0643\u0627\u064B \u0623\u0648\u0644\u0627\u064B \u062B\u0645 \u0633\u062A\u0638\u0647\u0631 \u062E\u064A\u0627\u0631\u0627\u062A \u0627\u0644\u062A\u0639\u062F\u064A\u0644 \u0648\u0627\u0644\u062F\u0641\u0639.' },
-  { id: 'pay_toggle', screen: 'subscribers', targetRef: 'payToggleRef', icon: '\u2705', title: '\u062A\u0633\u062C\u064A\u0644 \u062F\u0641\u0639 \u0627\u0644\u0627\u0634\u062A\u0631\u0627\u0643', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0647\u0630\u0647 \u0627\u0644\u062F\u0627\u0626\u0631\u0629 \u0644\u062A\u0633\u062C\u064A\u0644 \u062F\u0641\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u0643 \u0644\u0644\u0634\u0647\u0631 \u0627\u0644\u062D\u0627\u0644\u064A. \u0633\u062A\u062A\u062D\u0648\u0644 \u0625\u0644\u0649 \u0627\u0644\u0644\u0648\u0646 \u0627\u0644\u0623\u062E\u0636\u0631 \u0639\u0646\u062F \u0627\u0644\u062A\u0633\u062C\u064A\u0644.', cardPosition: 'top', color: '#9C27B0', emptyMessage: '\u0623\u0636\u0641 \u0645\u0634\u062A\u0631\u0643\u0627\u064B \u0623\u0648\u0644\u0627\u064B \u062B\u0645 \u0633\u062A\u0638\u0647\u0631 \u062E\u064A\u0627\u0631\u0627\u062A \u0627\u0644\u062F\u0641\u0639.' },
-  { id: 'multi_month', screen: 'subscribers', targetRef: 'multiMonthBtnRef', icon: '\uD83D\uDCC5', title: '\u062F\u0641\u0639 \u0639\u062F\u0629 \u0623\u0634\u0647\u0631', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u062A\u0633\u062C\u064A\u0644 \u062F\u0641\u0639 \u0639\u062F\u0629 \u0623\u0634\u0647\u0631 \u062F\u0641\u0639\u0629 \u0648\u0627\u062D\u062F\u0629. \u0645\u0641\u064A\u062F \u0639\u0646\u062F\u0645\u0627 \u064A\u062F\u0641\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u0643 \u0645\u0642\u062F\u0645\u0627\u064B.', cardPosition: 'top', color: '#E91E63' },
-  { id: 'month_selector', screen: 'home', targetRef: 'monthSelectorRef', icon: '\uD83D\uDCC6', title: '\u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u0634\u0647\u0631', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u0634\u0647\u0631 \u0648\u0627\u0644\u0633\u0646\u0629. \u0633\u062A\u0638\u0647\u0631 \u0644\u0643 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646 \u0648\u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A \u0644\u0644\u0634\u0647\u0631 \u0627\u0644\u0645\u062E\u062A\u0627\u0631.', cardPosition: 'bottom', color: '#FF5722' },
-  { id: 'nav_workers', screen: 'home', targetRef: 'workersTabRef', icon: '\uD83D\uDC77', title: '\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0639\u0645\u0627\u0644', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0642\u0633\u0645 \u0627\u0644\u0639\u0645\u0627\u0644. \u064A\u0645\u0643\u0646\u0643 \u0625\u0636\u0627\u0641\u0629 \u0639\u0627\u0645\u0644 \u064A\u0633\u0627\u0639\u062F\u0643 \u0641\u064A \u062C\u0628\u0627\u064A\u0629 \u0627\u0644\u0627\u0634\u062A\u0631\u0627\u0643\u0627\u062A.', cardPosition: 'top', color: '#FF9800' },
-  { id: 'add_worker', screen: 'workers', targetRef: 'addWorkerBtnRef', icon: '\uD83D\uDC77\u2795', title: '\u0625\u0636\u0627\u0641\u0629 \u0639\u0627\u0645\u0644 \u062C\u062F\u064A\u062F', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0625\u0636\u0627\u0641\u0629 \u0639\u0627\u0645\u0644. \u0633\u064A\u062A\u0645 \u0625\u0646\u0634\u0627\u0621 \u0643\u0648\u062F \u062E\u0627\u0635 \u0648\u0631\u0645\u0632 \u0633\u0631\u064A \u0644\u0644\u0639\u0627\u0645\u0644 \u064A\u0633\u062A\u062E\u062F\u0645\u0647\u0645\u0627 \u0644\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644.', cardPosition: 'bottom', color: '#4CAF50' },
-  { id: 'worker_code', screen: 'workers', targetRef: 'workerCodeRef', icon: '\uD83D\uDD11', title: '\u0643\u0648\u062F \u0648\u0631\u0645\u0632 \u0627\u0644\u0639\u0627\u0645\u0644', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0627\u0644\u0643\u0648\u062F \u0644\u0646\u0633\u062E\u0647 \u0648\u0625\u0631\u0633\u0627\u0644\u0647 \u0644\u0644\u0639\u0627\u0645\u0644. \u0627\u0644\u0639\u0627\u0645\u0644 \u064A\u0633\u062A\u062E\u062F\u0645 \u0647\u0630\u0627 \u0627\u0644\u0643\u0648\u062F \u0648\u0627\u0644\u0631\u0645\u0632 \u0627\u0644\u0633\u0631\u064A \u0644\u0644\u062F\u062E\u0648\u0644 \u0625\u0644\u0649 \u0627\u0644\u062A\u0637\u0628\u064A\u0642.', cardPosition: 'bottom', color: '#FF9800', emptyMessage: '\u0623\u0636\u0641 \u0639\u0627\u0645\u0644\u0627\u064B \u0623\u0648\u0644\u0627\u064B \u062B\u0645 \u0633\u062A\u0638\u0647\u0631 \u0645\u0639\u0644\u0648\u0645\u0627\u062A \u0627\u0644\u0643\u0648\u062F.' },
-  { id: 'nav_reports', screen: 'home', targetRef: 'reportsTabRef', icon: '\uD83D\uDCCA', title: '\u0627\u0644\u062A\u0642\u0627\u0631\u064A\u0631', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u062A\u0642\u0627\u0631\u064A\u0631 \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646. \u064A\u0645\u0643\u0646\u0643 \u0645\u0639\u0631\u0641\u0629 \u0645\u0646 \u062F\u0641\u0639 \u0648\u0645\u0646 \u0644\u0645 \u064A\u062F\u0641\u0639 \u0644\u0643\u0644 \u0634\u0647\u0631.', cardPosition: 'top', color: '#2196F3' },
-  { id: 'reports_search', screen: 'reports', targetRef: 'reportsSearchRef', icon: '\uD83D\uDD0D', title: '\u0627\u0644\u0628\u062D\u062B \u0641\u064A \u0627\u0644\u062A\u0642\u0627\u0631\u064A\u0631', description: '\u0627\u0643\u062A\u0628 \u0627\u0633\u0645 \u0627\u0644\u0645\u0634\u062A\u0631\u0643 \u0647\u0646\u0627 \u0644\u0644\u0628\u062D\u062B \u0639\u0646 \u0633\u062C\u0644 \u0645\u062F\u0641\u0648\u0639\u0627\u062A\u0647. \u064A\u0645\u0643\u0646\u0643 \u062A\u0635\u0641\u064A\u0629 \u0627\u0644\u0646\u062A\u0627\u0626\u062C \u062D\u0633\u0628 \u0627\u0644\u0634\u0647\u0631.', cardPosition: 'bottom', color: '#2196F3' },
-];
-
-var TUTORIAL_STEPS = NEW_TUTORIAL_STEPS;
-
-const TutorialOverlay = ({ step, stepNumber, totalSteps, targetLayout, onNext, onSkip, isLastStep }) => {
-  if (!step) return null;
-  var isWelcome = step.id === 'welcome';
-  var cardW = Math.min(310, SCREEN_WIDTH - 48);
-  var tipY = 0;
-  var tipX = (SCREEN_WIDTH - cardW) / 2;
-  var arrowDir = 'down';
-  if (!isWelcome && targetLayout) {
-    if (targetLayout.y > SCREEN_HEIGHT / 2) {
-      tipY = Math.max(20, targetLayout.y - 180);
-      arrowDir = 'down';
-    } else {
-      tipY = targetLayout.y + targetLayout.h + 12;
-      arrowDir = 'up';
-    }
-    tipX = Math.max(16, Math.min(targetLayout.x + targetLayout.w / 2 - cardW / 2, SCREEN_WIDTH - cardW - 16));
-    if (tipY + 200 > SCREEN_HEIGHT) tipY = SCREEN_HEIGHT - 220;
-    if (tipY < 20) tipY = 20;
-  } else if (isWelcome) {
-    tipY = SCREEN_HEIGHT / 2 - 120;
-  }
-  return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }} pointerEvents="box-none">
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)' }} />
-      {targetLayout && (
-        <View pointerEvents="box-none" style={{ position: 'absolute', top: targetLayout.y - 5, left: targetLayout.x - 5, width: targetLayout.w + 10, height: targetLayout.h + 10, borderRadius: 14, borderWidth: 3, borderColor: step.color || '#F9A825', shadowColor: step.color || '#F9A825', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 10, elevation: 10 }} />
-      )}
-      <View pointerEvents="box-none" style={{ position: 'absolute', top: tipY, left: tipX, width: cardW }}>
-        {arrowDir === 'down' && targetLayout && (
-          <View style={{ alignSelf: 'center', width: 0, height: 0, borderLeft: 10, borderRight: 10, borderBottom: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#fff', marginBottom: -1 }} />
-        )}
-        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 20 }}>
-          {isWelcome && (
-            <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFF8E1', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
-                <Ionicons name="flash" size={32} color="#FFD600" />
-              </View>
-            </View>
-          )}
-          <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'left', marginBottom: 8, fontFamily: 'System' }}>{'\u0627\u0644\u062E\u0637\u0648\u0629 ' + stepNumber + ' \u0645\u0646 ' + totalSteps}</Text>
-          {!isWelcome && step.icon && (
-            <Text style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>{step.icon}</Text>
-          )}
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', textAlign: 'center', marginBottom: 8, fontFamily: 'System' }}>{step.title}</Text>
-          <Text style={{ fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 16, fontFamily: 'System' }}>{step.description}</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, gap: 4 }}>
-            {NEW_TUTORIAL_STEPS.map(function(_, i) {
-              return (<View key={i} style={{ width: i === (stepNumber - 1) ? 20 : 8, height: 8, borderRadius: 4, backgroundColor: i === (stepNumber - 1) ? '#1565C0' : '#D1D5DB' }} />);
-            })}
-          </View>
-          <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-            <TouchableOpacity onPress={onSkip} style={{ paddingVertical: 10, paddingHorizontal: 12 }}>
-              <Text style={{ fontSize: 14, color: '#9CA3AF', fontFamily: 'System' }}>{'\u062A\u062E\u0637\u064A \u0627\u0644\u0643\u0644'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onNext} style={{ backgroundColor: '#1565C0', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}>
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{isLastStep ? '\u0641\u0647\u0645\u062A \u2713' : '\u0627\u0644\u062A\u0627\u0644\u064A \u2190'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        {arrowDir === 'up' && targetLayout && (
-          <View style={{ alignSelf: 'center', width: 0, height: 0, borderLeft: 10, borderRight: 10, borderTop: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#fff', marginTop: -1 }} />
-        )}
-      </View>
-    </View>
-  );
-};
-
 export default function App() {
   const insets = useSafeAreaInsets();
   const TRIAL_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
@@ -5439,24 +5347,7 @@ export default function App() {
   const [multiMonthPaymentSubscriber, setMultiMonthPaymentSubscriber] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState(null);
-  const [tutorialActive, setTutorialActive] = useState(false);
-  const [tutorialStep, setTutorialStep] = useState(0);
-  const [tutorialPosition, setTutorialPosition] = useState(null);
 
-  var subscribersTabRef = React.useRef(null);
-  var workersTabRef = React.useRef(null);
-  var reportsTabRef = React.useRef(null);
-  var addSubscriberBtnRef = React.useRef(null);
-  var firstSubscriberCardRef = React.useRef(null);
-  var payToggleRef = React.useRef(null);
-  var multiMonthBtnRef = React.useRef(null);
-  var monthSelectorRef = React.useRef(null);
-  var addWorkerBtnRef = React.useRef(null);
-  var workerCodeRef = React.useRef(null);
-  var reportsSearchRef = React.useRef(null);
-
-  const registerTutorialRef = React.useCallback((key, ref) => {
-  }, []);
   const isAuthenticating = useRef(false);
   const appState = useRef(AppState.currentState);
   const lastActivity = React.useRef(Date.now());
@@ -5516,11 +5407,6 @@ export default function App() {
               }
             }
             checkSubscription(savedUser.phone);
-            const tutorialDone = await SecureStore.getItemAsync(TUTORIAL_STORAGE_KEY + savedUser.phone);
-            if (tutorialDone === TUTORIAL_VERSION) {
-            } else {
-              setTimeout(function() { setTutorialActive(true); setTutorialStep(0); }, 1500);
-            }
           }
         }
       } catch (e) {
@@ -5570,76 +5456,6 @@ export default function App() {
     });
     return () => { clearInterval(interval); appStateSub.remove(); };
   }, [currentUser, userRole]);
-
-  var tutorialRefMap = {
-    subscribersTabRef: subscribersTabRef,
-    workersTabRef: workersTabRef,
-    reportsTabRef: reportsTabRef,
-    addSubscriberBtnRef: addSubscriberBtnRef,
-    firstSubscriberCardRef: firstSubscriberCardRef,
-    payToggleRef: payToggleRef,
-    multiMonthBtnRef: multiMonthBtnRef,
-    monthSelectorRef: monthSelectorRef,
-    addWorkerBtnRef: addWorkerBtnRef,
-    workerCodeRef: workerCodeRef,
-    reportsSearchRef: reportsSearchRef,
-  };
-
-  var advanceTutorial = React.useCallback(function() {
-    var nextStep = tutorialStep + 1;
-    if (nextStep >= NEW_TUTORIAL_STEPS.length) {
-      setTutorialActive(false);
-      setTutorialStep(0);
-      setTutorialPosition(null);
-      if (currentUser) SecureStore.setItemAsync(TUTORIAL_STORAGE_KEY + currentUser, TUTORIAL_VERSION).catch(function() {});
-      return;
-    }
-    var nextData = NEW_TUTORIAL_STEPS[nextStep];
-    if (nextData.screen !== activeTab) {
-      setActiveTab(nextData.screen);
-    }
-    setTutorialStep(nextStep);
-    setTutorialPosition(null);
-  }, [tutorialStep, currentUser, activeTab]);
-
-  var skipTutorial = React.useCallback(async function() {
-    setTutorialActive(false);
-    setTutorialStep(0);
-    setTutorialPosition(null);
-    if (currentUser) SecureStore.setItemAsync(TUTORIAL_STORAGE_KEY + currentUser, TUTORIAL_VERSION).catch(function() {});
-  }, [currentUser]);
-
-  var startTutorial = React.useCallback(async function() {
-    setTutorialStep(0);
-    setTutorialPosition(null);
-    setTutorialActive(true);
-  }, []);
-
-  useEffect(function() {
-    if (!tutorialActive || !NEW_TUTORIAL_STEPS[tutorialStep]) return;
-    var stepData = NEW_TUTORIAL_STEPS[tutorialStep];
-    setTutorialPosition(null);
-    if (!stepData.targetRef) {
-      return;
-    }
-    var attempts = 0;
-    function tryMeasure() {
-      attempts++;
-      var refObj = tutorialRefMap[stepData.targetRef];
-      if (refObj && refObj.current) {
-        refObj.current.measureInWindow(function(x, y, w, h) {
-          if (w > 0 && h > 0) {
-            setTutorialPosition({ x: x, y: y, w: w, h: h });
-          } else if (attempts < 15) {
-            setTimeout(tryMeasure, 250);
-          }
-        });
-      } else if (attempts < 15) {
-        setTimeout(tryMeasure, 250);
-      }
-    }
-    setTimeout(tryMeasure, 500);
-  }, [tutorialActive, tutorialStep]);
 
   const authenticateUser = React.useCallback(async () => {
     if (isAuthenticating.current) return;
@@ -6114,10 +5930,6 @@ export default function App() {
     setActiveTab('home');
     setScreen('main');
     checkSubscription(userPhone);
-    const tutorialDone = await SecureStore.getItemAsync(TUTORIAL_STORAGE_KEY + userPhone);
-    if (tutorialDone !== TUTORIAL_VERSION) {
-      setTimeout(function() { setTutorialActive(true); setTutorialStep(0); }, 1500);
-    }
   };
 
   const handleOnboardingComplete = async () => {
@@ -7366,7 +7178,7 @@ export default function App() {
       <RegisterScreen
         onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
-        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner' })); SecureStore.setItemAsync('registration_' + registeredPhone, new Date().toISOString()); setScreen('main'); setActiveTab('home'); checkSubscription(registeredPhone); setTimeout(function() { setTutorialActive(true); setTutorialStep(0); }, 2000); }}
+        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner' })); SecureStore.setItemAsync('registration_' + registeredPhone, new Date().toISOString()); setScreen('main'); setActiveTab('home'); checkSubscription(registeredPhone); }}
       />
     );
   }
@@ -7545,7 +7357,7 @@ export default function App() {
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
           onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
           onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
-          tutorialRefs={{ addSubscriberBtnRef: addSubscriberBtnRef, firstSubscriberCardRef: firstSubscriberCardRef, payToggleRef: payToggleRef, multiMonthBtnRef: multiMonthBtnRef }}
+
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -7707,7 +7519,7 @@ export default function App() {
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
           onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
           onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
-          tutorialRefs={{ addSubscriberBtnRef: addSubscriberBtnRef, firstSubscriberCardRef: firstSubscriberCardRef, payToggleRef: payToggleRef, multiMonthBtnRef: multiMonthBtnRef }}
+
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -7824,7 +7636,7 @@ export default function App() {
           workers={workers}
           onDeleteWorkerExpense={handleDeleteWorkerExpense}
           subscriptionData={subscriptionData}
-          tutorialRefs={{ monthSelectorRef: monthSelectorRef }}
+
         />
       )}
 
@@ -7855,7 +7667,7 @@ export default function App() {
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
           onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
           onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
-          tutorialRefs={{ addSubscriberBtnRef: addSubscriberBtnRef, firstSubscriberCardRef: firstSubscriberCardRef, payToggleRef: payToggleRef, multiMonthBtnRef: multiMonthBtnRef }}
+
         />
       )}
 
@@ -7867,7 +7679,7 @@ export default function App() {
           subscribers={subscribers}
           amperPrices={amperPrices}
           goldenPrices={goldenPrices}
-          tutorialRefs={{ reportsSearchRef: reportsSearchRef }}
+
         />
       )}
 
@@ -7886,7 +7698,7 @@ export default function App() {
           currentUser={currentUser}
           onAddWorker={() => setAddWorkerModalVisible(true)}
           onEditWorker={() => setEditWorkerModalVisible(true)}
-          tutorialRefs={{ addWorkerBtnRef: addWorkerBtnRef, workerCodeRef: workerCodeRef }}
+
         />
       )}
 
@@ -7942,12 +7754,6 @@ export default function App() {
         onChangePassword={handleChangePassword}
         currentUser={currentUser}
         onChangePassVisible={() => setChangePassVisible(true)}
-        onReplayTutorial={async function() {
-          setSettingsVisible(false);
-          setActiveTab('home');
-          if (currentUser) await SecureStore.removeItemAsync(TUTORIAL_STORAGE_KEY + currentUser);
-          setTimeout(function() { setTutorialStep(0); setTutorialPosition(null); setTutorialActive(true); }, 300);
-        }}
       />
 
       {addWorkerModalVisible && (
@@ -8116,18 +7922,6 @@ export default function App() {
           <Text style={[styles.tabLabel, { color: activeTab === 'more' ? '#2196F3' : '#999' }]}>الاعدادات</Text>
         </TouchableOpacity>
       </View>
-      )}
-
-      {tutorialActive && NEW_TUTORIAL_STEPS[tutorialStep] && (
-        <TutorialOverlay
-          step={NEW_TUTORIAL_STEPS[tutorialStep]}
-          stepNumber={tutorialStep + 1}
-          totalSteps={NEW_TUTORIAL_STEPS.length}
-          targetLayout={tutorialPosition}
-          onNext={advanceTutorial}
-          onSkip={skipTutorial}
-          isLastStep={tutorialStep === NEW_TUTORIAL_STEPS.length - 1}
-        />
       )}
     </View>
     </NotificationProvider>
