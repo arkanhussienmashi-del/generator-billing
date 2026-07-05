@@ -169,7 +169,7 @@ module.exports = async function handler(req, res) {
         if (!phone) return res.status(400).json({ error: 'Missing phone' });
         const [rows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
         if (rows.length === 0) {
-          const trialEnds = new Date(Date.now() + 1 * 60 * 1000).toISOString();
+          const trialEnds = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
           const subData = { status: 'trial', trial_ends_at: trialEnds, subscription_ends_at: null, created_at: new Date().toISOString() };
           await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
           return res.status(200).json({ status: 'trial', daysLeft: 60, trial_ends_at: trialEnds, subscription_ends_at: null });

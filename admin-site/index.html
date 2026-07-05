@@ -263,9 +263,6 @@ function renderOwners(owners) {
     html += '<div class="action-buttons">';
     html += '<button class="btn-edit" onclick="openEdit(' + idx + ')">تعديل</button>';
     html += '<button class="btn-activate" onclick="generateActivationCode(\'' + esc(o.phone) + '\')" style="background:#FF9800">كود تفعيل</button>';
-    if (subStatus !== 'active') {
-      html += '<button class="btn-activate" onclick="activateSubscription(\'' + esc(o.phone) + '\')">تفعيل 6 أشهر</button>';
-    }
     html += '<button class="btn-delete" onclick="openDelete(' + idx + ')">حذف الحساب</button>';
     html += '</div>';
     html += '</div>';
@@ -360,21 +357,6 @@ function filterOwners() {
     return (o.ownerName || '').toLowerCase().indexOf(q) >= 0 || (o.phone || '').indexOf(q) >= 0;
   });
   renderOwners(filtered);
-}
-
-async function activateSubscription(phone) {
-  if (!confirm('هل تريد تفعيل اشتراك 6 أشهر لهذا المستخدم؟')) return;
-  try {
-    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'activateSubscription', phone: phone, _adminToken: token }) });
-    var d = await r.json();
-    if (d.ok) {
-      loadData();
-    } else {
-      alert('خطأ: ' + (d.error || 'فشل التفعيل'));
-    }
-  } catch (e) {
-    alert('خطأ في الاتصال بالخادم');
-  }
 }
 
 async function generateActivationCode(phone) {

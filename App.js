@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useContext, createContext, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,6 +15,8 @@ import {
   Linking,
   AppState,
   BackHandler,
+  Animated,
+  PanResponder,
 } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -25,6 +27,8 @@ const MODAL_WIDTH = IS_TABLET ? Math.min(500, SCREEN_WIDTH * 0.7) : Math.min(SCR
 const SCALE = SCREEN_WIDTH / 375;
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import * as Sharing from 'expo-sharing';
+import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import NetInfo from '@react-native-community/netinfo';
@@ -202,7 +206,8 @@ function isDeletedForReport(subscriber, month, year) {
   const delYear = parseInt(delParts[1]);
   const tMonth = parseInt(month);
   const tYear = parseInt(year);
-  if (tYear === delYear && tMonth === delMonth) return true;
+  if (tYear > delYear) return true;
+  if (tYear === delYear && tMonth >= delMonth) return true;
   return false;
 }
 
@@ -436,6 +441,13 @@ const OnboardingScreen = ({ onComplete }) => {
       title: 'إدارة العمال',
       description: 'إضافة عامل جديد من الإعدادات عن طريق كود ورمز سري. يمكن تخصيص صلاحياته: إضافة مشتركين، تعديل بيانات، حذف مشتركين، تغيير الأمبير، دفع الأقساط، وإلغاء الدفعات',
       bg: '#4A148C',
+    },
+    {
+      icon: 'card',
+      iconColor: '#FFD700',
+      title: 'فترة تجربة مجانية',
+      description: 'ستحصل على فترة تجربة مجانية لمدة شهرين (60 يوم) من تاريخ التسجيل. بعد انتهاء الفترة التجريبية، يشترط تفعيل الاشتراك بـ 20,000 د.ع لمدة 6 أشهر للمتابعة',
+      bg: '#1B5E20',
     },
   ];
 
@@ -901,7 +913,8 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   );
 };
 
-const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser, onChangePassVisible }) => {
+const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, ownerName, onSaveOwnerName, onCreateWorker, pendingWorkerUpdates, onLoadUpdates, workers, onUpdateWorker, onDeleteWorker, onShowUpdates, onLogout, darkMode, onToggleDarkMode, newWorkerCredentials, onDismissCredentials, generators, onDeleteGenerator, onRestoreGenerator, deletedGenerators, currentGeneratorId, onChangePassword, currentUser, onChangePassVisible, subscribers, amperPrices, goldenPrices, onReplayTutorial }) => {
+  const { showNotification } = useNotification();
   const [name, setName] = useState(generatorName);
   const [owner, setOwner] = useState(ownerName);
 
@@ -910,6 +923,49 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
   const [deleteGeneratorVisible, setDeleteGeneratorVisible] = useState(false);
   const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
   const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const exportToExcel = async () => {
+    setExportingExcel(true);
+    try {
+      const now = new Date();
+      const selMonth = String(now.getMonth() + 1);
+      const selYear = String(now.getFullYear());
+      const data = subscribers.map(sub => {
+        const mk = `${selMonth}_${selYear}`;
+        const currentAmper = getAmperForMonth(sub, parseInt(selMonth), parseInt(selYear));
+        const price = getPriceForSubscriber(amperPrices, goldenPrices, mk, sub.subscriptionType);
+        const paid = sub.paidMonths && sub.paidMonths[mk];
+        const pp = sub.partialPayments && sub.partialPayments[mk];
+        const totalPaid = pp ? pp.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0) : 0;
+        return {
+          'اسم المشترك': sub.name,
+          'الأمبير': currentAmper,
+          'سعر الأمبير': price,
+          'المبلغ الكلي': currentAmper * price,
+          'الواصل': paid ? currentAmper * price : totalPaid,
+          'المتبقي': paid ? 0 : (currentAmper * price - totalPaid),
+          'الحالة': paid ? 'مدفوع' : (totalPaid > 0 ? 'جزئي' : 'غير مدفوع'),
+          'رقم المشترك': sub.subscriberNumber || '',
+          'رقم الجوزة': sub.meterNumber || '',
+          'رقم الفيز': sub.visaNumber || '',
+          'نوع الاشتراك': sub.subscriptionType === 'golden' ? 'ذهبي' : 'عادي',
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'المشتركين');
+      const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+      const filename = `subscribers_${selMonth}_${selYear}.xlsx`;
+      const uri = FileSystem.cacheDirectory + filename;
+      await FileSystem.writeAsStringAsync(uri, wbout, { encoding: FileSystem.EncodingType.Base64 });
+      await Sharing.shareAsync(uri, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle: 'تصدير بيانات المشتركين' });
+    } catch (e) {
+      showNotification('error', 'خطأ', 'حدث خطأ أثناء التصدير');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
   useEffect(() => {
     setName(generatorName);
@@ -926,14 +982,14 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 
 
   return (<>
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={() => { if (!owner || !owner.trim()) { Alert.alert('تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={() => { if (!owner || !owner.trim()) { showNotification('warning', 'تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }}>
       <View style={{ flex: 1, backgroundColor: darkMode ? '#121212' : 'white' }}>
           <View style={[styles.modalHeader, { backgroundColor: '#1565C0' }]}>
-            <TouchableOpacity onPress={() => { if (!owner || !owner.trim()) { Alert.alert('تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: IS_SMALL ? 36 : 40, height: IS_SMALL ? 36 : 40, alignItems: 'center', justifyContent: 'center' }]}>
+            <TouchableOpacity onPress={() => { if (!owner || !owner.trim()) { showNotification('warning', 'تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={[styles.backButton, { width: IS_SMALL ? 36 : 40, height: IS_SMALL ? 36 : 40, alignItems: 'center', justifyContent: 'center' }]}>
               <Ionicons name="arrow-forward" size={IS_SMALL ? 24 : 28} color="white" />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: 'white' }]}>الإعدادات</Text>
-            <TouchableOpacity onPress={() => { if (!owner || !owner.trim()) { Alert.alert('تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={{ marginRight: 10 }}>
+            <TouchableOpacity onPress={() => { if (!owner || !owner.trim()) { showNotification('warning', 'تنبيه', 'يجب إدخال اسم صاحب المولد'); return; } onSaveGeneratorName(name); onSaveOwnerName(owner); onClose(); }} style={{ marginRight: 10 }}>
               <Text style={[styles.saveButtonText, { color: 'white' }]}>تم</Text>
             </TouchableOpacity>
           </View>
@@ -1012,6 +1068,11 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف الحساب والبيانات</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#1565C0', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => { if (onReplayTutorial) onReplayTutorial(); }}>
+                  <Ionicons name="help-circle-outline" size={IS_SMALL ? 18 : 20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>إعادة جولة التعريف</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#F44336', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }]} onPress={() => { Alert.alert('تسجيل الخروج', 'هل أنت متأكد أنك تريد تسجيل الخروج؟', [{ text: 'إلغاء', style: 'cancel' }, { text: 'نعم', style: 'destructive', onPress: onLogout }]); }}>
                   <Ionicons name="log-out-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>تسجيل الخروج</Text>
@@ -1033,7 +1094,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
           <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, paddingHorizontal: IS_SMALL ? 20 : 28, width: '100%', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={async () => {
             const text = 'كود العامل: ' + (newWorkerCredentials ? newWorkerCredentials.code : '') + '\nالرمز السري: ' + (newWorkerCredentials ? newWorkerCredentials.pin : '');
             await Clipboard.setStringAsync(text);
-            Alert.alert('تم النسخ', 'تم نسخ كود العامل والرمز السري');
+            showNotification('success', 'تم النسخ', 'تم نسخ كود العامل والرمز السري');
           }}>
             <Ionicons name="copy" size={IS_SMALL ? 18 : 20} color="white" />
             <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ الكود والرمز</Text>
@@ -1075,12 +1136,12 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
               if (!selectedDeleteGenId || !deleteGenPassword) return;
               const success = await onDeleteGenerator(selectedDeleteGenId, deleteGenPassword);
               if (success === false) {
-                Alert.alert('خطأ', 'كلمة المرور غير صحيحة');
+                showNotification('error', 'خطأ', 'كلمة المرور غير صحيحة');
               } else {
                 setDeleteGeneratorVisible(false);
                 setDeleteGenPassword('');
                 setSelectedDeleteGenId(null);
-                Alert.alert('تم', 'تم حذف المولد بنجاح. يمكنك استرداده من قائمة الاسترداد.');
+                showNotification('success', 'تم', 'تم حذف المولد بنجاح. يمكنك استرداده من قائمة الاسترداد.');
               }
             }}>
               <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>حذف المولد</Text>
@@ -1113,24 +1174,24 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                 style={{ flex: 1, backgroundColor: '#D32F2F', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
                 onPress={async () => {
                   if (!deleteAccountPassword.trim()) {
-                    Alert.alert('تنبيه', 'أدخل رمز الحساب');
+                    showNotification('warning', 'تنبيه', 'أدخل رمز الحساب');
                     return;
                   }
                   try {
                     const usersResult = await loadFromFile('registered_users');
                     const usersList = usersResult || [];
                     const user = usersList.find(function(u) { return u.phone === currentUser; });
-                    if (!user) { Alert.alert('خطأ', 'حدث خطأ'); return; }
+                    if (!user) { showNotification('error', 'خطأ', 'حدث خطأ'); return; }
                     const verifyResult = await verifyOwnerPassword(user.password, deleteAccountPassword.trim(), currentUser);
                     if (verifyResult.match) {
                       setDeleteAccountVisible(false);
                       setDeleteAccountPassword('');
                       Linking.openURL('https://sites.google.com/view/mowledy-app/delete-account-data-request');
                     } else {
-                      Alert.alert('خطأ', 'الرمز غير صحيح');
+                      showNotification('error', 'خطأ', 'الرمز غير صحيح');
                     }
                   } catch (e) {
-                    Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
+                    showNotification('error', 'خطأ', 'حدث خطأ أثناء التحقق');
                   }
                 }}
               >
@@ -1150,6 +1211,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
 };
 
 const WorkerUpdatesModal = ({ visible, onClose, batches, onApplyBatch, onDeleteBatch, amperPrices, rejectedBatches }) => {
+  const { showNotification } = useNotification();
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showRejected, setShowRejected] = useState(false);
 
@@ -1510,6 +1572,7 @@ const YearPickerModal = ({ visible, onClose, onSelect, selectedYear }) => {
 };
 
 const AddWorkerScreen = ({ visible, onClose, generators, darkMode, currentUser, onConfirmCreate }) => {
+  const { showNotification } = useNotification();
   const [workerName, setWorkerName] = useState('');
   const [perms, setPerms] = useState([]);
   const [assignedGens, setAssignedGens] = useState([]);
@@ -1530,9 +1593,9 @@ const AddWorkerScreen = ({ visible, onClose, generators, darkMode, currentUser, 
   };
 
   var handleCreate = function() {
-    if (!workerName.trim()) { Alert.alert('تنبيه', 'يرجى إدخال اسم العامل'); return; }
-    if (perms.length === 0) { Alert.alert('تنبيه', 'اختر صلاحية واحدة على الأقل'); return; }
-    if (assignedGens.length === 0) { Alert.alert('تنبيه', 'اختر مولداً واحداً على الأقل'); return; }
+    if (!workerName.trim()) { showNotification('warning', 'تنبيه', 'يرجى إدخال اسم العامل'); return; }
+    if (perms.length === 0) { showNotification('warning', 'تنبيه', 'اختر صلاحية واحدة على الأقل'); return; }
+    if (assignedGens.length === 0) { showNotification('warning', 'تنبيه', 'اختر مولداً واحداً على الأقل'); return; }
     onConfirmCreate(workerName.trim(), perms, assignedGens);
     setWorkerName('');
     setPerms([]);
@@ -1602,6 +1665,7 @@ const AddWorkerScreen = ({ visible, onClose, generators, darkMode, currentUser, 
 };
 
 const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorker, onDeleteWorker, onResetWorkerPin, darkMode, currentUser }) => {
+  const { showNotification } = useNotification();
   const [selWorker, setSelWorker] = useState(null);
   const [editPerms, setEditPerms] = useState([]);
   const [editAssignedGens, setEditAssignedGens] = useState([]);
@@ -1702,7 +1766,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
                 <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10, flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={async function() {
                   var text = 'كود العامل: ' + selWorker.code + '\nالرمز السري: ' + (selWorker.plainPin || 'غير متوفر');
                   await Clipboard.setStringAsync(text);
-                  Alert.alert('تم النسخ', 'تم نسخ كود العامل والرمز السري');
+                  showNotification('success', 'تم النسخ', 'تم نسخ كود العامل والرمز السري');
                 }}>
                   <Ionicons name="copy-outline" size={IS_SMALL ? 16 : 18} color="white" />
                   <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ كود ورمز العامل</Text>
@@ -1778,7 +1842,7 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
                 }
               }
               if (!found) {
-                Alert.alert('خطأ', 'رمز الحساب غير صحيح');
+                showNotification('error', 'خطأ', 'رمز الحساب غير صحيح');
                 return;
               }
               setShowPasswordModal(false);
@@ -1798,7 +1862,8 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
   );
 };
 
-const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, currentUser, fullScreen, onAddWorker, onEditWorker }) => {
+const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPrices, pendingWorkerUpdates, onApplyBatch, onDeleteBatch, rejectedBatches, currentUser, fullScreen, onAddWorker, onEditWorker, tutorialRefs }) => {
+  const { showNotification } = useNotification();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
@@ -1916,7 +1981,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
 
               {onAddWorker && onEditWorker && (
                 <View style={{ flexDirection: 'row-reverse', gap: IS_SMALL ? 8 : 10, marginTop: IS_SMALL ? 6 : 8, marginBottom: IS_SMALL ? 12 : 16 }}>
-                  <TouchableOpacity style={{ flex: 1, backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }} onPress={onAddWorker}>
+                  <TouchableOpacity ref={tutorialRefs && tutorialRefs.addWorkerBtnRef} style={{ flex: 1, backgroundColor: '#2196F3', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 10 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6 }} onPress={onAddWorker}>
                     <Ionicons name="person-add-outline" size={IS_SMALL ? 18 : 20} color="white" />
                     <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 13 : 15 }}>إضافة عامل</Text>
                   </TouchableOpacity>
@@ -1943,7 +2008,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                       const workerKey = w.code || w.workerName || '';
                       const pendingCount = pendingCounts[workerKey] || 0;
                       return (
-                        <TouchableOpacity key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
+                        <TouchableOpacity ref={idx === 0 && tutorialRefs && tutorialRefs.workerCodeRef ? tutorialRefs.workerCodeRef : undefined} key={idx} style={{ backgroundColor: isSelected ? '#FF9800' : '#F5F5F5', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 10 : 12, paddingHorizontal: IS_SMALL ? 12 : 16, flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8, borderWidth: 2, borderColor: isSelected ? '#FF9800' : '#E0E0E0', minWidth: IS_SMALL ? 120 : 140 }} onPress={() => setSelectedWorker(isSelected ? null : w)}>
                           <View style={{ backgroundColor: isSelected ? 'white' : '#FF9800', borderRadius: IS_SMALL ? 14 : 16, width: IS_SMALL ? 28 : 32, height: IS_SMALL ? 28 : 32, alignItems: 'center', justifyContent: 'center' }}>
                             <Ionicons name="person" size={IS_SMALL ? 16 : 18} color={isSelected ? '#FF9800' : 'white'} />
                           </View>
@@ -2219,6 +2284,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
 };
 
 const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedYear, defaultSubscriptionType }) => {
+  const { showNotification } = useNotification();
   const [name, setName] = useState('');
   const [amper, setAmper] = useState('');
   const [subscriberNumber, setSubscriberNumber] = useState('');
@@ -2233,12 +2299,12 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
   const handleSave = () => {
     const nameError = validateName(name);
     if (nameError) {
-      Alert.alert('تنبيه', nameError);
+      showNotification('warning', 'تنبيه', nameError);
       return;
     }
     const amperError = validateAmper(amper);
     if (amperError) {
-      Alert.alert('تنبيه', amperError);
+      showNotification('warning', 'تنبيه', amperError);
       return;
     }
 
@@ -2337,6 +2403,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
 };
 
 const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMonth, selectedYear, isPaid }) => {
+  const { showNotification } = useNotification();
   const [name, setName] = useState('');
   const [amper, setAmper] = useState('');
   const [subscriberNumber, setSubscriberNumber] = useState('');
@@ -2358,13 +2425,13 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   const handleSave = () => {
     const nameError = validateName(name);
     if (nameError) {
-      Alert.alert('تنبيه', nameError);
+      showNotification('warning', 'تنبيه', nameError);
       return;
     }
     if (!isPaid) {
       const amperError = validateAmper(amper);
       if (amperError) {
-        Alert.alert('تنبيه', amperError);
+        showNotification('warning', 'تنبيه', amperError);
         return;
       }
     }
@@ -2562,6 +2629,7 @@ const PartialPaymentModal = ({ visible, onClose, subscriber, amperPrices, golden
 };
 
 const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selectedYear, onConfirm, amperPrices, onSaveAmperPrice }) => {
+  const { showNotification } = useNotification();
   const [newAmper, setNewAmper] = useState('');
   const [changeMonth, setChangeMonth] = useState(selectedMonth);
   const [changeYear, setChangeYear] = useState(selectedYear);
@@ -2580,7 +2648,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
   const handleConfirm = () => {
     const parsed = parseInt(newAmper);
     if (!parsed || parsed <= 0 || parsed > 100) {
-      Alert.alert('خطأ', 'أدخل عدد أمبير صحيح بين 1 و 100');
+      showNotification('error', 'خطأ', 'أدخل عدد أمبير صحيح بين 1 و 100');
       return;
     }
     onConfirm(parsed, changeMonth, changeYear);
@@ -2662,7 +2730,8 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth, onOpenPartialPayment }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth, onOpenPartialPayment, onMultiMonthPayment, onOpenMultiMonthPayment, tutorialRefs }) => {
+  const { showNotification } = useNotification();
   const [selectedMonth, setSelectedMonth] = useState(lastMonth || String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(lastYear || String(new Date().getFullYear()));
   const [searchText, setSearchText] = useState('');
@@ -2677,6 +2746,7 @@ const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, 
   const [editPickerSearch, setEditPickerSearch] = useState('');
   const [deletePickerVisible, setDeletePickerVisible] = useState(false);
   const [deletePickerSearch, setDeletePickerSearch] = useState('');
+  const [deletePickerMode, setDeletePickerMode] = useState('delete');
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
   const [expandedCard, setExpandedCard] = useState(null);
@@ -2908,13 +2978,6 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
 
           {(() => {
             if (!canChangeAmperPrice) return null;
-            const now = new Date();
-            const curMonth = now.getMonth() + 1;
-            const curYear = now.getFullYear();
-            const selMonth = parseInt(selectedMonth);
-            const selYear = parseInt(selectedYear);
-            const isFuture = (selYear > curYear) || (selYear === curYear && selMonth > curMonth);
-            if (!isFuture) return null;
             const hasGolden = subscribers.some(s => s.subscriptionType === 'golden');
             if (hasGolden) {
               return (
@@ -2963,22 +3026,15 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
           })()}
 
           <View style={styles.subscriberButtonsRow}>
-            {canDelete && (
-              <TouchableOpacity style={styles.deleteSubscriberButtonHalf} onPress={() => {
-                if (filteredSubscribers.length === 0) {
-                  Alert.alert('تنبيه', 'لا يوجد مشتركين لحذفهم');
-                  return;
-                }
-                setDeletePickerSearch('');
-                setDeletePickerVisible(true);
-              }}>
-                <Text style={styles.deleteSubscriberText}>حذف مشترك</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity ref={tutorialRefs && tutorialRefs.multiMonthBtnRef} style={[styles.deleteSubscriberButtonHalf, { backgroundColor: '#9C27B0' }]} onPress={() => {
+              if (onOpenMultiMonthPayment) onOpenMultiMonthPayment();
+            }}>
+              <Text style={[styles.deleteSubscriberText, { color: 'white' }]}>دفع لأكثر من شهر</Text>
+            </TouchableOpacity>
             {canEdit && (
               <TouchableOpacity style={[styles.addSubscriberButtonHalf, { backgroundColor: '#009688' }]} onPress={() => {
                 if (filteredSubscribers.length === 0) {
-                  Alert.alert('تنبيه', 'لا يوجد مشتركين لتعديلهم');
+                  showNotification('warning', 'تنبيه', 'لا يوجد مشتركين لتعديلهم');
                   return;
                 }
                 setEditPickerSearch('');
@@ -2988,7 +3044,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
               </TouchableOpacity>
             )}
             {canAdd && (
-              <TouchableOpacity style={styles.addSubscriberButtonHalf} onPress={() => setAddSubscriberVisible(true)}>
+              <TouchableOpacity ref={tutorialRefs && tutorialRefs.addSubscriberBtnRef} style={styles.addSubscriberButtonHalf} onPress={() => setAddSubscriberVisible(true)}>
                 <Text style={styles.addSubscriberText}>إضافة مشترك</Text>
               </TouchableOpacity>
             )}
@@ -3076,7 +3132,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
               <Text style={styles.emptyStateText}>لا يوجد مشتركين</Text>
             </View>
           ) : (
-            paginatedSubscribers.map((subscriber) => {
+            paginatedSubscribers.map((subscriber, subIdx) => {
               const monthKey = `${selectedMonth}_${selectedYear}`;
               const currentAmper = getAmperForMonth(subscriber, selectedMonth, selectedYear);
               const historyForMonth = (subscriber.paymentHistory || []).filter(h => h.monthKey === monthKey);
@@ -3094,18 +3150,28 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
 
               return (
                 <View key={subscriber.id}>
-                  <View style={[styles.subscriberCard, isFullyPaid ? styles.paidCardBorder : styles.unpaidCardBorder]}>
+                  <TouchableOpacity activeOpacity={0.9} delayLongPress={800} onLongPress={() => {
+                    if (!canDelete) {
+                      showNotification('warning', 'تنبيه', 'لا تملك صلاحية حذف المشترك');
+                      return;
+                    }
+                    Alert.alert('حذف مشترك', `هل تريد حذف "${subscriber.name}"؟\n\nسيتم إزالته من قائمة المشتركين النشطين.\nسيبقى ظاهراً في تقارير الأشهر السابقة.`, [
+                      { text: 'إلغاء', style: 'cancel' },
+                      { text: 'نعم', onPress: () => onDeleteSubscriber(subscriber.id, monthKey), style: 'destructive' },
+                    ]);
+                  }}>
+                  <View ref={subIdx === 0 && tutorialRefs && tutorialRefs.firstSubscriberCardRef ? tutorialRefs.firstSubscriberCardRef : undefined} style={[styles.subscriberCard, isFullyPaid ? styles.paidCardBorder : styles.unpaidCardBorder]}>
                     <View style={styles.cardTopRow}>
                       {(isFullyPaid || !hasPartialPayments) && (
-                      <TouchableOpacity style={styles.payCheckbox} onPress={() => {
+                      <TouchableOpacity ref={subIdx === 0 && tutorialRefs && tutorialRefs.payToggleRef ? tutorialRefs.payToggleRef : undefined} style={styles.payCheckbox} onPress={() => {
                         setExpandedCard(null);
                         if (!price || price === 0) {
-                          Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                          showNotification('warning', 'تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
                           return;
                         }
                         if (isFullyPaid) {
                           if (!canCancelPayment) {
-                            Alert.alert('تنبيه', 'لا تملك صلاحية إلغاء الدفع');
+                            showNotification('warning', 'تنبيه', 'لا تملك صلاحية إلغاء الدفع');
                             return;
                           }
                           Alert.alert('إلغاء التسديد', `هل تريد إلغاء تسديد اشتراك "${subscriber.name}"؟`, [
@@ -3114,7 +3180,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                           ]);
                         } else {
                           if (!canEdit) {
-                            Alert.alert('تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
+                            showNotification('warning', 'تنبيه', 'لا تملك صلاحية تسديد الاشتراك');
                             return;
                           }
                           Alert.alert('تسديد الاشتراك', `هل تريد تسديد اشتراك "${subscriber.name}"؟`, [
@@ -3147,7 +3213,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                               <TouchableOpacity
                                 onLongPress={() => {
                                   if (!canChangeAmperPrice) {
-                                    Alert.alert('تنبيه', 'لا تملك صلاحية تغيير الأمبير');
+                                    showNotification('warning', 'تنبيه', 'لا تملك صلاحية تغيير الأمبير');
                                     return;
                                   }
                                   setChangeAmperSubscriber(subscriber);
@@ -3168,7 +3234,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                             onPress={() => {
                               setExpandedCard(null);
                               if (!price || price === 0) {
-                                Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                                showNotification('warning', 'تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
                                 return;
                               }
                               if (onOpenPartialPayment) onOpenPartialPayment(subscriber, monthKey);
@@ -3183,7 +3249,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                             onPress={() => {
                               setExpandedCard(null);
                               if (!price || price === 0) {
-                                Alert.alert('تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
+                                showNotification('warning', 'تحديد السعر', 'لم يتم تحديد سعر الأمبير لهذا الشهر بعد');
                                 return;
                               }
                               if (onOpenPartialPayment) onOpenPartialPayment(subscriber, monthKey);
@@ -3287,6 +3353,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                       )}
                     </View>
                   )}
+                  </TouchableOpacity>
                 </View>
               );
             })
@@ -3340,7 +3407,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
               <TouchableOpacity onPress={() => { setDeletePickerVisible(false); setDeletePickerSearch(''); }}>
                 <Ionicons name="close" size={28} color="#333" />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>اختر مشترك للحذف</Text>
+              <Text style={styles.modalTitle}>{deletePickerMode === 'multiMonth' ? 'اختر مشترك للدفع لأكثر من شهر' : 'اختر مشترك للحذف'}</Text>
               <View style={{ width: 30 }} />
             </View>
             <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 8 : 10 }}>
@@ -3364,10 +3431,14 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
                   onPress={() => {
                     setDeletePickerVisible(false);
                     setDeletePickerSearch('');
-                    Alert.alert('حذف مشترك', `هل تريد حذف "${sub.name}" من هذا الشهر؟`, [
-                      { text: 'إلغاء', style: 'cancel' },
-                      { text: 'نعم', onPress: () => onDeleteSubscriber(sub.id, monthKey), style: 'destructive' },
-                    ]);
+                    if (deletePickerMode === 'multiMonth') {
+                      if (onMultiMonthPayment) onMultiMonthPayment(sub);
+                    } else {
+                      Alert.alert('حذف مشترك', `هل تريد حذف "${sub.name}"؟\n\nسيتم إزالته من قائمة المشتركين النشطين.\nسيبقى ظاهراً في تقارير الأشهر السابقة.`, [
+                        { text: 'إلغاء', style: 'cancel' },
+                        { text: 'نعم', onPress: () => onDeleteSubscriber(sub.id, monthKey), style: 'destructive' },
+                      ]);
+                    }
                   }}
                 >
                   <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333' }}>{sub.name}</Text>
@@ -3399,7 +3470,8 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
   );
 };
 
-const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, fullScreen }) => {
+const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, fullScreen, tutorialRefs }) => {
+  const { showNotification } = useNotification();
   const [searchText, setSearchText] = useState('');
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -3502,7 +3574,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
             </View>
 
             <View style={styles.searchContainer}>
-              <TextInput style={styles.searchInput} placeholder="ابحث عن مشترك..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} onFocus={() => { setSearchText(''); setSelectedSubscriberId(null); }} textAlign="right" />
+              <TextInput ref={tutorialRefs && tutorialRefs.reportsSearchRef} style={styles.searchInput} placeholder="ابحث عن مشترك..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} onFocus={() => { setSearchText(''); setSelectedSubscriberId(null); }} textAlign="right" />
             </View>
 
             {searchText.length > 0 && !selectedSubscriber && (
@@ -3579,16 +3651,16 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
 
                   if (deleted) {
                     return (
-                      <View key={m} style={[styles.reportTableRow, { backgroundColor: '#FFF3E0', padding: IS_SMALL ? 8 : 12 }]}>
+                      <View key={m} style={[styles.reportTableRow, { backgroundColor: 'rgba(183, 28, 28, 0.15)', borderRadius: 10, padding: IS_SMALL ? 8 : 12, borderLeftWidth: 4, borderLeftColor: '#B71C1C' }]}>
                         <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>{m}/{selectedYear}</Text>
                         <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>-</Text>
                         <Text style={[styles.reportTableCell, { fontSize: IS_SMALL ? 11 : 13 }]}>-</Text>
-                        <View style={[styles.reportStatusBadge, { backgroundColor: '#FF9800' }]}>
-                          <Text style={[styles.reportStatusText, { fontSize: IS_SMALL ? 10 : 12 }]}>تم الحذف</Text>
-                        </View>
-                        <View style={{flex: 1.5}}>
-                          <Text style={styles.reportTableCellSmall}>{selectedSubscriber.deletedAt || '-'}</Text>
-                          {selectedSubscriber.deletedByOwner ? <Text style={styles.reportTableCellSmall}>{selectedSubscriber.deletedByOwner}</Text> : null}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ fontSize: IS_SMALL ? 14 : 16 }}>🗑</Text>
+                          <View>
+                            <Text style={{ color: '#EF5350', fontSize: IS_SMALL ? 12 : 15, fontWeight: 'bold' }}>تم حذف هذا المشترك</Text>
+                            <Text style={{ color: '#9CA3AF', fontSize: IS_SMALL ? 10 : 13 }}>بتاريخ {selectedSubscriber.deletedAt || '-'}</Text>
+                          </View>
                         </View>
                       </View>
                     );
@@ -3685,6 +3757,7 @@ const MonthPickerAllModal = ({ visible, onClose, onSelect, selectedMonth }) => {
 };
 
 const AddGeneratorInput = ({ onAdd }) => {
+  const { showNotification } = useNotification();
   const [name, setName] = useState('');
   return (
     <View>
@@ -3699,7 +3772,7 @@ const AddGeneratorInput = ({ onAdd }) => {
         style={[styles.addButton, { backgroundColor: '#2196F3', paddingVertical: 14, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }]}
         onPress={() => {
           if (!name.trim()) {
-            Alert.alert('تنبيه', 'ادخل اسم المولد');
+            showNotification('warning', 'تنبيه', 'ادخل اسم المولد');
             return;
           }
           onAdd(name);
@@ -3713,6 +3786,7 @@ const AddGeneratorInput = ({ onAdd }) => {
 };
 
 const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses, onSetExpenses }) => {
+  const { showNotification } = useNotification();
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
@@ -3753,7 +3827,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
     const clean = addExpenseAmount.replace(/[^0-9]/g, '');
     const addVal = parseInt(clean) || 0;
     if (addVal <= 0) {
-      Alert.alert('خطأ', 'أدخل مبلغ صحيح');
+      showNotification('error', 'خطأ', 'أدخل مبلغ صحيح');
       return;
     }
     const currentMap = { gas: monthExpenses.gas, oil: monthExpenses.oil, repairs: monthExpenses.repairs, salaries: monthExpenses.salaries };
@@ -3762,7 +3836,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
     const newExpenses = { ...monthlyExpenses, [monthKey]: { ...monthExpenses, [addExpenseField]: newVal } };
     if (onSetExpenses) onSetExpenses(newExpenses);
     setAddExpenseVisible(false);
-    Alert.alert('تم', 'تم تسجيل الصرفية بنجاح');
+    showNotification('success', 'تم', 'تم تسجيل الصرفية بنجاح');
   };
 
   const stats = useMemo(() => {
@@ -4064,6 +4138,7 @@ const MonthlyDataScreen = ({ visible, onClose, subscribers, amperPrices, goldenP
 };
 
 const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, onSwitchGenerator, onAddGenerator, onDeleteGenerator, subscribers, amperPrices, goldenPrices, monthlyExpenses, workerExpenses, darkMode, currentUser, deletedGenerators, onRestoreGenerator }) => {
+  const { showNotification } = useNotification();
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [newGenName, setNewGenName] = useState('');
   const [deletePasswordModal, setDeletePasswordModal] = useState(null);
@@ -4108,7 +4183,7 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
 
   var handleAdd = function() {
     if (!newGenName.trim()) {
-      Alert.alert('تنبيه', 'ادخل اسم المولد');
+      showNotification('warning', 'تنبيه', 'ادخل اسم المولد');
       return;
     }
     onAddGenerator(newGenName);
@@ -4118,7 +4193,7 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
 
   var handleDelete = function(gen) {
     if ((generators || []).length <= 1) {
-      Alert.alert('تنبيه', 'لا يمكن حذف المولد الوحيد');
+      showNotification('warning', 'تنبيه', 'لا يمكن حذف المولد الوحيد');
       return;
     }
     Alert.alert('حذف المولد', 'هل أنت متأكد من حذف "' + gen.name + '"؟\nسيتم طلب كلمة المرور للتأكيد.', [
@@ -4129,12 +4204,12 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
 
   var confirmDelete = async function(gen, password) {
     if (!password || !password.trim()) {
-      Alert.alert('تنبيه', 'ادخل كلمة المرور');
+      showNotification('warning', 'تنبيه', 'ادخل كلمة المرور');
       return;
     }
     var result = await onDeleteGenerator(gen.id, password);
     if (result === false) {
-      Alert.alert('خطأ', 'كلمة المرور غير صحيحة');
+      showNotification('error', 'خطأ', 'كلمة المرور غير صحيحة');
     } else {
       setDeletePasswordModal(null);
     }
@@ -4368,24 +4443,24 @@ const GeneratorsScreen = ({ visible, onClose, generators, currentGeneratorId, on
                   style={{ backgroundColor: '#4CAF50', paddingVertical: 14, borderRadius: 10, alignItems: 'center' }}
                   onPress={async function() {
                     if (!restorePassword || !restorePassword.trim()) {
-                      Alert.alert('تنبيه', 'ادخل كلمة المرور');
+                      showNotification('warning', 'تنبيه', 'ادخل كلمة المرور');
                       return;
                     }
                     try {
                       var usersResult = await loadFromFile('registered_users');
                       var usersList = usersResult || [];
                       var user = usersList.find(function(u) { return u.phone === currentUser; });
-                      if (!user) { Alert.alert('خطأ', 'حدث خطأ'); return; }
+                      if (!user) { showNotification('error', 'خطأ', 'حدث خطأ'); return; }
                       var verifyResult = await verifyOwnerPassword(user.password, restorePassword.trim(), currentUser);
                       if (verifyResult.match) {
                         onRestoreGenerator(restorePasswordVisible.id);
                         setRestorePasswordVisible(null);
                         setRestorePassword('');
                       } else {
-                        Alert.alert('خطأ', 'كلمة المرور غير صحيحة');
+                        showNotification('error', 'خطأ', 'كلمة المرور غير صحيحة');
                       }
                     } catch (e) {
-                      Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
+                      showNotification('error', 'خطأ', 'حدث خطأ أثناء التحقق');
                     }
                   }}
                 >
@@ -4432,7 +4507,7 @@ const DeletePasswordModal = ({ gen, onConfirm, onCancel, darkMode }) => {
   );
 };
 
-const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers, onDeleteWorkerExpense }) => {
+const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscribers, onShowReports, subscribers, amperPrices, onSetAmperPrice, goldenPrices, onSetGoldenPrice, expenses, workerExpenses, onSetExpenses, onLogout, isOnline, generators, onShowMonthlyData, darkMode, pendingUpdatesCount, onShowWorkerTracking, workers, onDeleteWorkerExpense, subscriptionData, tutorialRefs }) => {
   const theme = darkMode ? { bg: '#121212', card: '#1e1e1e', text: '#fff', subText: '#aaa', border: '#333' } : { bg: '#f5f5f5', card: 'white', text: '#333', subText: '#666', border: '#ddd' };
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -4581,9 +4656,10 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
           <Text style={styles.offlineBannerText}>لا يوجد اتصال بالإنترنت - البيانات قد لا تُحفظ</Text>
         </View>
       )}
+      <TrialBanner subscriptionData={subscriptionData} onPress={() => Alert.alert('اشتراكك', subscriptionData.status === 'trial' ? 'فترة تجربتك تنتهي بعد ' + (subscriptionData.daysLeft || 0) + ' يوم' : 'اشتراكك منتهي')} />
       <ScrollView style={[styles.scrollView, darkMode && { backgroundColor: '#121212' }]} showsVerticalScrollIndicator={false}>
         <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: IS_SMALL ? 12 : 16, marginTop: IS_SMALL ? 8 : 12, marginBottom: IS_SMALL ? 8 : 12 }}>
-          <TouchableOpacity style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
+          <TouchableOpacity ref={tutorialRefs && tutorialRefs.monthSelectorRef} style={styles.monthlyDataButton} onPress={onShowMonthlyData}>
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
               <Ionicons name="calendar-outline" size={IS_SMALL ? 14 : 16} color="white" />
               <Text style={styles.monthlyDataButtonText}>بيانات كل شهر</Text>
@@ -4774,6 +4850,7 @@ const MainScreen = ({ currentUser, generatorName, onOpenSettings, onShowSubscrib
 };
 
 const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, subscribers, amperPrices, goldenPrices, onLogout, isOnline, workerUpdates, onSync, workerName, generators, workerPermissions, onSwitchGenerator, onShowWorkerSwitchGenerator, workerAssignedGenerators, onAddExpense, darkMode, onShowExpense }) => {
+  const { showNotification } = useNotification();
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   const currentMonthKey = `${currentMonth}_${currentYear}`;
@@ -4914,8 +4991,389 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
   );
 };
 
+const NotificationContext = createContext();
+
+const NotificationProvider = ({ children }) => {
+  const [notifications, setNotifications] = useState([]);
+  const addNotification = useCallback((notif) => {
+    const id = Date.now() + Math.random();
+    setNotifications(prev => [{ ...notif, id }, ...prev].slice(0, 3));
+    setTimeout(() => { setNotifications(prev => prev.filter(n => n.id !== id)); }, 4000);
+  }, []);
+  const removeNotification = useCallback((id) => { setNotifications(prev => prev.filter(n => n.id !== id)); }, []);
+  return (
+    <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>
+      {children}
+    </NotificationContext.Provider>
+  );
+};
+
+const useNotification = () => {
+  const { addNotification, removeNotification } = useContext(NotificationContext);
+  const showNotification = useCallback((type, title, message) => {
+    addNotification({ type, title, message });
+  }, [addNotification]);
+  return { showNotification, removeNotification };
+};
+
+const AppNotification = () => {
+  const { notifications, removeNotification } = useContext(NotificationContext);
+  if (notifications.length === 0) return null;
+  const getIcon = (type) => {
+    switch (type) {
+      case 'success': return { icon: '\u2713', bg: '#1B5E20' };
+      case 'error': return { icon: '\u2717', bg: '#B71C1C' };
+      case 'warning': return { icon: '\u26A0', bg: '#E65100' };
+      default: return { icon: '\u2139', bg: '#1565C0' };
+    }
+  };
+  const getBorderColor = (type) => {
+    switch (type) {
+      case 'success': return '#1B5E20';
+      case 'error': return '#B71C1C';
+      case 'warning': return '#E65100';
+      default: return '#1565C0';
+    }
+  };
+  return (
+    <View style={{ position: 'absolute', top: 50, left: 16, right: 16, zIndex: 9999 }} pointerEvents="box-none">
+      {notifications.map((notif, index) => (
+        <NotificationItem key={notif.id} notif={notif} index={index} onDismiss={() => removeNotification(notif.id)} getIcon={getIcon} getBorderColor={getBorderColor} />
+      ))}
+    </View>
+  );
+};
+
+const NotificationItem = ({ notif, index, onDismiss, getIcon, getBorderColor }) => {
+  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const panY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10,
+    onPanResponderMove: (_, gs) => { if (gs.dy < 0) panY.setValue(gs.dy); },
+    onPanResponderRelease: (_, gs) => {
+      if (gs.dy < -50) { Animated.timing(slideAnim, { toValue: -100, duration: 200, useNativeDriver: true }).start(() => onDismiss()); }
+      else { Animated.spring(panY, { toValue: 0, useNativeDriver: true }).start(); }
+    },
+  })).current;
+  useEffect(() => { Animated.spring(slideAnim, { toValue: 0, friction: 8, useNativeDriver: true }).start(); }, []);
+  const { icon, bg } = getIcon(notif.type);
+  const borderColor = getBorderColor(notif.type);
+  return (
+    <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateY: Animated.add(slideAnim, panY) }], backgroundColor: '#1C2333EE', borderRadius: 16, minHeight: 70, padding: 16, borderLeftWidth: 4, borderLeftColor: borderColor, elevation: 20, flexDirection: 'row-reverse', alignItems: 'center', gap: 12, marginBottom: index < 2 ? 8 : 0 }}>
+      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>{icon}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold', textAlign: 'right' }}>{notif.title}</Text>
+        <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'right', marginTop: 2 }}>{notif.message}</Text>
+      </View>
+    </Animated.View>
+  );
+};
+
+const MultiMonthPaymentScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrices, onConfirm }) => {
+  const { showNotification } = useNotification();
+  const [step, setStep] = useState('search');
+  const [searchText, setSearchText] = useState('');
+  const [selectedSubscriber, setSelectedSubscriber] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [selectedMonths, setSelectedMonths] = useState([]);
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const years = [];
+  for (let y = currentYear + 1; y >= currentYear - 3; y--) years.push(y);
+  const resetState = () => { setStep('search'); setSearchText(''); setSelectedSubscriber(null); setSelectedYear(null); setSelectedMonths([]); };
+  const filtered = subscribers.filter(sub => !sub.deletedFromMonth && (sub.name.includes(searchText) || (sub.subscriberNumber && sub.subscriberNumber.includes(searchText)) || (sub.meterNumber && sub.meterNumber.includes(searchText))));
+  const toggleMonth = (mk) => { setSelectedMonths(prev => prev.includes(mk) ? prev.filter(x => x !== mk) : [...prev, mk]); };
+  const getMonthDue = (m, y) => {
+    const mk = `${m}_${y}`;
+    const price = getPriceForSubscriber(amperPrices, goldenPrices, mk, selectedSubscriber.subscriptionType);
+    const amper = getAmperForMonth(selectedSubscriber, m, y);
+    const isPaid = selectedSubscriber.paidMonths && selectedSubscriber.paidMonths[mk];
+    if (isPaid) return 0;
+    const pp = selectedSubscriber.partialPayments && selectedSubscriber.partialPayments[mk];
+    const totalPaid = pp ? pp.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0) : 0;
+    return amper * price - totalPaid;
+  };
+  const totalDue = selectedMonths.reduce((sum, mk) => { const [m, y] = mk.split('_'); return sum + getMonthDue(m, y); }, 0);
+  if (!visible) return null;
+  return (
+    <View style={styles.subscribersOverlay}>
+      <View style={styles.subscribersContainer}>
+        <View style={styles.subscribersHeader}>
+          <TouchableOpacity onPress={() => { if (step === 'months') { setStep('year'); } else if (step === 'year') { setStep('search'); setSelectedSubscriber(null); setSelectedYear(null); setSelectedMonths([]); } else { resetState(); onClose(); } }} style={styles.backButton}>
+            <Ionicons name="arrow-forward" size={26} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.subscribersTitle}>{step === 'search' ? 'اختر مشترك' : step === 'year' ? `اختر السنة - ${selectedSubscriber.name}` : `${selectedYear} - ${selectedSubscriber.name}`}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        {step === 'search' && (
+          <>
+            <View style={{ paddingHorizontal: IS_SMALL ? 12 : 16, paddingVertical: IS_SMALL ? 10 : 12, backgroundColor: '#f5f5f5' }}>
+              <TextInput style={{ backgroundColor: 'white', borderRadius: IS_SMALL ? 8 : 10, paddingHorizontal: IS_SMALL ? 12 : 14, paddingVertical: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 13 : 15, textAlign: 'right', borderWidth: 1, borderColor: '#E0E0E0' }} placeholder="ابحث بالاسم أو رقم الهاتف أو رقم الجوزة..." placeholderTextColor="#999" value={searchText} onChangeText={setSearchText} />
+            </View>
+            <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+              {filtered.length === 0 ? (
+                <View style={{ padding: IS_SMALL ? 30 : 40, alignItems: 'center' }}>
+                  <Ionicons name="search-outline" size={60} color="#ccc" />
+                  <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#999', marginTop: IS_SMALL ? 10 : 14 }}>{searchText ? 'لا يوجد نتائج' : 'اكتب اسم المشترك للبحث'}</Text>
+                </View>
+              ) : (
+                filtered.map(sub => (
+                  <TouchableOpacity key={sub.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: IS_SMALL ? 14 : 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', backgroundColor: 'white' }} onPress={() => { setSelectedSubscriber(sub); setStep('year'); setSelectedMonths([]); setSelectedYear(null); }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 10 : 12 }}>
+                      <View style={{ width: IS_SMALL ? 40 : 44, height: IS_SMALL ? 40 : 44, borderRadius: IS_SMALL ? 20 : 22, backgroundColor: '#E3F2FD', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="person" size={IS_SMALL ? 20 : 22} color="#1565C0" />
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: IS_SMALL ? 14 : 16, fontWeight: '600', color: '#333', textAlign: 'right' }}>{sub.name}</Text>
+                        <Text style={{ fontSize: IS_SMALL ? 11 : 12, color: '#999', textAlign: 'right', marginTop: 2 }}>{sub.subscriberNumber || ''} {sub.meterNumber ? `| الجوزة: ${sub.meterNumber}` : ''}</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-back" size={20} color="#ccc" />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </>
+        )}
+        {step === 'year' && (
+          <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: IS_SMALL ? 12 : 16 }}>
+              <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: '#666', marginBottom: IS_SMALL ? 12 : 16, textAlign: 'right' }}>اختر السنة:</Text>
+              {years.map(y => {
+                const isAvailable = y <= currentYear;
+                return (
+                  <TouchableOpacity key={y} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: IS_SMALL ? 14 : 16, borderRadius: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 8 : 10, borderWidth: 1.5, borderColor: '#E0E0E0', backgroundColor: isAvailable ? 'white' : '#f5f5f5', opacity: isAvailable ? 1 : 0.5 }} onPress={() => { if (isAvailable) { setSelectedYear(y); setStep('months'); } }} disabled={!isAvailable}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 8 : 10 }}>
+                      <Ionicons name="calendar" size={IS_SMALL ? 22 : 26} color="#1565C0" />
+                      <Text style={{ fontSize: IS_SMALL ? 16 : 18, color: '#333', fontWeight: 'bold' }}>{y}</Text>
+                    </View>
+                    <Ionicons name="chevron-back" size={IS_SMALL ? 18 : 22} color="#999" />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        )}
+        {step === 'months' && (
+          <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: IS_SMALL ? 12 : 16 }}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                const mk = `${m}_${selectedYear}`;
+                const due = getMonthDue(m, selectedYear);
+                const isSelected = selectedMonths.includes(mk);
+                const isPaid = !!selectedSubscriber.paidMonths && !!selectedSubscriber.paidMonths[mk];
+                const isFuture = selectedYear === currentYear && m > currentMonth;
+                const priceSet = getPriceForSubscriber(amperPrices, goldenPrices, mk, selectedSubscriber.subscriptionType) > 0;
+                const isDisabled = !!isPaid || (isFuture && !priceSet);
+                return (
+                  <TouchableOpacity key={mk} style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: IS_SMALL ? 12 : 14, borderRadius: IS_SMALL ? 8 : 10, marginBottom: IS_SMALL ? 6 : 8, borderWidth: 1.5, borderColor: isSelected ? '#2196F3' : isPaid ? '#4CAF50' : '#E0E0E0', backgroundColor: isSelected ? '#E3F2FD' : isPaid ? '#E8F5E9' : isDisabled ? '#f5f5f5' : 'white', opacity: isDisabled && !isPaid ? 0.5 : 1 }} onPress={() => { if (!isDisabled) toggleMonth(mk); }} disabled={isDisabled}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: IS_SMALL ? 6 : 8 }}>
+                      <Ionicons name={isPaid ? 'checkmark-circle' : isSelected ? 'checkbox' : 'square-outline'} size={IS_SMALL ? 20 : 24} color={isPaid ? '#4CAF50' : isSelected ? '#2196F3' : '#999'} />
+                      <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#333', fontWeight: isSelected ? 'bold' : 'normal' }}>{m}/{selectedYear} - {monthNames[m - 1]}</Text>
+                    </View>
+                    <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: isPaid ? '#4CAF50' : isDisabled && !isPaid ? '#999' : '#333', fontWeight: 'bold' }}>{isPaid ? 'مدفوع' : isFuture && !priceSet ? 'لم يُحدد السعر' : `د.ع ${formatNumber(due)}`}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {selectedMonths.length > 0 && (
+                <View style={{ backgroundColor: '#E3F2FD', borderRadius: IS_SMALL ? 10 : 12, padding: IS_SMALL ? 14 : 16, marginTop: IS_SMALL ? 8 : 12, borderWidth: 1, borderColor: '#2196F3' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', marginBottom: IS_SMALL ? 6 : 8 }}>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: '#666' }}>عدد الأشهر:</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 13 : 15, fontWeight: 'bold', color: '#333' }}>{selectedMonths.length}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#333', fontWeight: 'bold' }}>المبلغ الإجمالي:</Text>
+                    <Text style={{ fontSize: IS_SMALL ? 14 : 16, color: '#1565C0', fontWeight: 'bold' }}>د.ع {formatNumber(totalDue)}</Text>
+                  </View>
+                </View>
+              )}
+              {selectedMonths.length > 0 && (
+                <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 10 : 12, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 14 : 18, flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={() => { onConfirm(selectedMonths, totalDue, selectedSubscriber); resetState(); onClose(); }}>
+                  <Ionicons name="checkmark-circle" size={IS_SMALL ? 18 : 22} color="white" />
+                  <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تأكيد الدفع</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
+        )}
+      </View>
+    </View>
+  );
+};
+
+const TrialBanner = ({ subscriptionData, onPress }) => {
+  if (!subscriptionData) return null;
+  if (subscriptionData.status === 'active') return null;
+  const isTrial = subscriptionData.status === 'trial';
+  const bgColor = isTrial ? 'rgba(255,193,7,0.12)' : 'rgba(244,67,54,0.12)';
+  const borderColor = isTrial ? '#FFC107' : '#F44336';
+  const icon = isTrial ? 'flask' : 'alert-circle';
+  const iconColor = isTrial ? '#FFC107' : '#F44336';
+  const title = isTrial ? 'فترة التجربة المجانية' : 'اشتراك منتهي';
+  const days = subscriptionData.daysLeft || 0;
+  const subtitle = isTrial ? 'متبقي ' + days + ' يوم من أصل 60 يوم مجاني' : 'اشتراكك منتهي. للتفعيل: 20,000 د.ع لمدة 6 أشهر';
+  return (
+    <TouchableOpacity onPress={onPress} style={{ backgroundColor: bgColor, borderWidth: 1, borderColor: borderColor, borderRadius: 12, padding: 12, marginHorizontal: 16, marginTop: 8, flexDirection: 'row', alignItems: 'center' }} activeOpacity={0.7}>
+      <Ionicons name={icon} size={24} color={iconColor} style={{ marginRight: 10 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: iconColor, fontSize: 13, fontWeight: 'bold', fontFamily: 'System' }}>{title}</Text>
+        <Text style={{ color: '#9CA3AF', fontSize: 11, fontFamily: 'System' }}>{subtitle}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={iconColor} />
+    </TouchableOpacity>
+  );
+};
+
+const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeActivated }) => {
+  const [activationCode, setActivationCode] = React.useState('');
+  const [activating, setActivating] = React.useState(false);
+
+  var handleRedeemCode = async function() {
+    if (!activationCode.trim()) {
+      Alert.alert('خطأ', 'الرجاء إدخال كود التفعيل');
+      return;
+    }
+    if (!currentUser) {
+      Alert.alert('خطأ', 'لم يتم التعرف على المستخدم');
+      return;
+    }
+    setActivating(true);
+    try {
+      var result = await apiRequest('POST', '/api', { _action: 'redeemActivationCode', phone: currentUser, code: activationCode.trim().toUpperCase() });
+      if (result && result.ok) {
+        if (onCodeActivated) onCodeActivated(result.subscription_ends_at);
+      } else {
+        Alert.alert('خطأ', result && result.error ? result.error : 'الكود غير صحيح');
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء الاتصال بالخادم');
+    }
+    setActivating(false);
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0A0E1A', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+      <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+      <View style={{ width: 100, height: 100, borderRadius: 24, backgroundColor: 'rgba(244,67,54,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+        <Ionicons name="lock-closed" size={50} color="#F44336" />
+      </View>
+      <Text style={{ color: '#F44336', fontSize: 24, fontWeight: 'bold', marginBottom: 10, fontFamily: 'System' }}>اشتراك منتهي</Text>
+      <Text style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 8, fontFamily: 'System' }}>مرحباً {ownerName || 'عميلنا'}،</Text>
+      <Text style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 20, fontFamily: 'System' }}>اشتراكك في تطبيق مولدي قد انتهى. أدخل كود التفعيل للحصول على 6 أشهر.</Text>
+      <TextInput style={{ width: '100%', backgroundColor: '#1C2333', borderRadius: 12, padding: 14, color: '#fff', fontSize: 18, textAlign: 'center', letterSpacing: 2, marginBottom: 12, fontFamily: 'System', borderWidth: 1, borderColor: activationCode ? '#1565C0' : '#333' }} placeholder="أدخل كود التفعيل" placeholderTextColor="#666" value={activationCode} onChangeText={setActivationCode} autoCapitalize="characters" />
+      <TouchableOpacity onPress={handleRedeemCode} disabled={activating || !activationCode.trim()} style={{ backgroundColor: activationCode.trim() ? '#1565C0' : '#333', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', marginBottom: 16, opacity: activating ? 0.6 : 1 }} activeOpacity={0.8}>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>{activating ? 'جاري التفعيل...' : 'تفعيل الكود'}</Text>
+      </TouchableOpacity>
+      <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: '#333' }} />
+        <Text style={{ color: '#666', fontSize: 12, marginHorizontal: 10, fontFamily: 'System' }}>أو</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: '#333' }} />
+      </View>
+      <TouchableOpacity onPress={onActivate} style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', marginBottom: 12 }} activeOpacity={0.8}>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>جدّد الاشتراك من خلال مرسالة الدعم</Text>
+      </TouchableOpacity>
+      <Text style={{ color: '#6B7280', fontSize: 13, fontFamily: 'System', marginBottom: 12 }}>+964 780 252 4458</Text>
+      <TouchableOpacity onPress={onLogout} activeOpacity={0.7}>
+        <Text style={{ color: '#6B7280', fontSize: 13, fontFamily: 'System' }}>تسجيل الخروج</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const TUTORIAL_STORAGE_KEY = 'tutorial_done_';
+const TUTORIAL_VERSION = '1.0';
+
+const NEW_TUTORIAL_STEPS = [
+  { id: 'welcome', screen: 'home', targetRef: null, icon: '\uD83D\uDC4B', title: '\u0645\u0631\u062D\u0628\u0627\u064B \u0628\u0643 \u0641\u064A \u0645\u0648\u0644\u062F\u064A!', description: '\u0633\u0646\u0623\u062E\u0630\u0643 \u0641\u064A \u062C\u0648\u0644\u0629 \u0633\u0631\u064A\u0639\u0629 \u0644\u062A\u062A\u0639\u0631\u0641 \u0639\u0644\u0649 \u0643\u064A\u0641\u064A\u0629 \u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0627\u0644\u062A\u0637\u0628\u064A\u0642. \u064A\u0645\u0643\u0646\u0643 \u062A\u062E\u0637\u064A \u0647\u0630\u0647 \u0627\u0644\u062C\u0648\u0644\u0629 \u0641\u064A \u0623\u064A \u0648\u0642\u062A.', cardPosition: 'center', color: '#1565C0' },
+  { id: 'nav_subscribers', screen: 'home', targetRef: 'subscribersTabRef', icon: '\uD83D\uDC65', title: '\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0642\u0627\u0626\u0645\u0629 \u0645\u0634\u062A\u0631\u0643\u064A\u0643 \u0648\u0625\u0636\u0627\u0641\u0629 \u0648\u062A\u0639\u062F\u064A\u0644 \u0648\u062D\u0630\u0641 \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646.', cardPosition: 'top', color: '#4CAF50' },
+  { id: 'add_subscriber', screen: 'subscribers', targetRef: 'addSubscriberBtnRef', icon: '\u2795', title: '\u0625\u0636\u0627\u0641\u0629 \u0645\u0634\u062A\u0631\u0643 \u062C\u062F\u064A\u062F', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0632\u0631 \u0644\u0625\u0636\u0627\u0641\u0629 \u0645\u0634\u062A\u0631\u0643 \u062C\u062F\u064A\u062F. \u0633\u062A\u062F\u062E\u0644 \u0627\u0633\u0645\u0647 \u0648\u0639\u062F\u062F \u0627\u0644\u0623\u0645\u0628\u064A\u0631\u0627\u062A \u0648\u0631\u0642\u0645 \u0647\u0627\u062A\u0641\u0647.', cardPosition: 'bottom', color: '#4CAF50' },
+  { id: 'edit_subscriber', screen: 'subscribers', targetRef: 'firstSubscriberCardRef', icon: '\u270F\uFE0F', title: '\u062A\u0639\u062F\u064A\u0644 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0634\u062A\u0631\u0643', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0627\u0633\u0645 \u0623\u064A \u0645\u0634\u062A\u0631\u0643 \u0644\u062A\u0639\u062F\u064A\u0644 \u0628\u064A\u0627\u0646\u0627\u062A\u0647 \u0645\u062B\u0644 \u0627\u0644\u0627\u0633\u0645 \u0623\u0648 \u0639\u062F\u062F \u0627\u0644\u0623\u0645\u0628\u064A\u0631\u0627\u062A.', cardPosition: 'bottom', color: '#FF9800', emptyMessage: '\u0623\u0636\u0641 \u0645\u0634\u062A\u0631\u0643\u0627\u064B \u0623\u0648\u0644\u0627\u064B \u062B\u0645 \u0633\u062A\u0638\u0647\u0631 \u062E\u064A\u0627\u0631\u0627\u062A \u0627\u0644\u062A\u0639\u062F\u064A\u0644 \u0648\u0627\u0644\u062F\u0641\u0639.' },
+  { id: 'pay_toggle', screen: 'subscribers', targetRef: 'payToggleRef', icon: '\u2705', title: '\u062A\u0633\u062C\u064A\u0644 \u062F\u0641\u0639 \u0627\u0644\u0627\u0634\u062A\u0631\u0627\u0643', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0647\u0630\u0647 \u0627\u0644\u062F\u0627\u0626\u0631\u0629 \u0644\u062A\u0633\u062C\u064A\u0644 \u062F\u0641\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u0643 \u0644\u0644\u0634\u0647\u0631 \u0627\u0644\u062D\u0627\u0644\u064A. \u0633\u062A\u062A\u062D\u0648\u0644 \u0625\u0644\u0649 \u0627\u0644\u0644\u0648\u0646 \u0627\u0644\u0623\u062E\u0636\u0631 \u0639\u0646\u062F \u0627\u0644\u062A\u0633\u062C\u064A\u0644.', cardPosition: 'top', color: '#9C27B0', emptyMessage: '\u0623\u0636\u0641 \u0645\u0634\u062A\u0631\u0643\u0627\u064B \u0623\u0648\u0644\u0627\u064B \u062B\u0645 \u0633\u062A\u0638\u0647\u0631 \u062E\u064A\u0627\u0631\u0627\u062A \u0627\u0644\u062F\u0641\u0639.' },
+  { id: 'multi_month', screen: 'subscribers', targetRef: 'multiMonthBtnRef', icon: '\uD83D\uDCC5', title: '\u062F\u0641\u0639 \u0639\u062F\u0629 \u0623\u0634\u0647\u0631', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u062A\u0633\u062C\u064A\u0644 \u062F\u0641\u0639 \u0639\u062F\u0629 \u0623\u0634\u0647\u0631 \u062F\u0641\u0639\u0629 \u0648\u0627\u062D\u062F\u0629. \u0645\u0641\u064A\u062F \u0639\u0646\u062F\u0645\u0627 \u064A\u062F\u0641\u0639 \u0627\u0644\u0645\u0634\u062A\u0631\u0643 \u0645\u0642\u062F\u0645\u0627\u064B.', cardPosition: 'top', color: '#E91E63' },
+  { id: 'month_selector', screen: 'home', targetRef: 'monthSelectorRef', icon: '\uD83D\uDCC6', title: '\u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u0634\u0647\u0631', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u0634\u0647\u0631 \u0648\u0627\u0644\u0633\u0646\u0629. \u0633\u062A\u0638\u0647\u0631 \u0644\u0643 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646 \u0648\u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0627\u062A \u0644\u0644\u0634\u0647\u0631 \u0627\u0644\u0645\u062E\u062A\u0627\u0631.', cardPosition: 'bottom', color: '#FF5722' },
+  { id: 'nav_workers', screen: 'home', targetRef: 'workersTabRef', icon: '\uD83D\uDC77', title: '\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0639\u0645\u0627\u0644', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u0642\u0633\u0645 \u0627\u0644\u0639\u0645\u0627\u0644. \u064A\u0645\u0643\u0646\u0643 \u0625\u0636\u0627\u0641\u0629 \u0639\u0627\u0645\u0644 \u064A\u0633\u0627\u0639\u062F\u0643 \u0641\u064A \u062C\u0628\u0627\u064A\u0629 \u0627\u0644\u0627\u0634\u062A\u0631\u0627\u0643\u0627\u062A.', cardPosition: 'top', color: '#FF9800' },
+  { id: 'add_worker', screen: 'workers', targetRef: 'addWorkerBtnRef', icon: '\uD83D\uDC77\u2795', title: '\u0625\u0636\u0627\u0641\u0629 \u0639\u0627\u0645\u0644 \u062C\u062F\u064A\u062F', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0625\u0636\u0627\u0641\u0629 \u0639\u0627\u0645\u0644. \u0633\u064A\u062A\u0645 \u0625\u0646\u0634\u0627\u0621 \u0643\u0648\u062F \u062E\u0627\u0635 \u0648\u0631\u0645\u0632 \u0633\u0631\u064A \u0644\u0644\u0639\u0627\u0645\u0644 \u064A\u0633\u062A\u062E\u062F\u0645\u0647\u0645\u0627 \u0644\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644.', cardPosition: 'bottom', color: '#4CAF50' },
+  { id: 'worker_code', screen: 'workers', targetRef: 'workerCodeRef', icon: '\uD83D\uDD11', title: '\u0643\u0648\u062F \u0648\u0631\u0645\u0632 \u0627\u0644\u0639\u0627\u0645\u0644', description: '\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0627\u0644\u0643\u0648\u062F \u0644\u0646\u0633\u062E\u0647 \u0648\u0625\u0631\u0633\u0627\u0644\u0647 \u0644\u0644\u0639\u0627\u0645\u0644. \u0627\u0644\u0639\u0627\u0645\u0644 \u064A\u0633\u062A\u062E\u062F\u0645 \u0647\u0630\u0627 \u0627\u0644\u0643\u0648\u062F \u0648\u0627\u0644\u0631\u0645\u0632 \u0627\u0644\u0633\u0631\u064A \u0644\u0644\u062F\u062E\u0648\u0644 \u0625\u0644\u0649 \u0627\u0644\u062A\u0637\u0628\u064A\u0642.', cardPosition: 'bottom', color: '#FF9800', emptyMessage: '\u0623\u0636\u0641 \u0639\u0627\u0645\u0644\u0627\u064B \u0623\u0648\u0644\u0627\u064B \u062B\u0645 \u0633\u062A\u0638\u0647\u0631 \u0645\u0639\u0644\u0648\u0645\u0627\u062A \u0627\u0644\u0643\u0648\u062F.' },
+  { id: 'nav_reports', screen: 'home', targetRef: 'reportsTabRef', icon: '\uD83D\uDCCA', title: '\u0627\u0644\u062A\u0642\u0627\u0631\u064A\u0631', description: '\u0627\u0636\u063A\u0637 \u0647\u0646\u0627 \u0644\u0644\u0648\u0635\u0648\u0644 \u0625\u0644\u0649 \u062A\u0642\u0627\u0631\u064A\u0631 \u0627\u0644\u0645\u0634\u062A\u0631\u0643\u064A\u0646. \u064A\u0645\u0643\u0646\u0643 \u0645\u0639\u0631\u0641\u0629 \u0645\u0646 \u062F\u0641\u0639 \u0648\u0645\u0646 \u0644\u0645 \u064A\u062F\u0641\u0639 \u0644\u0643\u0644 \u0634\u0647\u0631.', cardPosition: 'top', color: '#2196F3' },
+  { id: 'reports_search', screen: 'reports', targetRef: 'reportsSearchRef', icon: '\uD83D\uDD0D', title: '\u0627\u0644\u0628\u062D\u062B \u0641\u064A \u0627\u0644\u062A\u0642\u0627\u0631\u064A\u0631', description: '\u0627\u0643\u062A\u0628 \u0627\u0633\u0645 \u0627\u0644\u0645\u0634\u062A\u0631\u0643 \u0647\u0646\u0627 \u0644\u0644\u0628\u062D\u062B \u0639\u0646 \u0633\u062C\u0644 \u0645\u062F\u0641\u0648\u0639\u0627\u062A\u0647. \u064A\u0645\u0643\u0646\u0643 \u062A\u0635\u0641\u064A\u0629 \u0627\u0644\u0646\u062A\u0627\u0626\u062C \u062D\u0633\u0628 \u0627\u0644\u0634\u0647\u0631.', cardPosition: 'bottom', color: '#2196F3' },
+];
+
+var TUTORIAL_STEPS = NEW_TUTORIAL_STEPS;
+
+const TutorialOverlay = ({ step, stepNumber, totalSteps, targetLayout, onNext, onSkip, isLastStep }) => {
+  if (!step) return null;
+  var isWelcome = step.id === 'welcome';
+  var cardW = Math.min(310, SCREEN_WIDTH - 48);
+  var tipY = 0;
+  var tipX = (SCREEN_WIDTH - cardW) / 2;
+  var arrowDir = 'down';
+  if (!isWelcome && targetLayout) {
+    if (targetLayout.y > SCREEN_HEIGHT / 2) {
+      tipY = Math.max(20, targetLayout.y - 180);
+      arrowDir = 'down';
+    } else {
+      tipY = targetLayout.y + targetLayout.h + 12;
+      arrowDir = 'up';
+    }
+    tipX = Math.max(16, Math.min(targetLayout.x + targetLayout.w / 2 - cardW / 2, SCREEN_WIDTH - cardW - 16));
+    if (tipY + 200 > SCREEN_HEIGHT) tipY = SCREEN_HEIGHT - 220;
+    if (tipY < 20) tipY = 20;
+  } else if (isWelcome) {
+    tipY = SCREEN_HEIGHT / 2 - 120;
+  }
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }} pointerEvents="box-none">
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)' }} />
+      {targetLayout && (
+        <View pointerEvents="box-none" style={{ position: 'absolute', top: targetLayout.y - 5, left: targetLayout.x - 5, width: targetLayout.w + 10, height: targetLayout.h + 10, borderRadius: 14, borderWidth: 3, borderColor: step.color || '#F9A825', shadowColor: step.color || '#F9A825', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 10, elevation: 10 }} />
+      )}
+      <View pointerEvents="box-none" style={{ position: 'absolute', top: tipY, left: tipX, width: cardW }}>
+        {arrowDir === 'down' && targetLayout && (
+          <View style={{ alignSelf: 'center', width: 0, height: 0, borderLeft: 10, borderRight: 10, borderBottom: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#fff', marginBottom: -1 }} />
+        )}
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 20 }}>
+          {isWelcome && (
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFF8E1', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="flash" size={32} color="#FFD600" />
+              </View>
+            </View>
+          )}
+          <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'left', marginBottom: 8, fontFamily: 'System' }}>{'\u0627\u0644\u062E\u0637\u0648\u0629 ' + stepNumber + ' \u0645\u0646 ' + totalSteps}</Text>
+          {!isWelcome && step.icon && (
+            <Text style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>{step.icon}</Text>
+          )}
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1C1C1E', textAlign: 'center', marginBottom: 8, fontFamily: 'System' }}>{step.title}</Text>
+          <Text style={{ fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 16, fontFamily: 'System' }}>{step.description}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, gap: 4 }}>
+            {NEW_TUTORIAL_STEPS.map(function(_, i) {
+              return (<View key={i} style={{ width: i === (stepNumber - 1) ? 20 : 8, height: 8, borderRadius: 4, backgroundColor: i === (stepNumber - 1) ? '#1565C0' : '#D1D5DB' }} />);
+            })}
+          </View>
+          <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+            <TouchableOpacity onPress={onSkip} style={{ paddingVertical: 10, paddingHorizontal: 12 }}>
+              <Text style={{ fontSize: 14, color: '#9CA3AF', fontFamily: 'System' }}>{'\u062A\u062E\u0637\u064A \u0627\u0644\u0643\u0644'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onNext} style={{ backgroundColor: '#1565C0', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20 }}>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{isLastStep ? '\u0641\u0647\u0645\u062A \u2713' : '\u0627\u0644\u062A\u0627\u0644\u064A \u2190'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {arrowDir === 'up' && targetLayout && (
+          <View style={{ alignSelf: 'center', width: 0, height: 0, borderLeft: 10, borderRight: 10, borderTop: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#fff', marginTop: -1 }} />
+        )}
+      </View>
+    </View>
+  );
+};
+
 export default function App() {
   const insets = useSafeAreaInsets();
+  const TRIAL_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
   const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -4977,7 +5435,28 @@ export default function App() {
   const [appPartialPaymentVisible, setAppPartialPaymentVisible] = useState(false);
   const [appPartialPaymentSubscriber, setAppPartialPaymentSubscriber] = useState(null);
   const [appPartialPaymentMonthKey, setAppPartialPaymentMonthKey] = useState('');
+  const [multiMonthPaymentVisible, setMultiMonthPaymentVisible] = useState(false);
+  const [multiMonthPaymentSubscriber, setMultiMonthPaymentSubscriber] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState(null);
+  const [tutorialActive, setTutorialActive] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialPosition, setTutorialPosition] = useState(null);
+
+  var subscribersTabRef = React.useRef(null);
+  var workersTabRef = React.useRef(null);
+  var reportsTabRef = React.useRef(null);
+  var addSubscriberBtnRef = React.useRef(null);
+  var firstSubscriberCardRef = React.useRef(null);
+  var payToggleRef = React.useRef(null);
+  var multiMonthBtnRef = React.useRef(null);
+  var monthSelectorRef = React.useRef(null);
+  var addWorkerBtnRef = React.useRef(null);
+  var workerCodeRef = React.useRef(null);
+  var reportsSearchRef = React.useRef(null);
+
+  const registerTutorialRef = React.useCallback((key, ref) => {
+  }, []);
   const isAuthenticating = useRef(false);
   const appState = useRef(AppState.currentState);
   const lastActivity = React.useRef(Date.now());
@@ -5019,6 +5498,30 @@ export default function App() {
           if (isEnrolled) {
             setAppLocked(true);
           }
+          if (savedUser.role === 'owner') {
+            const regTime = await SecureStore.getItemAsync('registration_' + savedUser.phone);
+            const now = new Date();
+            if (regTime) {
+              const elapsed = now.getTime() - new Date(regTime).getTime();
+              if (elapsed > TRIAL_DURATION_MS) {
+                const subData = await SecureStore.getItemAsync('subscription_' + savedUser.phone);
+                let hasActive = false;
+                if (subData) {
+                  const parsed = JSON.parse(subData);
+                  if (parsed.subscription_ends_at && now < new Date(parsed.subscription_ends_at)) hasActive = true;
+                }
+                if (!hasActive) {
+                  setSubscriptionData({ status: 'expired', daysLeft: 0 });
+                }
+              }
+            }
+            checkSubscription(savedUser.phone);
+            const tutorialDone = await SecureStore.getItemAsync(TUTORIAL_STORAGE_KEY + savedUser.phone);
+            if (tutorialDone === TUTORIAL_VERSION) {
+            } else {
+              setTimeout(function() { setTutorialActive(true); setTutorialStep(0); }, 1500);
+            }
+          }
         }
       } catch (e) {
         setShowOnboarding(true);
@@ -5034,6 +5537,109 @@ export default function App() {
       loadAllUserData();
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || userRole === 'worker') return;
+    const checkSubExpiry = async () => {
+      try {
+        const now = new Date();
+        const subData = await SecureStore.getItemAsync('subscription_' + currentUser);
+        if (subData) {
+          const parsed = JSON.parse(subData);
+          if (parsed.subscription_ends_at && now >= new Date(parsed.subscription_ends_at)) {
+            setSubscriptionData({ status: 'expired', daysLeft: 0, subscription_ends_at: parsed.subscription_ends_at });
+            return;
+          }
+        }
+        const net = await NetInfo.fetch();
+        if (!net.isConnected) return;
+        const result = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone: currentUser });
+        if (result) {
+          SecureStore.setItemAsync('subscription_' + currentUser, JSON.stringify(result)).catch(function() {});
+          setSubscriptionData(prev => {
+            if (prev && prev.status === 'expired' && result.status === 'expired') return prev;
+            return result;
+          });
+        }
+      } catch (e) {}
+    };
+    checkSubExpiry();
+    const interval = setInterval(checkSubExpiry, 15000);
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') checkSubExpiry();
+    });
+    return () => { clearInterval(interval); appStateSub.remove(); };
+  }, [currentUser, userRole]);
+
+  var tutorialRefMap = {
+    subscribersTabRef: subscribersTabRef,
+    workersTabRef: workersTabRef,
+    reportsTabRef: reportsTabRef,
+    addSubscriberBtnRef: addSubscriberBtnRef,
+    firstSubscriberCardRef: firstSubscriberCardRef,
+    payToggleRef: payToggleRef,
+    multiMonthBtnRef: multiMonthBtnRef,
+    monthSelectorRef: monthSelectorRef,
+    addWorkerBtnRef: addWorkerBtnRef,
+    workerCodeRef: workerCodeRef,
+    reportsSearchRef: reportsSearchRef,
+  };
+
+  var advanceTutorial = React.useCallback(function() {
+    var nextStep = tutorialStep + 1;
+    if (nextStep >= NEW_TUTORIAL_STEPS.length) {
+      setTutorialActive(false);
+      setTutorialStep(0);
+      setTutorialPosition(null);
+      if (currentUser) SecureStore.setItemAsync(TUTORIAL_STORAGE_KEY + currentUser, TUTORIAL_VERSION).catch(function() {});
+      return;
+    }
+    var nextData = NEW_TUTORIAL_STEPS[nextStep];
+    if (nextData.screen !== activeTab) {
+      setActiveTab(nextData.screen);
+    }
+    setTutorialStep(nextStep);
+    setTutorialPosition(null);
+  }, [tutorialStep, currentUser, activeTab]);
+
+  var skipTutorial = React.useCallback(async function() {
+    setTutorialActive(false);
+    setTutorialStep(0);
+    setTutorialPosition(null);
+    if (currentUser) SecureStore.setItemAsync(TUTORIAL_STORAGE_KEY + currentUser, TUTORIAL_VERSION).catch(function() {});
+  }, [currentUser]);
+
+  var startTutorial = React.useCallback(async function() {
+    setTutorialStep(0);
+    setTutorialPosition(null);
+    setTutorialActive(true);
+  }, []);
+
+  useEffect(function() {
+    if (!tutorialActive || !NEW_TUTORIAL_STEPS[tutorialStep]) return;
+    var stepData = NEW_TUTORIAL_STEPS[tutorialStep];
+    setTutorialPosition(null);
+    if (!stepData.targetRef) {
+      return;
+    }
+    var attempts = 0;
+    function tryMeasure() {
+      attempts++;
+      var refObj = tutorialRefMap[stepData.targetRef];
+      if (refObj && refObj.current) {
+        refObj.current.measureInWindow(function(x, y, w, h) {
+          if (w > 0 && h > 0) {
+            setTutorialPosition({ x: x, y: y, w: w, h: h });
+          } else if (attempts < 15) {
+            setTimeout(tryMeasure, 250);
+          }
+        });
+      } else if (attempts < 15) {
+        setTimeout(tryMeasure, 250);
+      }
+    }
+    setTimeout(tryMeasure, 500);
+  }, [tutorialActive, tutorialStep]);
 
   const authenticateUser = React.useCallback(async () => {
     if (isAuthenticating.current) return;
@@ -5070,6 +5676,47 @@ export default function App() {
       authenticateUser();
     }
   }, [appLocked, authenticateUser]);
+
+  const checkSubscription = React.useCallback(async (phone) => {
+    try {
+      const regTime = await SecureStore.getItemAsync('registration_' + phone);
+      const now = new Date();
+      if (regTime) {
+        const elapsed = now.getTime() - new Date(regTime).getTime();
+        if (elapsed > TRIAL_DURATION_MS) {
+          const subData = await SecureStore.getItemAsync('subscription_' + phone);
+          let hasActive = false;
+          if (subData) {
+            const parsed = JSON.parse(subData);
+            if (parsed.subscription_ends_at && now < new Date(parsed.subscription_ends_at)) hasActive = true;
+          }
+          if (!hasActive) {
+            setSubscriptionData({ status: 'expired', daysLeft: 0 });
+            return false;
+          }
+        }
+      }
+      const net = await NetInfo.fetch();
+      if (!net.isConnected) {
+        const localData = await SecureStore.getItemAsync('subscription_' + phone);
+        if (localData) {
+          setSubscriptionData(JSON.parse(localData));
+          return true;
+        }
+        setSubscriptionData({ status: 'active', daysLeft: 999 });
+        return true;
+      }
+      const result = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone });
+      if (result) {
+        SecureStore.setItemAsync('subscription_' + phone, JSON.stringify(result)).catch(function() {});
+      }
+      setSubscriptionData(result);
+      return result.status !== 'expired';
+    } catch (e) {
+      setSubscriptionData({ status: 'active', daysLeft: 999 });
+      return true;
+    }
+  }, []);
 
   const isFirstRender = React.useRef(true);
   const generatorsRef = React.useRef(generators);
@@ -5461,11 +6108,16 @@ export default function App() {
     }
   };
 
-  const handleLogin = (userPhone) => {
+  const handleLogin = async (userPhone) => {
     if (userRole === 'worker') return;
     setCurrentUser(userPhone);
     setActiveTab('home');
     setScreen('main');
+    checkSubscription(userPhone);
+    const tutorialDone = await SecureStore.getItemAsync(TUTORIAL_STORAGE_KEY + userPhone);
+    if (tutorialDone !== TUTORIAL_VERSION) {
+      setTimeout(function() { setTutorialActive(true); setTutorialStep(0); }, 1500);
+    }
   };
 
   const handleOnboardingComplete = async () => {
@@ -6320,6 +6972,9 @@ export default function App() {
       if (userRole === 'worker' && sub) {
         trackWorkerUpdate('delete', id, sub.name, sub.amper, monthKey);
       }
+      if (sub) {
+        Alert.alert('تم الحذف', `تم حذف "${sub.name}" من قائمة المشتركين`);
+      }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء حذف المشترك');
     } finally {
@@ -6502,6 +7157,69 @@ export default function App() {
     }
   };
 
+  const handleMultiMonthPayment = async (selectedMonths, totalDue, sub) => {
+    if (!sub || selectedMonths.length === 0) return;
+    const missingMonths = [];
+    for (const mk of selectedMonths) {
+      const price = getPriceForSubscriber(amperPrices, goldenPrices, mk, sub.subscriptionType);
+      if (!price || price === 0) {
+        const [m, y] = mk.split('_');
+        missingMonths.push(`${m}/${y}`);
+      }
+    }
+    if (missingMonths.length > 0) {
+      Alert.alert('خطأ', `لم يتم تحديد سعر الأمبير للأشهر: ${missingMonths.join('، ')}`);
+      return;
+    }
+    resetActivity();
+    setGlobalLoading('جاري تسجيل الدفع...');
+    try {
+      const now = new Date();
+      const hours = now.getHours();
+      const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
+      const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+      const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
+      const timestamp = `${dateStr} - ${timeStr} ${ampm}`;
+      const payerName = userRole === 'worker' ? workerName : ownerName;
+
+      let newSubs = [...subscribers];
+      for (const mk of selectedMonths) {
+        const [m, y] = mk.split('_');
+        const subIndex = newSubs.findIndex(s => s.id === sub.id);
+        if (subIndex < 0) continue;
+        const s = { ...newSubs[subIndex] };
+        const price = getPriceForSubscriber(amperPrices, goldenPrices, mk, s.subscriptionType);
+        const amperVal = getAmperForMonth(s, parseInt(m), parseInt(y));
+        const monthDue = amperVal * price;
+
+        const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
+        const monthPayments = partialPayments[mk] ? [...partialPayments[mk]] : [];
+        monthPayments.push({ amount: monthDue, timestamp, date: now.toISOString(), ownerName: payerName });
+        partialPayments[mk] = monthPayments;
+
+        const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
+        paidMonths[mk] = true;
+
+        const paymentHistory = [...(s.paymentHistory || []), {
+          monthKey: mk, action: 'paid', timestamp, date: now.toISOString(), ownerName: payerName,
+        }];
+
+        newSubs[subIndex] = { ...s, partialPayments, paidMonths, paymentHistory };
+      }
+
+      setSubscribers(newSubs);
+      if (generators.length > 0) {
+        const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
+        setGenerators(updated);
+        if (currentUser) await saveUserData(currentUser, 'generators', updated);
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء الدفع');
+    } finally {
+      setGlobalLoading('');
+    }
+  };
+
   const handleRestoreSubscriber = async (id) => {
     setGlobalLoading('جاري استرداد المشترك...');
     try {
@@ -6617,6 +7335,22 @@ export default function App() {
     );
   }
 
+  if (subscriptionData && subscriptionData.status === 'expired' && screen === 'main' && userRole !== 'worker') {
+    return (
+      <ExpiredScreen
+        ownerName={ownerName}
+        currentUser={currentUser}
+        onActivate={() => { Linking.openURL('whatsapp://send?phone=9647802524458&text=' + encodeURIComponent('مرحباً، أريد تفعيل اشتراك تطبيق مولدي')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }}
+        onLogout={handleLogout}
+        onCodeActivated={async function(subEnds) {
+          var subData = { status: 'active', subscription_ends_at: subEnds, trial_ends_at: new Date().toISOString(), created_at: new Date().toISOString() };
+          if (currentUser) await SecureStore.setItemAsync('subscription_' + currentUser, JSON.stringify(subData));
+          setSubscriptionData({ status: 'active', daysLeft: 180, subscription_ends_at: subEnds });
+        }}
+      />
+    );
+  }
+
   if (screen === 'welcome') {
     return (
       <WelcomeScreen
@@ -6632,7 +7366,7 @@ export default function App() {
       <RegisterScreen
         onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
-        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner' })); setScreen('main'); setActiveTab('home'); }}
+        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner' })); SecureStore.setItemAsync('registration_' + registeredPhone, new Date().toISOString()); setScreen('main'); setActiveTab('home'); checkSubscription(registeredPhone); setTimeout(function() { setTutorialActive(true); setTutorialStep(0); }, 2000); }}
       />
     );
   }
@@ -6809,6 +7543,9 @@ export default function App() {
           lastYear={lastSubscribersYear}
           onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
+          onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
+          onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
+          tutorialRefs={{ addSubscriberBtnRef: addSubscriberBtnRef, firstSubscriberCardRef: firstSubscriberCardRef, payToggleRef: payToggleRef, multiMonthBtnRef: multiMonthBtnRef }}
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -6968,6 +7705,9 @@ export default function App() {
           lastYear={lastSubscribersYear}
           onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
+          onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
+          onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
+          tutorialRefs={{ addSubscriberBtnRef: addSubscriberBtnRef, firstSubscriberCardRef: firstSubscriberCardRef, payToggleRef: payToggleRef, multiMonthBtnRef: multiMonthBtnRef }}
         />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
@@ -7042,7 +7782,9 @@ export default function App() {
   }
 
   return (
+    <NotificationProvider>
     <View style={styles.mainContainer}>
+      <AppNotification />
       <LoadingOverlay visible={!!globalLoading} text={globalLoading} />
 
       {monthlyDataVisible ? (
@@ -7081,6 +7823,8 @@ export default function App() {
           onShowWorkerTracking={() => { setWorkerTrackingVisible(true); setActiveTab('workers'); }}
           workers={workers}
           onDeleteWorkerExpense={handleDeleteWorkerExpense}
+          subscriptionData={subscriptionData}
+          tutorialRefs={{ monthSelectorRef: monthSelectorRef }}
         />
       )}
 
@@ -7109,6 +7853,9 @@ export default function App() {
           lastYear={lastSubscribersYear}
           onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
+          onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
+          onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
+          tutorialRefs={{ addSubscriberBtnRef: addSubscriberBtnRef, firstSubscriberCardRef: firstSubscriberCardRef, payToggleRef: payToggleRef, multiMonthBtnRef: multiMonthBtnRef }}
         />
       )}
 
@@ -7120,6 +7867,7 @@ export default function App() {
           subscribers={subscribers}
           amperPrices={amperPrices}
           goldenPrices={goldenPrices}
+          tutorialRefs={{ reportsSearchRef: reportsSearchRef }}
         />
       )}
 
@@ -7138,6 +7886,7 @@ export default function App() {
           currentUser={currentUser}
           onAddWorker={() => setAddWorkerModalVisible(true)}
           onEditWorker={() => setEditWorkerModalVisible(true)}
+          tutorialRefs={{ addWorkerBtnRef: addWorkerBtnRef, workerCodeRef: workerCodeRef }}
         />
       )}
 
@@ -7193,6 +7942,12 @@ export default function App() {
         onChangePassword={handleChangePassword}
         currentUser={currentUser}
         onChangePassVisible={() => setChangePassVisible(true)}
+        onReplayTutorial={async function() {
+          setSettingsVisible(false);
+          setActiveTab('home');
+          if (currentUser) await SecureStore.removeItemAsync(TUTORIAL_STORAGE_KEY + currentUser);
+          setTimeout(function() { setTutorialStep(0); setTutorialPosition(null); setTutorialActive(true); }, 300);
+        }}
       />
 
       {addWorkerModalVisible && (
@@ -7316,17 +8071,30 @@ export default function App() {
         </Modal>
       )}
 
-      {!monthlyDataVisible && !editWorkerModalVisible && !addWorkerModalVisible && !changePassVisible && (
+      {multiMonthPaymentVisible && (
+        <Modal visible={multiMonthPaymentVisible} animationType="slide" onRequestClose={() => setMultiMonthPaymentVisible(false)}>
+          <MultiMonthPaymentScreen
+            visible={multiMonthPaymentVisible}
+            onClose={() => setMultiMonthPaymentVisible(false)}
+            subscribers={subscribers}
+            amperPrices={amperPrices}
+            goldenPrices={goldenPrices}
+            onConfirm={handleMultiMonthPayment}
+          />
+        </Modal>
+      )}
+
+      {!monthlyDataVisible && !editWorkerModalVisible && !addWorkerModalVisible && !changePassVisible && !multiMonthPaymentVisible && (
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 6) }]}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('home')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => { setActiveTab('home'); }}>
           <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'home' ? '#2196F3' : '#999' }]}>الرئيسية</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('subscribers')}>
+        <TouchableOpacity ref={subscribersTabRef} style={styles.tabItem} onPress={() => { setActiveTab('subscribers'); }}>
           <Ionicons name={activeTab === 'subscribers' ? 'people' : 'people-outline'} size={24} color={activeTab === 'subscribers' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'subscribers' ? '#2196F3' : '#999' }]}>المشتركين</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('workers')}>
+        <TouchableOpacity ref={workersTabRef} style={styles.tabItem} onPress={() => { setActiveTab('workers'); }}>
           <Ionicons name={activeTab === 'workers' ? 'briefcase' : 'briefcase-outline'} size={24} color={activeTab === 'workers' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'workers' ? '#2196F3' : '#999' }]}>العمال</Text>
           {pendingWorkerUpdates.length > 0 && (
@@ -7335,7 +8103,7 @@ export default function App() {
             </View>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => setActiveTab('reports')}>
+        <TouchableOpacity ref={reportsTabRef} style={styles.tabItem} onPress={() => { setActiveTab('reports'); }}>
           <Ionicons name={activeTab === 'reports' ? 'bar-chart' : 'bar-chart-outline'} size={24} color={activeTab === 'reports' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'reports' ? '#2196F3' : '#999' }]}>التقارير</Text>
         </TouchableOpacity>
@@ -7349,7 +8117,20 @@ export default function App() {
         </TouchableOpacity>
       </View>
       )}
+
+      {tutorialActive && NEW_TUTORIAL_STEPS[tutorialStep] && (
+        <TutorialOverlay
+          step={NEW_TUTORIAL_STEPS[tutorialStep]}
+          stepNumber={tutorialStep + 1}
+          totalSteps={NEW_TUTORIAL_STEPS.length}
+          targetLayout={tutorialPosition}
+          onNext={advanceTutorial}
+          onSkip={skipTutorial}
+          isLastStep={tutorialStep === NEW_TUTORIAL_STEPS.length - 1}
+        />
+      )}
     </View>
+    </NotificationProvider>
   );
 }
 

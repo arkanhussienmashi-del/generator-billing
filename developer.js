@@ -5373,7 +5373,7 @@ const TutorialOverlay = ({ step, stepNumber, totalSteps, targetLayout, onNext, o
 
 export default function App() {
   const insets = useSafeAreaInsets();
-  const TRIAL_DURATION_MS = 1 * 60 * 1000;
+  const TRIAL_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
   const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -5540,23 +5540,15 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser || userRole === 'worker') return;
-    const interval = setInterval(async () => {
+    const checkSubExpiry = async () => {
       try {
-        const regTime = await SecureStore.getItemAsync('registration_' + currentUser);
         const now = new Date();
-        if (regTime) {
-          const elapsed = now.getTime() - new Date(regTime).getTime();
-          if (elapsed > TRIAL_DURATION_MS) {
-            const subData = await SecureStore.getItemAsync('subscription_' + currentUser);
-            let hasActive = false;
-            if (subData) {
-              const parsed = JSON.parse(subData);
-              if (parsed.subscription_ends_at && now < new Date(parsed.subscription_ends_at)) hasActive = true;
-            }
-            if (!hasActive) {
-              setSubscriptionData({ status: 'expired', daysLeft: 0 });
-              return;
-            }
+        const subData = await SecureStore.getItemAsync('subscription_' + currentUser);
+        if (subData) {
+          const parsed = JSON.parse(subData);
+          if (parsed.subscription_ends_at && now >= new Date(parsed.subscription_ends_at)) {
+            setSubscriptionData({ status: 'expired', daysLeft: 0, subscription_ends_at: parsed.subscription_ends_at });
+            return;
           }
         }
         const net = await NetInfo.fetch();
@@ -5570,8 +5562,13 @@ export default function App() {
           });
         }
       } catch (e) {}
-    }, 60000);
-    return () => clearInterval(interval);
+    };
+    checkSubExpiry();
+    const interval = setInterval(checkSubExpiry, 15000);
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') checkSubExpiry();
+    });
+    return () => { clearInterval(interval); appStateSub.remove(); };
   }, [currentUser, userRole]);
 
   var tutorialRefMap = {
