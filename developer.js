@@ -7896,11 +7896,11 @@ export default function App() {
           <Ionicons name={activeTab === 'home' ? 'home' : 'home-outline'} size={24} color={activeTab === 'home' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'home' ? '#2196F3' : '#999' }]}>الرئيسية</Text>
         </TouchableOpacity>
-        <TouchableOpacity ref={subscribersTabRef} style={styles.tabItem} onPress={() => { setActiveTab('subscribers'); }}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => { setActiveTab('subscribers'); }}>
           <Ionicons name={activeTab === 'subscribers' ? 'people' : 'people-outline'} size={24} color={activeTab === 'subscribers' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'subscribers' ? '#2196F3' : '#999' }]}>المشتركين</Text>
         </TouchableOpacity>
-        <TouchableOpacity ref={workersTabRef} style={styles.tabItem} onPress={() => { setActiveTab('workers'); }}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => { setActiveTab('workers'); }}>
           <Ionicons name={activeTab === 'workers' ? 'briefcase' : 'briefcase-outline'} size={24} color={activeTab === 'workers' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'workers' ? '#2196F3' : '#999' }]}>العمال</Text>
           {pendingWorkerUpdates.length > 0 && (
@@ -7909,7 +7909,7 @@ export default function App() {
             </View>
           )}
         </TouchableOpacity>
-        <TouchableOpacity ref={reportsTabRef} style={styles.tabItem} onPress={() => { setActiveTab('reports'); }}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => { setActiveTab('reports'); }}>
           <Ionicons name={activeTab === 'reports' ? 'bar-chart' : 'bar-chart-outline'} size={24} color={activeTab === 'reports' ? '#2196F3' : '#999'} />
           <Text style={[styles.tabLabel, { color: activeTab === 'reports' ? '#2196F3' : '#999' }]}>التقارير</Text>
         </TouchableOpacity>
