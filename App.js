@@ -1063,7 +1063,7 @@ const SettingsScreen = ({ visible, onClose, generatorName, onSaveGeneratorName, 
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>شروط الخدمة</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => {}}>
+                <TouchableOpacity style={[styles.settingsInput, { backgroundColor: '#D32F2F', borderWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: IS_SMALL ? 4 : 6, marginBottom: IS_SMALL ? 8 : 12 }]} onPress={() => { Linking.openURL('https://sites.google.com/view/mowledy-app/privacy-policy'); }}>
                   <Ionicons name="trash-outline" size={IS_SMALL ? 18 : 20} color="white" />
                   <Text style={{ color: 'white', fontWeight: 'bold', fontSize: IS_SMALL ? 12 : 14 }}>حذف الحساب والبيانات</Text>
                 </TouchableOpacity>
