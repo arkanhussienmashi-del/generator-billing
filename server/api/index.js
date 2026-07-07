@@ -169,10 +169,10 @@ module.exports = async function handler(req, res) {
         if (!phone) return res.status(400).json({ error: 'Missing phone' });
         const [rows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
         if (rows.length === 0) {
-          const trialEnds = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+          const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
           const subData = { status: 'trial', trial_ends_at: trialEnds, subscription_ends_at: null, created_at: new Date().toISOString() };
           await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
-          return res.status(200).json({ status: 'trial', daysLeft: 60, trial_ends_at: trialEnds, subscription_ends_at: null });
+          return res.status(200).json({ status: 'trial', daysLeft: 30, trial_ends_at: trialEnds, subscription_ends_at: null });
         }
         let val = rows[0].data_value;
         if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = {}; } }
@@ -253,21 +253,25 @@ module.exports = async function handler(req, res) {
         const { phone } = body;
         if (!phone) return res.status(400).json({ error: 'Missing phone' });
         const code = 'MWD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
-        await p.query('INSERT INTO activation_codes (code, phone) VALUES (?, ?)', [code, phone]);
+        const duration = req.body.durationDays || 180;
+        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, duration_days INTEGER DEFAULT 180, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        await p.query('ALTER TABLE activation_codes ADD COLUMN IF NOT EXISTS duration_days INTEGER DEFAULT 180').catch(function() {});
+        await p.query('INSERT INTO activation_codes (code, phone, duration_days) VALUES (?, ?, ?)', [code, phone, duration]);
         return res.status(200).json({ ok: true, code });
       }
 
       if (body._action === 'redeemActivationCode') {
         const { phone, code } = body;
         if (!phone || !code) return res.status(400).json({ error: 'Missing phone or code' });
-        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, duration_days INTEGER DEFAULT 180, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        await p.query('ALTER TABLE activation_codes ADD COLUMN IF NOT EXISTS duration_days INTEGER DEFAULT 180').catch(function() {});
         const [rows] = await p.query('SELECT * FROM activation_codes WHERE code = ? AND phone = ? AND used = 0', [code, phone]);
         if (rows.length === 0) {
           return res.status(400).json({ error: 'الكود غير صحيح أو مستخدم بالفعل' });
         }
         await p.query('UPDATE activation_codes SET used = 1 WHERE code = ?', [code]);
-        const subEnds = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+        const durationDays = rows[0].duration_days || 180;
+        const subEnds = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
         const [subRows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
         let subData;
         if (subRows.length === 0) {
@@ -277,7 +281,8 @@ module.exports = async function handler(req, res) {
           if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = {}; } }
           const now = new Date();
           const currentEnd = val.subscription_ends_at ? new Date(val.subscription_ends_at) : now;
-          const newEnd = currentEnd > now ? new Date(currentEnd.getTime() + 180 * 24 * 60 * 60 * 1000) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+          const extDays = durationDays * 24 * 60 * 60 * 1000;
+          const newEnd = currentEnd > now ? new Date(currentEnd.getTime() + extDays) : new Date(Date.now() + extDays);
           subData = { ...val, status: 'active', subscription_ends_at: newEnd.toISOString() };
         }
         await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
@@ -288,7 +293,7 @@ module.exports = async function handler(req, res) {
         if (!verifyAdminToken(body._adminToken)) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
-        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
+        await p.query('CREATE TABLE IF NOT EXISTS activation_codes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(20) NOT NULL UNIQUE, phone VARCHAR(20) NOT NULL, duration_days INTEGER DEFAULT 180, used TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)');
         const { phone } = body;
         let q = 'SELECT * FROM activation_codes ORDER BY created_at DESC LIMIT 50';
         let params = [];

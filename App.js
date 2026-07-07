@@ -447,7 +447,7 @@ const OnboardingScreen = ({ onComplete }) => {
       icon: 'card',
       iconColor: '#FFD700',
       title: 'فترة تجربة مجانية',
-      description: 'ستحصل على فترة تجربة مجانية لمدة شهرين (60 يوم) من تاريخ التسجيل. بعد انتهاء الفترة التجريبية، يشترط تفعيل الاشتراك بـ 20,000 د.ع لمدة 6 أشهر للمتابعة',
+      description: 'ستحصل على فترة تجربة مجانية لمدة شهر واحد (30 يوم) من تاريخ التسجيل. بعد انتهاء الفترة التجريبية، يشترط تفعيل الاشتراك بـ 20,000 د.ع للمتابعة',
       bg: '#1B5E20',
     },
   ];
@@ -5282,7 +5282,7 @@ const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeAct
 
 export default function App() {
   const insets = useSafeAreaInsets();
-  const TRIAL_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
+  const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
   const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
