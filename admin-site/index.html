@@ -262,9 +262,9 @@ function renderOwners(owners) {
     }
     html += '<div class="action-buttons">';
     html += '<button class="btn-edit" onclick="openEdit(' + idx + ')">تعديل</button>';
-    html += '<button onclick="generateActivationCode(\'' + esc(o.phone) + '\', 90)" style="background:#1565C0;color:#fff;margin:2px;padding:6px 10px;border:none;border-radius:6px;cursor:pointer">كود 3 أشهر</button>';
-    html += '<button onclick="generateActivationCode(\'' + esc(o.phone) + '\', 180)" style="background:#1B5E20;color:#fff;margin:2px;padding:6px 10px;border:none;border-radius:6px;cursor:pointer">كود 6 أشهر</button>';
-    html += '<button onclick="generateActivationCode(\'' + esc(o.phone) + '\', 270)" style="background:#E65100;color:#fff;margin:2px;padding:6px 10px;border:none;border-radius:6px;cursor:pointer">كود 9 أشهر</button>';
+    html += '<button onclick="generateActivationCode(\'' + esc(o.phone) + '\', 3)" style="background:#1565C0;color:#fff;margin:2px;padding:6px 10px;border:none;border-radius:6px;cursor:pointer">كود 3 دقائق</button>';
+    html += '<button onclick="generateActivationCode(\'' + esc(o.phone) + '\', 6)" style="background:#1B5E20;color:#fff;margin:2px;padding:6px 10px;border:none;border-radius:6px;cursor:pointer">كود 6 دقائق</button>';
+    html += '<button onclick="generateActivationCode(\'' + esc(o.phone) + '\', 9)" style="background:#E65100;color:#fff;margin:2px;padding:6px 10px;border:none;border-radius:6px;cursor:pointer">كود 9 دقائق</button>';
     html += '<button class="btn-delete" onclick="openDelete(' + idx + ')">حذف الحساب</button>';
     html += '</div>';
     html += '</div>';
@@ -363,8 +363,8 @@ function filterOwners() {
 
 async function generateActivationCode(phone, durationDays) {
   try {
-    var months = durationDays === 90 ? '3 أشهر' : durationDays === 270 ? '9 أشهر' : '6 أشهر';
-    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'generateActivationCode', phone: phone, durationDays: durationDays || 180, _adminToken: token }) });
+    var months = durationDays === 3 ? '3 دقائق' : durationDays === 9 ? '9 دقائق' : '6 دقائق';
+    var r = await fetch(API, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ _action: 'generateActivationCode', phone: phone, durationDays: durationDays || 6, _adminToken: token }) });
     var d = await r.json();
     if (d.ok) {
       alert('كود التفعيل (' + months + '):\n' + d.code + '\n\nأرسل هذا الكود للمستخدم.');
@@ -400,7 +400,7 @@ async function showActivationCodes(phone) {
         modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
         document.body.appendChild(modal);
       }
-      modal.innerHTML = '<div style="background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:70vh;overflow-y:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="color:#333">أكواد التفعيل</h2><button onclick="this.closest(\'#codesModal\').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999">&times;</button></div>' + codesHtml + '<div style="display:flex;gap:8px;margin-top:12px"><button onclick="generateActivationCode(\'' + esc(phone) + '\', 90)" style="flex:1;padding:12px;background:#1565C0;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">3 أشهر</button><button onclick="generateActivationCode(\'' + esc(phone) + '\', 180)" style="flex:1;padding:12px;background:#1B5E20;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">6 أشهر</button><button onclick="generateActivationCode(\'' + esc(phone) + '\', 270)" style="flex:1;padding:12px;background:#E65100;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">9 أشهر</button></div></div>';
+      modal.innerHTML = '<div style="background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:70vh;overflow-y:auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="color:#333">أكواد التفعيل</h2><button onclick="this.closest(\'#codesModal\').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999">&times;</button></div>' + codesHtml + '<div style="display:flex;gap:8px;margin-top:12px"><button onclick="generateActivationCode(\'' + esc(phone) + '\', 3)" style="flex:1;padding:12px;background:#1565C0;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">3 دقائق</button><button onclick="generateActivationCode(\'' + esc(phone) + '\', 6)" style="flex:1;padding:12px;background:#1B5E20;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">6 دقائق</button><button onclick="generateActivationCode(\'' + esc(phone) + '\', 9)" style="flex:1;padding:12px;background:#E65100;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:bold">9 دقائق</button></div></div>';
       modal.style.display = 'flex';
     }
   } catch (e) {

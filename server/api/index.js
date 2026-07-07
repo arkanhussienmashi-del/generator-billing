@@ -169,7 +169,7 @@ module.exports = async function handler(req, res) {
         if (!phone) return res.status(400).json({ error: 'Missing phone' });
         const [rows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
         if (rows.length === 0) {
-          const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          const trialEnds = new Date(Date.now() + 1 * 60 * 1000).toISOString();
           const subData = { status: 'trial', trial_ends_at: trialEnds, subscription_ends_at: null, created_at: new Date().toISOString() };
           await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [phone, 'subscription', JSON.stringify(subData)]);
           return res.status(200).json({ status: 'trial', daysLeft: 30, trial_ends_at: trialEnds, subscription_ends_at: null });
@@ -271,7 +271,7 @@ module.exports = async function handler(req, res) {
         }
         await p.query('UPDATE activation_codes SET used = 1 WHERE code = ?', [code]);
         const durationDays = rows[0].duration_days || 180;
-        const subEnds = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+        const subEnds = new Date(Date.now() + durationDays * 60 * 1000).toISOString();
         const [subRows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'subscription'", [phone]);
         let subData;
         if (subRows.length === 0) {
@@ -281,7 +281,7 @@ module.exports = async function handler(req, res) {
           if (typeof val === 'string') { try { val = JSON.parse(val); } catch (e) { val = {}; } }
           const now = new Date();
           const currentEnd = val.subscription_ends_at ? new Date(val.subscription_ends_at) : now;
-          const extDays = durationDays * 24 * 60 * 60 * 1000;
+          const extDays = durationDays * 60 * 1000;
           const newEnd = currentEnd > now ? new Date(currentEnd.getTime() + extDays) : new Date(Date.now() + extDays);
           subData = { ...val, status: 'active', subscription_ends_at: newEnd.toISOString() };
         }
