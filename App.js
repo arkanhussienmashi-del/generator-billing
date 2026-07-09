@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useContext, createContext, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useContext, createContext, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -852,7 +852,10 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
     setLoading(true);
     try {
       const result = await onLogin(code.trim(), pin.trim());
-      if (result.deleted) {
+      if (!result) return;
+      if (result.ownerExpired) {
+        Alert.alert('اشتراك منتهي', 'اشتراك صاحب المولد منتهي. يرجى التواصل مع صاحب المولد لتجديد الاشتراك.');
+      } else if (result.deleted) {
         Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
       } else if (!result.success) {
         Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
@@ -2037,7 +2040,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
                   </View>
                 )}
                 {totalExpenses > 0 && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFF3E0', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#FFEBEE', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, marginBottom: IS_SMALL ? 6 : 8 }}>
                     <Text style={{ fontSize: IS_SMALL ? 12 : 13, color: '#D32F2F', fontWeight: 'bold' }}>اجمالي الصرفيات:</Text>
                     <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#D32F2F', fontWeight: 'bold' }}>د.ع {formatNumber(totalExpenses)}</Text>
                   </View>
@@ -4987,6 +4990,8 @@ const WorkerMainScreen = ({ generatorName, onShowSubscribers, onShowReports, sub
   );
 };
 
+const _notifRef = { addNotification: function() {}, removeNotification: function() {} };
+
 const NotificationContext = createContext();
 
 const NotificationProvider = ({ children }) => {
@@ -4997,6 +5002,7 @@ const NotificationProvider = ({ children }) => {
     setTimeout(() => { setNotifications(prev => prev.filter(n => n.id !== id)); }, 4000);
   }, []);
   const removeNotification = useCallback((id) => { setNotifications(prev => prev.filter(n => n.id !== id)); }, []);
+  React.useEffect(function() { _notifRef.addNotification = addNotification; _notifRef.removeNotification = removeNotification; }, [addNotification, removeNotification]);
   return (
     <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>
       {children}
@@ -5005,16 +5011,14 @@ const NotificationProvider = ({ children }) => {
 };
 
 const useNotification = () => {
-  const { addNotification, removeNotification } = useContext(NotificationContext);
-  const showNotification = useCallback((type, title, message) => {
-    addNotification({ type, title, message });
-  }, [addNotification]);
-  return { showNotification, removeNotification };
+  return { showNotification: function(type, title, message) { _notifRef.addNotification({ type: type, title: title, message: message }); }, removeNotification: function(id) { _notifRef.removeNotification(id); } };
 };
 
 const AppNotification = () => {
-  const { notifications, removeNotification } = useContext(NotificationContext);
-  if (notifications.length === 0) return null;
+  const ctx = useContext(NotificationContext);
+  const notifications = ctx ? ctx.notifications : [];
+  const removeNotification = ctx ? ctx.removeNotification : function() {};
+  if (!notifications || notifications.length === 0) return null;
   const getIcon = (type) => {
     switch (type) {
       case 'success': return { icon: '\u2713', bg: '#1B5E20' };
@@ -5224,6 +5228,25 @@ const TrialBanner = ({ subscriptionData, onPress }) => {
   );
 };
 
+const WorkerExpiredScreen = ({ onLogout }) => {
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0A0E1A', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+      <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+      <View style={{ width: 100, height: 100, borderRadius: 24, backgroundColor: 'rgba(244,67,54,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+        <Ionicons name="lock-closed" size={50} color="#F44336" />
+      </View>
+      <Text style={{ color: '#F44336', fontSize: 24, fontWeight: 'bold', marginBottom: 10, fontFamily: 'System' }}>اشتراك منتهي</Text>
+      <Text style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 20, fontFamily: 'System' }}>اشتراك صاحب المولد قد انتهى.{'\n'}لا يمكنك استخدام التطبيق حتى يتم تجديد الاشتراك.</Text>
+      <TouchableOpacity onPress={function() { Linking.openURL('whatsapp://send?phone=9647802524458&text=' + encodeURIComponent('مرحباً، اشتراك صاحب المولد قد انتهى. أريد تجديد الاشتراك.')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }} style={{ backgroundColor: '#4CAF50', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center', marginBottom: 16 }} activeOpacity={0.8}>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>تواصل مع الدعم</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onLogout} style={{ paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
+        <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>تسجيل الخروج</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeActivated }) => {
   const [activationCode, setActivationCode] = React.useState('');
   const [activating, setActivating] = React.useState(false);
@@ -5282,7 +5305,7 @@ const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeAct
 
 export default function App() {
   const insets = useSafeAreaInsets();
-  const TRIAL_DURATION_MS = 1 * 60 * 1000;
+  const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
   const [screen, setScreen] = useState('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -5325,9 +5348,6 @@ export default function App() {
   const [lastSubscribersYear, setLastSubscribersYear] = useState(String(new Date().getFullYear()));
   const [deletedGenerators, setDeletedGenerators] = useState([]);
   const [globalLoading, setGlobalLoading] = useState('');
-  const [batchDeleteVisible, setBatchDeleteVisible] = useState(false);
-  const [batchDeletePassword, setBatchDeletePassword] = useState('');
-  const [pendingDeleteBatchId, setPendingDeleteBatchId] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [addWorkerModalVisible, setAddWorkerModalVisible] = useState(false);
   const [addWorkerName, setAddWorkerName] = useState('');
@@ -5409,6 +5429,9 @@ export default function App() {
             }
             checkSubscription(savedUser.phone);
           }
+          if (savedUser.role === 'worker') {
+            checkSubscription(savedUser.phone);
+          }
         }
       } catch (e) {
         setShowOnboarding(true);
@@ -5426,18 +5449,9 @@ export default function App() {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser || userRole === 'worker') return;
+    if (!currentUser) return;
     const checkSubExpiry = async () => {
       try {
-        const now = new Date();
-        const subData = await SecureStore.getItemAsync('subscription_' + currentUser);
-        if (subData) {
-          const parsed = JSON.parse(subData);
-          if (parsed.subscription_ends_at && now >= new Date(parsed.subscription_ends_at)) {
-            setSubscriptionData({ status: 'expired', daysLeft: 0, subscription_ends_at: parsed.subscription_ends_at });
-            return;
-          }
-        }
         const net = await NetInfo.fetch();
         if (!net.isConnected) return;
         const result = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone: currentUser });
@@ -5456,7 +5470,7 @@ export default function App() {
       if (nextState === 'active') checkSubExpiry();
     });
     return () => { clearInterval(interval); appStateSub.remove(); };
-  }, [currentUser, userRole]);
+  }, [currentUser]);
 
   const authenticateUser = React.useCallback(async () => {
     if (isAuthenticating.current) return;
@@ -5496,23 +5510,6 @@ export default function App() {
 
   const checkSubscription = React.useCallback(async (phone) => {
     try {
-      const regTime = await SecureStore.getItemAsync('registration_' + phone);
-      const now = new Date();
-      if (regTime) {
-        const elapsed = now.getTime() - new Date(regTime).getTime();
-        if (elapsed > TRIAL_DURATION_MS) {
-          const subData = await SecureStore.getItemAsync('subscription_' + phone);
-          let hasActive = false;
-          if (subData) {
-            const parsed = JSON.parse(subData);
-            if (parsed.subscription_ends_at && now < new Date(parsed.subscription_ends_at)) hasActive = true;
-          }
-          if (!hasActive) {
-            setSubscriptionData({ status: 'expired', daysLeft: 0 });
-            return false;
-          }
-        }
-      }
       const net = await NetInfo.fetch();
       if (!net.isConnected) {
         const localData = await SecureStore.getItemAsync('subscription_' + phone);
@@ -5526,9 +5523,10 @@ export default function App() {
       const result = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone });
       if (result) {
         SecureStore.setItemAsync('subscription_' + phone, JSON.stringify(result)).catch(function() {});
+        setSubscriptionData(result);
+        return result.status !== 'expired';
       }
-      setSubscriptionData(result);
-      return result.status !== 'expired';
+      return true;
     } catch (e) {
       setSubscriptionData({ status: 'active', daysLeft: 999 });
       return true;
@@ -5563,7 +5561,9 @@ export default function App() {
         return g;
       });
       setGenerators(updated);
-      saveUserData(currentUser, 'generators', updated);
+      if (userRole !== 'worker') {
+        saveUserData(currentUser, 'generators', updated);
+      }
     }, 3000);
   }, [subscribers, amperPrices, goldenPrices, monthlyExpenses]);
 
@@ -5623,19 +5623,43 @@ export default function App() {
           if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
           cloudBatches = normalizeBatches(val);
         }
+        var newCount = 0;
         setPendingWorkerUpdates(prev => {
           const prevIds = new Set(prev.map(function(b) { return b.id; }));
           var dismissed = dismissedBatchIdsRef.current;
           var newBatches = cloudBatches.filter(function(b) { return !prevIds.has(b.id) && !dismissed.has(b.id); });
-          if (newBatches.length > 0) { return [...prev, ...newBatches]; }
+          if (newBatches.length > 0) {
+            newCount = newBatches.length;
+            return [...prev, ...newBatches];
+          }
           return prev;
         });
+        if (newCount > 0) {
+          _notifRef.addNotification({ type: 'warning', title: 'تحديثات العامل', message: 'تم رفع ' + newCount + ' دفعة تحديثات من العامل. افتح تتبع العامل لمراجعتها.' });
+        }
       } catch(e) {}
     }, 30000);
     return () => clearInterval(pollInterval);
   }, [currentUser, userRole]);
 
+  const refreshPendingUpdates = React.useCallback(async function() {
+    if (!currentUser || userRole === 'worker') return;
+    try {
+      var result = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(currentUser) + '&key=pending_worker_updates');
+      var cloudBatches = [];
+      if (Array.isArray(result) && result.length > 0) {
+        var val = result[0].data_value;
+        if (typeof val === 'string') { try { val = JSON.parse(val); } catch(e) {} }
+        cloudBatches = normalizeBatches(val);
+      }
+      var dismissed = dismissedBatchIdsRef.current;
+      setPendingWorkerUpdates(cloudBatches.filter(function(b) { return !dismissed.has(b.id); }));
+    } catch(e) {}
+  }, [currentUser, userRole]);
+
   const workerSyncRef = React.useRef({ generators: generators, currentGeneratorId: currentGeneratorId });
+  const seenRejectedIdsRef = React.useRef(new Set());
+  const firstPollDoneRef = React.useRef(false);
   useEffect(() => {
     workerSyncRef.current = { generators, currentGeneratorId };
   }, [generators, currentGeneratorId]);
@@ -5645,7 +5669,7 @@ export default function App() {
     const pollInterval = setInterval(async () => {
       try {
         var all = {};
-        const keys = ['generators', 'workers'];
+        const keys = ['generators', 'workers', 'worker_activity_log'];
         for (var ki = 0; ki < keys.length; ki++) {
           try {
             var r = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(workerOwnerPhone) + '&key=' + keys[ki]);
@@ -5655,6 +5679,19 @@ export default function App() {
               all[keys[ki]] = v;
             }
           } catch(e) {}
+        }
+        if (all.worker_activity_log && Array.isArray(all.worker_activity_log)) {
+          var rejectedBatches = all.worker_activity_log.filter(function(b) { return b.status === 'rejected'; });
+          if (!firstPollDoneRef.current) {
+            rejectedBatches.forEach(function(b) { if (b.id) seenRejectedIdsRef.current.add(b.id); });
+            firstPollDoneRef.current = true;
+          } else {
+            var newRejections = rejectedBatches.filter(function(b) { return b.id && !seenRejectedIdsRef.current.has(b.id); });
+            if (newRejections.length > 0) {
+              newRejections.forEach(function(b) { seenRejectedIdsRef.current.add(b.id); });
+              Alert.alert('تم رفض تحديث', 'تم رفض تحديثاتك من قبل صاحب المولد (' + newRejections.length + ' تحديث)');
+            }
+          }
         }
         const ownerWorkers = all.workers || [];
         if (ownerWorkers.length > 0) {
@@ -5725,7 +5762,7 @@ export default function App() {
       var user = usersList.find(function(u) { return u.phone === currentUser; });
       if (user && user.ownerName && user.ownerName.trim()) setOwnerName(user.ownerName.trim());
     }
-    if (all.pending_worker_updates !== undefined) setPendingWorkerUpdates(normalizeBatches(all.pending_worker_updates));
+    if (all.pending_worker_updates !== undefined) { const batches = normalizeBatches(all.pending_worker_updates); setPendingWorkerUpdates(batches); if (batches.length > 0) { setTimeout(function() { _notifRef.addNotification({ type: 'warning', title: 'تحديثات العامل', message: 'لديك ' + batches.length + ' دفعة تحديثات من العامل بانتظار المراجعة.' }); }, 1500); } }
     if (all.worker_activity_log !== undefined) setWorkerActivityLog(all.worker_activity_log);
     if (all.workers !== undefined) setWorkers(all.workers);
     if (all.darkMode !== undefined) setDarkMode(all.darkMode);
@@ -6092,8 +6129,12 @@ export default function App() {
       await saveUserData(workerOwnerPhone, 'worker_activity_log', [...existingLog, logBatch]);
       await syncPendingChanges(workerOwnerPhone);
       if (result !== undefined) {
+        const updatesToSend = [...workerUpdates];
         setWorkerUpdates([]);
         Alert.alert('تم', 'تم رفع التحديثات بنجاح');
+        setTimeout(function() {
+          workerReport.promptSendWorkerReport(updatesToSend, subscribers, amperPrices, goldenPrices, getAmperForMonth, getPriceForSubscriber, formatNumber, workerOwnerPhone, generatorName, workerName);
+        }, 500);
       } else {
         Alert.alert('خطأ', 'فشل رفع التحديثات');
       }
@@ -6280,7 +6321,7 @@ export default function App() {
 
     setSubscribers(newSubs);
     if (!isDifferentGen) { setWorkerExpenses(newWorkerExpenses); workerExpensesRef.current = newWorkerExpenses; }
-    const remainingBatches = pendingWorkerUpdates.filter(b => b.id !== batchId);
+    var remainingBatches = pendingWorkerUpdates.filter(b => b.id !== batchId);
     const existingLog = await loadUserData(currentUser, 'worker_activity_log') || [];
     const updatedLog = existingLog.map(b => b.id === batchId ? { ...b, status: 'applied' } : b);
     await saveUserData(currentUser, 'worker_activity_log', updatedLog);
@@ -6297,6 +6338,16 @@ export default function App() {
         if (currentGen) { setSubscribers(currentGen.subscribers || []); setWorkerExpenses(currentGen.workerExpenses || {}); }
       }
       await saveUserData(currentUser, 'generators', updated);
+      try {
+        var cloudResult2 = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(currentUser) + '&key=pending_worker_updates');
+        var cloudBatches2 = [];
+        if (Array.isArray(cloudResult2) && cloudResult2.length > 0) {
+          var cv2 = cloudResult2[0].data_value;
+          if (typeof cv2 === 'string') { try { cv2 = JSON.parse(cv2); } catch(pe2) {} }
+          cloudBatches2 = normalizeBatches(cv2);
+        }
+        remainingBatches = cloudBatches2.filter(function(b) { return b.id !== batchId; });
+      } catch(fetchErr2) {}
       await saveUserData(currentUser, 'pending_worker_updates', remainingBatches);
       await syncPendingChanges(currentUser);
     } else {
@@ -6309,36 +6360,7 @@ export default function App() {
     setUpdatesModalVisible(false);
     setGlobalLoading('');
 
-    workerReport.promptSendWorkerReport(batch, newSubs, amperPrices, goldenPrices, getAmperForMonth, getPriceForSubscriber, formatNumber, currentUser);
-  };
-
-  const requestDeleteBatch = (batchId) => {
-    setPendingDeleteBatchId(batchId);
-    setBatchDeletePassword('');
-    setBatchDeleteVisible(true);
-  };
-
-  const confirmDeleteBatch = async () => {
-    if (!batchDeletePassword.trim()) {
-      Alert.alert('تنبيه', 'أدخل رمز البرنامج');
-      return;
-    }
-    try {
-      const usersResult = await loadFromFile('registered_users');
-      const usersList = usersResult || [];
-      const user = usersList.find(function(u) { return u.phone === currentUser; });
-      if (!user) { Alert.alert('خطأ', 'حدث خطأ'); return; }
-      const verifyResult = await verifyOwnerPassword(user.password, batchDeletePassword.trim(), currentUser);
-      if (verifyResult.match) {
-        setBatchDeleteVisible(false);
-        setBatchDeletePassword('');
-        await handleDeleteBatch(pendingDeleteBatchId);
-      } else {
-        Alert.alert('خطأ', 'الرمز غير صحيح');
-      }
-    } catch (e) {
-      Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
-    }
+    refreshPendingUpdates();
   };
 
   const handleDeleteBatch = async (batchId) => {
@@ -6347,15 +6369,27 @@ export default function App() {
       const remaining = pendingWorkerUpdates.filter(b => b.id !== batchId);
       setPendingWorkerUpdates(remaining);
       dismissedBatchIdsRef.current.add(batchId);
-      await saveUserData(currentUser, 'pending_worker_updates', remaining);
+      try {
+        var cloudResult = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(currentUser) + '&key=pending_worker_updates');
+        var cloudBatches = [];
+        if (Array.isArray(cloudResult) && cloudResult.length > 0) {
+          var cv = cloudResult[0].data_value;
+          if (typeof cv === 'string') { try { cv = JSON.parse(cv); } catch(pe) {} }
+          cloudBatches = normalizeBatches(cv);
+        }
+        var cloudRemaining = cloudBatches.filter(function(b) { return b.id !== batchId; });
+        await saveUserData(currentUser, 'pending_worker_updates', cloudRemaining);
+      } catch(fetchErr) {
+        await saveUserData(currentUser, 'pending_worker_updates', remaining);
+      }
       if (batch) {
         const now = new Date();
         const hours = now.getHours();
         const ampm = hours >= 12 ? 'مساءً' : 'صباحاً';
         const dateStr = now.toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
         const timeStr = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '');
-        const rejectedTimestamp = now.toISOString();
-        const rejectedDate = dateStr + ' - ' + timeStr + ' ' + ampm;
+        const rejectedTimestamp = dateStr + ' - ' + timeStr + ' ' + ampm;
+        const rejectedDate = now.toISOString();
         const targetGenId = batch.generatorId || currentGeneratorId;
         const isDifferentGen = targetGenId && targetGenId !== currentGeneratorId;
         const targetGen = isDifferentGen ? generators.find(function(g) { return g.id === targetGenId; }) : null;
@@ -6449,6 +6483,22 @@ export default function App() {
               }
               break;
             }
+            case 'edit': {
+              var subIdx = newSubs.findIndex(function(s) { return s.id === update.subscriberId; });
+              if (subIdx >= 0 && update.details) {
+                var sub = Object.assign({}, newSubs[subIdx]);
+                if (update.details.oldName !== undefined) sub.name = update.details.oldName;
+                if (update.details.oldPhone !== undefined) sub.phone = update.details.oldPhone;
+                if (update.details.oldAmper !== undefined) sub.amper = update.details.oldAmper;
+                if (update.details.oldSubscriberNumber !== undefined) sub.subscriberNumber = update.details.oldSubscriberNumber;
+                if (update.details.oldMeterNumber !== undefined) sub.meterNumber = update.details.oldMeterNumber;
+                if (update.details.oldVisaNumber !== undefined) sub.visaNumber = update.details.oldVisaNumber;
+                if (update.details.oldSubscriptionType !== undefined) sub.subscriptionType = update.details.oldSubscriptionType;
+                if (update.details.oldAmperHistory !== undefined) sub.amperHistory = update.details.oldAmperHistory;
+                newSubs[subIdx] = sub;
+              }
+              break;
+            }
           }
         }
         if (!isDifferentGen) {
@@ -6477,6 +6527,7 @@ export default function App() {
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء رفض التحديث');
     }
+    refreshPendingUpdates();
   };
 
   const normalizeBatches = (data) => {
@@ -6664,6 +6715,7 @@ export default function App() {
         if (list.length > 0) saveLocalCache('app_registered_users', list);
       }
     }
+    var upperCode = code.toUpperCase();
     for (const user of list) {
       var workers = await loadUserData(user.phone, 'workers');
       if (!workers || workers.length === 0) {
@@ -6675,24 +6727,28 @@ export default function App() {
           if (workers.length > 0) saveLocalCache('user_' + user.phone + '_workers', workers);
         }
       }
-      var deletedWorkers = await loadUserData(user.phone, 'deletedWorkers') || [];
-      if ((!deletedWorkers || deletedWorkers.length === 0) && user.phone) {
-        var cloudDel = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(user.phone) + '&key=deletedWorkers').catch(function() { return null; });
-        if (Array.isArray(cloudDel) && cloudDel.length > 0) {
-          var dVal = cloudDel[0].data_value;
-          if (typeof dVal === 'string') { try { dVal = JSON.parse(dVal); } catch(e) {} }
-          deletedWorkers = Array.isArray(dVal) ? dVal : [];
-          if (deletedWorkers.length > 0) saveLocalCache('user_' + user.phone + '_deletedWorkers', deletedWorkers);
+      if (workers && workers.length > 0 && workers.some(function(w) { return w.code === upperCode; })) {
+        var deletedWorkers = await loadUserData(user.phone, 'deletedWorkers') || [];
+        if ((!deletedWorkers || deletedWorkers.length === 0) && user.phone) {
+          var cloudDel = await apiRequest('GET', '/api?table=user_data&phone=' + encodeURIComponent(user.phone) + '&key=deletedWorkers').catch(function() { return null; });
+          if (Array.isArray(cloudDel) && cloudDel.length > 0) {
+            var dVal = cloudDel[0].data_value;
+            if (typeof dVal === 'string') { try { dVal = JSON.parse(dVal); } catch(e) {} }
+            deletedWorkers = Array.isArray(dVal) ? dVal : [];
+            if (deletedWorkers.length > 0) saveLocalCache('user_' + user.phone + '_deletedWorkers', deletedWorkers);
+          }
         }
-      }
-      if (deletedWorkers.find(d => d.code === code.toUpperCase())) {
-        return { success: false, deleted: true };
-      }
-      if (workers) {
+        if (deletedWorkers.find(function(d) { return d.code === upperCode; })) {
+          return { success: false, deleted: true };
+        }
         for (const w of workers) {
-          if (w.code !== code.toUpperCase()) continue;
+          if (w.code !== upperCode) continue;
           const pinMatch = await verifyWorkerPin(w.pin, pin);
           if (!pinMatch) continue;
+          var subCheck = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone: user.phone }).catch(function() { return null; });
+          if (subCheck && subCheck.status === 'expired') {
+            return { success: false, ownerExpired: true };
+          }
           return { success: true, ownerPhone: user.phone, permissions: w.permissions || [], assignedGeneratorId: w.assignedGeneratorId || null, assignedGenerators: w.assignedGenerators || [], savedName: w.workerName || '' };
         }
       }
@@ -6726,6 +6782,14 @@ export default function App() {
             meterNumber: subscriber.meterNumber,
             visaNumber: subscriber.visaNumber,
             subscriptionType: subscriber.subscriptionType || 'normal',
+            oldName: existing.name,
+            oldPhone: existing.phone,
+            oldAmper: existing.amper,
+            oldSubscriberNumber: existing.subscriberNumber,
+            oldMeterNumber: existing.meterNumber,
+            oldVisaNumber: existing.visaNumber,
+            oldSubscriptionType: existing.subscriptionType || 'normal',
+            oldAmperHistory: existing.amperHistory || [],
           });
         }
       } else {
@@ -6845,15 +6909,13 @@ export default function App() {
           const paidMonths = s.paidMonths ? { ...s.paidMonths } : {};
           paidMonths[monthKey] = !isCurrentlyPaid ? amount : false;
           const paymentHistory = s.paymentHistory ? [...s.paymentHistory] : [];
-          if (userRole !== 'worker') {
-            paymentHistory.push({
-              monthKey,
-              action: isCurrentlyPaid ? 'cancelled' : 'paid',
-              timestamp,
-              date: now.toISOString(),
-              ownerName: ownerName,
-            });
-          }
+          paymentHistory.push({
+            monthKey,
+            action: isCurrentlyPaid ? 'cancelled' : 'paid',
+            timestamp,
+            date: now.toISOString(),
+            ownerName: userRole === 'worker' ? workerName : ownerName,
+          });
           const partialPayments = s.partialPayments ? { ...s.partialPayments } : {};
           if (isCurrentlyPaid) {
             delete partialPayments[monthKey];
@@ -7022,10 +7084,21 @@ export default function App() {
       }
 
       setSubscribers(newSubs);
-      if (generators.length > 0) {
-        const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
-        setGenerators(updated);
-        if (currentUser) await saveUserData(currentUser, 'generators', updated);
+      if (userRole !== 'worker') {
+        if (generators.length > 0) {
+          const updated = generators.map(g => g.id === currentGeneratorId ? { ...g, subscribers: newSubs } : g);
+          setGenerators(updated);
+          if (currentUser) await saveUserData(currentUser, 'generators', updated);
+        }
+      }
+      if (userRole === 'worker' && sub) {
+        for (const mk of selectedMonths) {
+          const [m, y] = mk.split('_');
+          const price = getPriceForSubscriber(amperPrices, goldenPrices, mk, sub.subscriptionType);
+          const amperVal = getAmperForMonth(sub, parseInt(m), parseInt(y));
+          const monthDue = amperVal * price;
+          trackWorkerUpdate('paid', sub.id, sub.name, sub.amper, mk, { amount: monthDue });
+        }
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء الدفع');
@@ -7087,7 +7160,7 @@ export default function App() {
       setSubscribers(newSubs);
       if (currentUser && userRole !== 'worker') { await saveUserData(currentUser, 'subscribers', newSubs); await syncSubscribersToGenerator(newSubs); }
       if (userRole === 'worker' && sub) {
-        trackWorkerUpdate('edit', id, sub.name, newAmper, monthKey, { amper: newAmper });
+        trackWorkerUpdate('edit', id, sub.name, newAmper, monthKey, { amper: newAmper, oldAmper: sub.amper, oldAmperHistory: sub.amperHistory || [] });
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تغيير الأمبير');
@@ -7165,6 +7238,12 @@ export default function App() {
     );
   }
 
+  if (subscriptionData && subscriptionData.status === 'expired' && userRole === 'worker' && (screen === 'main' || screen === 'workerMain')) {
+    return (
+      <WorkerExpiredScreen onLogout={handleLogout} />
+    );
+  }
+
   if (screen === 'welcome') {
     return (
       <WelcomeScreen
@@ -7207,6 +7286,10 @@ export default function App() {
             return;
           }
           const result = await handleWorkerLogin(code, pin);
+          if (result.ownerExpired) {
+            Alert.alert('اشتراك منتهي', 'اشتراك صاحب المولد منتهي. يرجى التواصل مع صاحب المولد لتجديد الاشتراك.');
+            return;
+          }
           if (result.success) {
             setWorkerOwnerPhone(result.ownerPhone);
             setUserRole('worker');
@@ -7246,6 +7329,7 @@ export default function App() {
               setMonthlyExpenses(targetGen.monthlyExpenses || {});
             }
             setScreen('workerMain');
+            checkSubscription(result.ownerPhone);
           }
           return result;
         }}
@@ -7336,31 +7420,6 @@ export default function App() {
             </ScrollView>
           </View>
         )}
-        <SubscribersScreen
-          visible={subscribersVisible}
-          onClose={() => setSubscribersVisible(false)}
-          subscribers={subscribers}
-          onSaveSubscriber={handleAddSubscriber}
-          onDeleteSubscriber={handleDeleteSubscriber}
-          onTogglePaid={handleTogglePaid}
-          onPartialPayment={handlePartialPayment}
-          onRestoreSubscriber={handleRestoreSubscriber}
-          onChangeAmper={handleChangeAmper}
-          amperPrices={amperPrices}
-          onSaveAmperPrice={saveAmperPrice}
-          currentUser={currentUser}
-          ownerName={ownerName}
-          userRole={userRole}
-          workerPermissions={workerPermissions}
-          darkMode={darkMode}
-          lastMonth={lastSubscribersMonth}
-          lastYear={lastSubscribersYear}
-          onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
-          onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
-          onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
-          onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
-
-        />
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
@@ -7412,6 +7471,35 @@ export default function App() {
             </View>
           </View>
         </Modal>
+        {subscribersVisible && (
+        <SubscribersScreen
+          fullScreen
+          visible={true}
+          onClose={() => setSubscribersVisible(false)}
+          subscribers={subscribers}
+          onSaveSubscriber={handleAddSubscriber}
+          onDeleteSubscriber={handleDeleteSubscriber}
+          onTogglePaid={handleTogglePaid}
+          onPartialPayment={handlePartialPayment}
+          onRestoreSubscriber={handleRestoreSubscriber}
+          onChangeAmper={handleChangeAmper}
+          amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          onSaveGoldenPrice={saveGoldenPrice}
+          onSaveAmperPrice={saveAmperPrice}
+          currentUser={currentUser}
+          ownerName={ownerName}
+          userRole={userRole}
+          workerPermissions={workerPermissions}
+          darkMode={darkMode}
+          lastMonth={lastSubscribersMonth}
+          lastYear={lastSubscribersYear}
+          onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
+          onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
+          onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
+          onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
+        />
+        )}
       </View>
     );
   }
@@ -7498,8 +7586,10 @@ export default function App() {
             </ScrollView>
           </View>
         )}
+        {subscribersVisible && (
         <SubscribersScreen
-          visible={subscribersVisible}
+          fullScreen
+          visible={true}
           onClose={() => setSubscribersVisible(false)}
           subscribers={subscribers}
           onSaveSubscriber={handleAddSubscriber}
@@ -7509,6 +7599,8 @@ export default function App() {
           onRestoreSubscriber={handleRestoreSubscriber}
           onChangeAmper={handleChangeAmper}
           amperPrices={amperPrices}
+          goldenPrices={goldenPrices}
+          onSaveGoldenPrice={saveGoldenPrice}
           onSaveAmperPrice={saveAmperPrice}
           currentUser={currentUser}
           ownerName={ownerName}
@@ -7523,6 +7615,7 @@ export default function App() {
           onOpenMultiMonthPayment={() => { setSubscribersVisible(false); setActiveTab('home'); setMultiMonthPaymentVisible(true); }}
 
         />
+        )}
         <Modal visible={workerSwitchGeneratorVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: 16, padding: 24, width: MODAL_WIDTH, maxHeight: '70%' }}>
@@ -7695,7 +7788,7 @@ export default function App() {
           amperPrices={amperPrices}
           pendingWorkerUpdates={pendingWorkerUpdates}
           onApplyBatch={handleApplyBatch}
-          onDeleteBatch={requestDeleteBatch}
+          onDeleteBatch={handleDeleteBatch}
           rejectedBatches={workerActivityLog.filter(b => b.status === 'rejected')}
           currentUser={currentUser}
           onAddWorker={() => setAddWorkerModalVisible(true)}
@@ -7837,47 +7930,6 @@ export default function App() {
       )}
 
       </>)}
-
-      {batchDeleteVisible && (
-        <Modal visible={batchDeleteVisible} transparent animationType="fade">
-          <View style={styles.subscribersOverlay}>
-            <View style={styles.subscribersContainer}>
-              <View style={styles.subscribersHeader}>
-                <Text style={styles.subscribersTitle}>تأكيد الحذف</Text>
-                <TouchableOpacity onPress={() => { setBatchDeleteVisible(false); setBatchDeletePassword(''); }}>
-                  <Ionicons name="close" size={28} color="#333" />
-                </TouchableOpacity>
-              </View>
-              <View style={{ padding: IS_SMALL ? 14 : 20 }}>
-                <Text style={{ fontSize: IS_SMALL ? 13 : 14, color: '#666', marginBottom: IS_SMALL ? 10 : 14, textAlign: 'center' }}>أدخل رمز البرنامج للتأكيد</Text>
-                <TextInput
-                  style={[styles.input, { textAlign: 'center', marginBottom: IS_SMALL ? 12 : 16 }]}
-                  placeholder="رمز البرنامج"
-                  value={batchDeletePassword}
-                  onChangeText={setBatchDeletePassword}
-                  secureTextEntry
-                  keyboardType="default"
-                  allowFontScaling={false}
-                />
-                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
-                  <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: '#F44336', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
-                    onPress={confirmDeleteBatch}
-                  >
-                    <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>تأكيد الحذف</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: '#eee', borderRadius: IS_SMALL ? 8 : 12, paddingVertical: IS_SMALL ? 10 : 14, alignItems: 'center' }}
-                    onPress={() => { setBatchDeleteVisible(false); setBatchDeletePassword(''); }}
-                  >
-                    <Text style={{ color: '#666', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>إلغاء</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
 
       {multiMonthPaymentVisible && (
         <Modal visible={multiMonthPaymentVisible} animationType="slide" onRequestClose={() => setMultiMonthPaymentVisible(false)}>
