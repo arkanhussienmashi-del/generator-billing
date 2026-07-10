@@ -714,6 +714,19 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
   const [lockUntil, setLockUntil] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      const savedAttempts = await SecureStore.getItemAsync('owner_login_attempts');
+      const savedLock = await SecureStore.getItemAsync('owner_lock_until');
+      if (savedAttempts) setLoginAttempts(parseInt(savedAttempts));
+      if (savedLock) {
+        const lockTime = parseInt(savedLock);
+        if (Date.now() < lockTime) setLockUntil(lockTime);
+        else { await SecureStore.deleteItemAsync('owner_lock_until'); await SecureStore.deleteItemAsync('owner_login_attempts'); }
+      }
+    })();
+  }, []);
+
   const handleLogin = async () => {
     const phoneError = validatePhone(phone);
     if (phoneError) {
@@ -762,9 +775,13 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
       if (!verifyResult.match) {
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
+        await SecureStore.setItemAsync('owner_login_attempts', String(newAttempts));
         if (newAttempts >= 5) {
-          setLockUntil(Date.now() + 15 * 60 * 1000);
+          const lockEnd = Date.now() + 15 * 60 * 1000;
+          setLockUntil(lockEnd);
           setLoginAttempts(0);
+          await SecureStore.setItemAsync('owner_lock_until', String(lockEnd));
+          await SecureStore.setItemAsync('owner_login_attempts', '0');
           Alert.alert('تنبيه', 'تم حظر الحساب لمدة 15 دقيقة بسبب محاولات كثيرة');
         } else {
           Alert.alert('تنبيه', `رقم الهاتف أو كلمة المرور غير صحيحة (${newAttempts}/5)`);
@@ -774,6 +791,8 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
 
       setLoginAttempts(0);
       setLockUntil(null);
+      await SecureStore.deleteItemAsync('owner_login_attempts');
+      await SecureStore.deleteItemAsync('owner_lock_until');
       await SecureStore.setItemAsync('current_user', JSON.stringify({ phone: phone.trim(), role: 'owner' }));
       onLogin(phone.trim());
     } catch (e) {
@@ -853,6 +872,19 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState(null);
 
+  useEffect(() => {
+    (async () => {
+      const savedAttempts = await SecureStore.getItemAsync('worker_login_attempts');
+      const savedLock = await SecureStore.getItemAsync('worker_lock_until');
+      if (savedAttempts) setLoginAttempts(parseInt(savedAttempts));
+      if (savedLock) {
+        const lockTime = parseInt(savedLock);
+        if (Date.now() < lockTime) setLockUntil(lockTime);
+        else { await SecureStore.deleteItemAsync('worker_lock_until'); await SecureStore.deleteItemAsync('worker_login_attempts'); }
+      }
+    })();
+  }, []);
+
   const handleLogin = async () => {
     if (lockUntil && Date.now() < lockUntil) {
       const remaining = Math.ceil((lockUntil - Date.now()) / 60000);
@@ -877,14 +909,19 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
           const lockEnd = Date.now() + 15 * 60 * 1000;
           setLockUntil(lockEnd);
           setLoginAttempts(0);
+          await SecureStore.setItemAsync('worker_lock_until', String(lockEnd));
+          await SecureStore.setItemAsync('worker_login_attempts', '0');
           Alert.alert('تم الحظر', 'تم حظر تسجيل الدخول لمدة 15 دقيقة بسبب المحاولات الفاشلة المتكررة');
         } else {
           setLoginAttempts(newAttempts);
+          await SecureStore.setItemAsync('worker_login_attempts', String(newAttempts));
           Alert.alert('تنبيه', `الكود أو الرمز السري غير صحيح. متبقي ${5 - newAttempts} محاولة`);
         }
       } else {
         setLoginAttempts(0);
         setLockUntil(null);
+        await SecureStore.deleteItemAsync('worker_login_attempts');
+        await SecureStore.deleteItemAsync('worker_lock_until');
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
