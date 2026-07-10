@@ -26,6 +26,7 @@ const IS_SMALL = SCREEN_WIDTH < 360;
 const MODAL_WIDTH = IS_TABLET ? Math.min(500, SCREEN_WIDTH * 0.7) : Math.min(SCREEN_WIDTH * 0.9, 420);
 const SCALE = SCREEN_WIDTH / 375;
 import { Ionicons } from '@expo/vector-icons';
+import { WhatsAppSupportButton } from './src/features/whatsapp-support';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import * as XLSX from 'xlsx';
@@ -535,6 +536,8 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
           <Ionicons name="person-outline" size={IS_SMALL ? 16 : IS_TABLET ? 24 : 20} color="white" style={{ marginLeft: IS_SMALL ? 6 : IS_TABLET ? 10 : 8 }} />
           <Text style={styles.welcomeRegisterText}>دخول العامل</Text>
         </TouchableOpacity>
+
+        <WhatsAppSupportButton />
       </View>
     </View>
   );
@@ -654,7 +657,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               placeholderTextColor="#999"
               value={ownerName}
               onChangeText={setOwnerName}
-              maxLength={50}
+              maxLength={25}
             />
           </View>
 
@@ -695,6 +698,8 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
           <TouchableOpacity onPress={onBack}>
             <Text style={styles.linkText}>لديك حساب بالفعل؟ تسجيل الدخول</Text>
           </TouchableOpacity>
+
+          <WhatsAppSupportButton />
         </View>
       </ScrollView>
     </View>
@@ -833,6 +838,8 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
           <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: IS_SMALL ? 10 : IS_TABLET ? 20 : 15 }}>
             <Text style={[styles.linkText, { color: '#FF9800' }]}>دخول العامل</Text>
           </TouchableOpacity>
+
+          <WhatsAppSupportButton />
         </View>
       </View>
     </View>
@@ -843,8 +850,15 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockUntil, setLockUntil] = useState(null);
 
   const handleLogin = async () => {
+    if (lockUntil && Date.now() < lockUntil) {
+      const remaining = Math.ceil((lockUntil - Date.now()) / 60000);
+      Alert.alert('تم الحظر', `تم حظر تسجيل الدخول. يرجى الانتظار ${remaining} دقيقة`);
+      return;
+    }
     if (!code.trim() || !pin.trim()) {
       Alert.alert('تنبيه', 'يرجى إدخال الكود والرمز السري');
       return;
@@ -858,7 +872,19 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
       } else if (result.deleted) {
         Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
       } else if (!result.success) {
-        Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
+        const newAttempts = loginAttempts + 1;
+        if (newAttempts >= 5) {
+          const lockEnd = Date.now() + 15 * 60 * 1000;
+          setLockUntil(lockEnd);
+          setLoginAttempts(0);
+          Alert.alert('تم الحظر', 'تم حظر تسجيل الدخول لمدة 15 دقيقة بسبب المحاولات الفاشلة المتكررة');
+        } else {
+          setLoginAttempts(newAttempts);
+          Alert.alert('تنبيه', `الكود أو الرمز السري غير صحيح. متبقي ${5 - newAttempts} محاولة`);
+        }
+      } else {
+        setLoginAttempts(0);
+        setLockUntil(null);
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
@@ -911,6 +937,8 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
           <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
             <Text style={styles.loginButtonText}>دخول</Text>
           </TouchableOpacity>
+
+          <WhatsAppSupportButton />
         </View>
       </View>
     </View>
