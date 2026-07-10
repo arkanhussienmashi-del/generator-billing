@@ -44,7 +44,17 @@ TextInput.defaultProps = { ...(TextInput.defaultProps || {}), allowFontScaling: 
 
 const API_URL = 'https://server-ten-wheat.vercel.app';
 
+const _apiRateLimit = { requests: [], maxRequests: 30, windowMs: 60000 };
+function checkApiRateLimit() {
+  var now = Date.now();
+  _apiRateLimit.requests = _apiRateLimit.requests.filter(function(t) { return now - t < _apiRateLimit.windowMs; });
+  if (_apiRateLimit.requests.length >= _apiRateLimit.maxRequests) return false;
+  _apiRateLimit.requests.push(now);
+  return true;
+}
+
 async function apiRequest(method, path, body) {
+  if (!checkApiRateLimit()) { return null; }
   try {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== undefined) opts.body = JSON.stringify(body);
@@ -60,7 +70,9 @@ async function apiRequest(method, path, body) {
 
 async function saveToFile(filename, data) {
   await saveLocalCache('app_' + filename, data);
-  apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data }).catch(function() {});
+  apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data }).then(function(res) {
+    if (!res) { console.warn('Cloud save failed for: ' + filename); }
+  }).catch(function() { console.warn('Cloud save error for: ' + filename); });
   return { ok: true };
 }
 
@@ -164,17 +176,21 @@ async function ensureCacheDir() {
   } catch (e) {}
 }
 
+function sanitizeFilename(filename) {
+  return filename.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\./g, '_').substring(0, 100);
+}
+
 async function saveLocalCache(filename, data) {
   try {
     await ensureCacheDir();
-    const path = CACHE_DIR + filename.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+    const path = CACHE_DIR + sanitizeFilename(filename) + '.json';
     await FileSystem.writeAsStringAsync(path, JSON.stringify(data));
   } catch (e) {}
 }
 
 async function loadLocalCache(filename) {
   try {
-    const path = CACHE_DIR + filename.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+    const path = CACHE_DIR + sanitizeFilename(filename) + '.json';
     const info = await FileSystem.getInfoAsync(path);
     if (!info.exists) return null;
     const raw = await FileSystem.readAsStringAsync(path);
@@ -269,14 +285,15 @@ function onlyDigits(text) {
 }
 
 async function hashPassword(password, salt) {
-  const saltedPassword = (salt || 'genBilling') + password.trim();
+  var actualSalt = salt || generateSalt();
+  var saltedPassword = actualSalt + ':' + password.trim() + ':genBillingApp';
   return await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     saltedPassword
   );
 }
 
-const PBKDF2_ITERATIONS = 10;
+const PBKDF2_ITERATIONS = 1000;
 async function pbkdf2Hash(password, salt) {
   let hash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
@@ -348,9 +365,23 @@ async function verifyOwnerPassword(stored, password, phone) {
 }
 
 function getSecureRandom(max) {
-  const arr = new Uint8Array(1);
+  var arr = new Uint8Array(2);
   Crypto.getRandomValues(arr);
-  return arr[0] % max;
+  var val = (arr[0] * 256 + arr[1]) % max;
+  return val;
+}
+
+function validateInput(str, type) {
+  if (typeof str !== 'string') return false;
+  var trimmed = str.trim();
+  if (trimmed.length === 0) return false;
+  if (type === 'phone') return /^\d{11}$/.test(trimmed) && trimmed.startsWith('07');
+  if (type === 'code') return /^[a-zA-Z0-9]{6,20}$/.test(trimmed);
+  if (type === 'name') return trimmed.length >= 1 && trimmed.length <= 25 && /^[\u0600-\u06FF\s\w]+$/.test(trimmed);
+  if (type === 'amper') return /^\d+(\.\d+)?$/.test(trimmed) && parseFloat(trimmed) > 0 && parseFloat(trimmed) <= 9999;
+  if (type === 'amount') return /^\d+$/.test(trimmed) && parseInt(trimmed) >= 0 && parseInt(trimmed) <= 9999999;
+  if (type === 'subscriberNumber') return /^\d{10,15}$/.test(trimmed);
+  return trimmed.length <= 100;
 }
 
 const LoadingOverlay = ({ visible, text }) => {
@@ -1679,7 +1710,7 @@ const AddWorkerScreen = ({ visible, onClose, generators, darkMode, currentUser, 
         <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
           <View style={{ padding: IS_SMALL ? 12 : 16 }}>
             <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 6 : 8, textAlign: 'right', fontWeight: 'bold' }}>اسم العامل <Text style={{ color: '#F44336' }}>*</Text></Text>
-            <TextInput style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 14 : 16, borderWidth: 1, borderColor: darkMode ? '#444' : '#e0e0e0', textAlign: 'right', color: darkMode ? '#fff' : '#333' }} placeholder="أدخل اسم العامل" placeholderTextColor="#999" value={workerName} onChangeText={setWorkerName} />
+            <TextInput style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 14 : 16, borderWidth: 1, borderColor: darkMode ? '#444' : '#e0e0e0', textAlign: 'right', color: darkMode ? '#fff' : '#333' }} placeholder="أدخل اسم العامل" placeholderTextColor="#999" value={workerName} onChangeText={setWorkerName} maxLength={25} />
 
             <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666', marginTop: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 10, textAlign: 'center' }}>اختر الصلاحيات التي تريدها للعامل:</Text>
 
