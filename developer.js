@@ -5215,7 +5215,7 @@ const TrialBanner = ({ subscriptionData, onPress }) => {
   const iconColor = isTrial ? '#FFC107' : '#F44336';
   const title = isTrial ? 'فترة التجربة المجانية' : 'اشتراك منتهي';
   const days = subscriptionData.daysLeft || 0;
-  const subtitle = isTrial ? 'متبقي ' + days + ' يوم من أصل 60 يوم مجاني' : 'اشتراكك منتهي. للتفعيل: 20,000 د.ع لمدة 6 أشهر';
+  const subtitle = isTrial ? 'متبقي ' + days + ' يوم من أصل 30 يوم مجاني' : 'اشتراكك منتهي. للتفعيل: 20,000 د.ع لمدة 6 أشهر';
   return (
     <TouchableOpacity onPress={onPress} style={{ backgroundColor: bgColor, borderWidth: 1, borderColor: borderColor, borderRadius: 12, padding: 12, marginHorizontal: 16, marginTop: 8, flexDirection: 'row', alignItems: 'center' }} activeOpacity={0.7}>
       <Ionicons name={icon} size={24} color={iconColor} style={{ marginRight: 10 }} />
@@ -5293,7 +5293,7 @@ const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeAct
         <View style={{ flex: 1, height: 1, backgroundColor: '#333' }} />
       </View>
       <TouchableOpacity onPress={onActivate} style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '100%', marginBottom: 12 }} activeOpacity={0.8}>
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>جدّد الاشتراك من خلال مرسالة الدعم</Text>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>جدّد الاشتراك من خلال مراسلة الدعم</Text>
       </TouchableOpacity>
       <Text style={{ color: '#6B7280', fontSize: 13, fontFamily: 'System', marginBottom: 12 }}>+964 780 252 4458</Text>
       <TouchableOpacity onPress={onLogout} activeOpacity={0.7}>
@@ -6129,12 +6129,8 @@ export default function App() {
       await saveUserData(workerOwnerPhone, 'worker_activity_log', [...existingLog, logBatch]);
       await syncPendingChanges(workerOwnerPhone);
       if (result !== undefined) {
-        const updatesToSend = [...workerUpdates];
         setWorkerUpdates([]);
         Alert.alert('تم', 'تم رفع التحديثات بنجاح');
-        setTimeout(function() {
-          workerReport.promptSendWorkerReport(updatesToSend, subscribers, amperPrices, goldenPrices, getAmperForMonth, getPriceForSubscriber, formatNumber, workerOwnerPhone, generatorName, workerName);
-        }, 500);
       } else {
         Alert.alert('خطأ', 'فشل رفع التحديثات');
       }
