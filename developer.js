@@ -7953,13 +7953,13 @@ export default function App() {
 
                 <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 16 : 20, marginBottom: IS_SMALL ? 16 : 20 }}>
                   <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
-                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={50} allowFontScaling={false} />
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={20} allowFontScaling={false} />
 
                   <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 12 : 16, textAlign: 'right' }}>الرمز الجديد</Text>
-                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={(t) => setNewPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={50} allowFontScaling={false} />
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={(t) => setNewPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={20} allowFontScaling={false} />
 
                   <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 12 : 16, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
-                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={(t) => setConfirmPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={50} allowFontScaling={false} />
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={(t) => setConfirmPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={20} allowFontScaling={false} />
                 </View>
 
                 <TouchableOpacity
