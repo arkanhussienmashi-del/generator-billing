@@ -180,21 +180,48 @@ function sanitizeFilename(filename) {
   return filename.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\./g, '_').substring(0, 100);
 }
 
+var _encryptionKey = null;
+async function getEncryptionKey() {
+  if (_encryptionKey) return _encryptionKey;
+  var key = await SecureStore.getItemAsync('device_id');
+  if (!key) {
+    var arr = new Uint8Array(16);
+    Crypto.getRandomValues(arr);
+    key = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    await SecureStore.setItemAsync('device_id', key);
+  }
+  _encryptionKey = key;
+  return key;
+}
+
+function xorEncrypt(data, key) {
+  var result = '';
+  for (var i = 0; i < data.length; i++) {
+    result += String.fromCharCode(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return result;
+}
+
 async function saveLocalCache(filename, data) {
   try {
     await ensureCacheDir();
-    const path = CACHE_DIR + sanitizeFilename(filename) + '.json';
-    await FileSystem.writeAsStringAsync(path, JSON.stringify(data));
+    var key = await getEncryptionKey();
+    var json = JSON.stringify(data);
+    var encrypted = xorEncrypt(json, key);
+    var path = CACHE_DIR + sanitizeFilename(filename) + '.json';
+    await FileSystem.writeAsStringAsync(path, encrypted);
   } catch (e) {}
 }
 
 async function loadLocalCache(filename) {
   try {
-    const path = CACHE_DIR + sanitizeFilename(filename) + '.json';
-    const info = await FileSystem.getInfoAsync(path);
+    var path = CACHE_DIR + sanitizeFilename(filename) + '.json';
+    var info = await FileSystem.getInfoAsync(path);
     if (!info.exists) return null;
-    const raw = await FileSystem.readAsStringAsync(path);
-    return JSON.parse(raw);
+    var raw = await FileSystem.readAsStringAsync(path);
+    var key = await getEncryptionKey();
+    var decrypted = xorEncrypt(raw, key);
+    return JSON.parse(decrypted);
   } catch (e) {
     return null;
   }
@@ -632,7 +659,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
         Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول');
         return;
       }
-      users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim(), ownerName: ownerName.trim() });
+      users.push({ phone: phone.trim(), password: hashedPassword, ownerName: ownerName.trim() });
       await saveToFile('registered_users', users);
 
       await Promise.all([
@@ -747,6 +774,13 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
 
   useEffect(() => {
     (async () => {
+      const deviceId = await SecureStore.getItemAsync('device_id');
+      if (!deviceId) {
+        const arr = new Uint8Array(16);
+        Crypto.getRandomValues(arr);
+        const id = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        await SecureStore.setItemAsync('device_id', id);
+      }
       const savedAttempts = await SecureStore.getItemAsync('owner_login_attempts');
       const savedLock = await SecureStore.getItemAsync('owner_lock_until');
       if (savedAttempts) setLoginAttempts(parseInt(savedAttempts));
@@ -905,6 +939,13 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
 
   useEffect(() => {
     (async () => {
+      const deviceId = await SecureStore.getItemAsync('device_id');
+      if (!deviceId) {
+        const arr = new Uint8Array(16);
+        Crypto.getRandomValues(arr);
+        const id = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        await SecureStore.setItemAsync('device_id', id);
+      }
       const savedAttempts = await SecureStore.getItemAsync('worker_login_attempts');
       const savedLock = await SecureStore.getItemAsync('worker_lock_until');
       if (savedAttempts) setLoginAttempts(parseInt(savedAttempts));
@@ -1859,9 +1900,9 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
                 </TouchableOpacity>
 
                 <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10, flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={async function() {
-                  var text = 'كود العامل: ' + selWorker.code + '\nالرمز السري: ' + (selWorker.plainPin || 'غير متوفر');
+                  var text = 'كود العامل: ' + selWorker.code;
                   await Clipboard.setStringAsync(text);
-                  showNotification('success', 'تم النسخ', 'تم نسخ كود العامل والرمز السري');
+                  showNotification('success', 'تم النسخ', 'تم نسخ كود العامل');
                 }}>
                   <Ionicons name="copy-outline" size={IS_SMALL ? 16 : 18} color="white" />
                   <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ كود ورمز العامل</Text>
@@ -5613,8 +5654,8 @@ export default function App() {
           setSubscriptionData(JSON.parse(localData));
           return true;
         }
-        setSubscriptionData({ status: 'active', daysLeft: 999 });
-        return true;
+        setSubscriptionData({ status: 'expired', daysLeft: 0 });
+        return false;
       }
       const result = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone });
       if (result) {
@@ -5622,10 +5663,10 @@ export default function App() {
         setSubscriptionData(result);
         return result.status !== 'expired';
       }
-      return true;
+      return false;
     } catch (e) {
-      setSubscriptionData({ status: 'active', daysLeft: 999 });
-      return true;
+      setSubscriptionData({ status: 'expired', daysLeft: 0 });
+      return false;
     }
   }, []);
 
@@ -6716,7 +6757,7 @@ export default function App() {
       const code = generateWorkerCode(currentUser);
       const pin = generateWorkerPin();
       const hashedPin = await hashWorkerPin(pin);
-      const newWorker = { code, pin: hashedPin, plainPin: pin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+      const newWorker = { code, pin: hashedPin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
       const updated = [...workers, newWorker];
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
@@ -6755,7 +6796,7 @@ export default function App() {
     try {
       const newPin = generateWorkerPin();
       const hashedPin = await hashWorkerPin(newPin);
-      const updated = workers.map(w => w.code === workerCode ? { ...w, pin: hashedPin, plainPin: newPin } : w);
+      const updated = workers.map(w => w.code === workerCode ? { ...w, pin: hashedPin } : w);
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
       Alert.alert('تم تغيير الرمز', `الرمز الجديد: ${newPin}\nشاركه مع العامل فوراً!`);
