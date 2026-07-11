@@ -5976,6 +5976,15 @@ export default function App() {
       if (all.monthlyExpenses !== undefined) setMonthlyExpenses(all.monthlyExpenses);
     }
     syncPendingChanges(currentUser);
+    if (all.subscribers !== undefined && Array.isArray(all.subscribers) && all.subscribers.length > 0) {
+      saveUserData(currentUser, 'subscribers', all.subscribers);
+    }
+    if (all.workers !== undefined && Array.isArray(all.workers) && all.workers.length > 0) {
+      saveUserData(currentUser, 'workers', all.workers);
+    }
+    if (all.generatorName !== undefined) {
+      saveUserData(currentUser, 'generatorName', all.generatorName);
+    }
   };
 
   const saveCurrentGeneratorData = async (updatedGenerators) => {
