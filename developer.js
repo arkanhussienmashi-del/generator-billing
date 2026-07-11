@@ -661,10 +661,9 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
     setLoading(true);
     try {
       const hashedPassword = await pbkdf2Hash(ownerCode.trim(), phone.trim());
-      const existing = await loadFromFile('registered_users');
-      if (existing === null) {
-        Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر. تحقق من اتصال الإنترنت وحاول مرة أخرى');
-        return;
+      var existing = await loadFromFile('registered_users');
+      if (existing === null || existing === undefined) {
+        existing = [];
       }
       const users = existing || [];
       if (users.find(u => u.phone === phone.trim())) {
@@ -830,10 +829,6 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
     setLoading(true);
     try {
       const usersResult = await loadFromFile('registered_users');
-      if (usersResult === null) {
-        Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر. تحقق من اتصال الإنترنت وحاول مرة أخرى');
-        return;
-      }
       const usersList = usersResult || [];
       const user = usersList.find(u => u.phone === phone.trim());
       if (!user) {
