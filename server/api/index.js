@@ -6,6 +6,16 @@ const ADMIN_PASSWORD = 'admin@billing2026';
 const ADMIN_SECRET = 'genBillingAdmin' + 'Secret' + '2026';
 const ADMIN_TOKEN_EXPIRY_HOURS = 24;
 
+const JWT_SECRET = process.env.JWT_SECRET || 'mowledyJwtSecret2026Key';
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || '';
+const WHATSAPP_TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_NAME || 'otp_verification';
+const OTP_EXPIRY_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_RATE_LIMIT_MAX = 3;
+const OTP_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MIN_INTERVAL_MS = 60 * 1000;
+
 function pbkdf2HashSync(password, salt) {
   let hash = crypto.createHash('sha256').update(salt + ':' + password.trim()).digest('hex');
   for (let i = 0; i < PBKDF2_ITERATIONS; i++) {
@@ -33,6 +43,126 @@ function verifyAdminToken(token) {
   if (isNaN(expiry) || Date.now() > expiry) return false;
   const sig = crypto.createHmac('sha256', ADMIN_SECRET).update(ADMIN_PASSWORD + '.' + expiry).digest('hex');
   return sig === parts[1];
+}
+
+function generateOTP() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function signJWT(payload) {
+  const expiry = Date.now() + 24 * 60 * 60 * 1000;
+  const data = JSON.stringify({ ...payload, exp: expiry });
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('hex');
+  return Buffer.from(data).toString('base64') + '.' + sig;
+}
+
+function verifyJWT(token) {
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const data = Buffer.from(parts[0], 'base64').toString('utf-8');
+    const sig = crypto.createHmac('sha256', JWT_SECRET).update(data).digest('hex');
+    if (sig !== parts[1]) return null;
+    const payload = JSON.parse(data);
+    if (Date.now() > payload.exp) return null;
+    return payload;
+  } catch (e) { return null; }
+}
+
+async function sendWhatsAppOTP(phone, otp) {
+  if (!WHATSAPP_PHONE_NUMBER_ID || !WHATSAPP_ACCESS_TOKEN) {
+    console.log('WhatsApp not configured, OTP: ' + otp + ' for phone: ' + phone);
+    return { ok: true, simulated: true };
+  }
+  try {
+    const response = await fetch(`https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'template',
+        template: {
+          name: WHATSAPP_TEMPLATE_NAME,
+          language: { code: 'ar' },
+          components: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: otp }],
+            },
+          ],
+        },
+      }),
+    });
+    const result = await response.json();
+    if (result.messages) return { ok: true };
+    console.error('WhatsApp API error:', result);
+    return { ok: false, error: result };
+  } catch (e) {
+    console.error('WhatsApp send error:', e);
+    return { ok: false, error: e.message };
+  }
+}
+
+async function ensureOTPTable(p) {
+  await p.query(`CREATE TABLE IF NOT EXISTS otp_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    phone_number VARCHAR(20) NOT NULL,
+    otp VARCHAR(6) NOT NULL,
+    purpose VARCHAR(20) DEFAULT 'login',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    attempts INT DEFAULT 0,
+    request_count INT DEFAULT 0,
+    window_start TIMESTAMP NULL,
+    last_request_at TIMESTAMP NULL,
+    verified TINYINT(1) DEFAULT 0,
+    INDEX idx_phone_purpose (phone_number, purpose)
+  )`);
+}
+
+async function checkOTPRateLimit(p, phone) {
+  await ensureOTPTable(p);
+  const [rows] = await p.query(
+    'SELECT request_count, window_start, last_request_at FROM otp_codes WHERE phone_number = ? ORDER BY created_at DESC LIMIT 1',
+    [phone]
+  );
+  if (rows.length > 0) {
+    const row = rows[0];
+    const now = new Date();
+    if (row.window_start) {
+      const windowStart = new Date(row.window_start);
+      if (now - windowStart < OTP_RATE_LIMIT_WINDOW_MS) {
+        if (row.request_count >= OTP_RATE_LIMIT_MAX) {
+          const waitMin = Math.ceil((OTP_RATE_LIMIT_WINDOW_MS - (now - windowStart)) / 60000);
+          return { allowed: false, reason: `تم تجاوز الحد الأقصى للطلبات. حاول بعد ${waitMin} دقيقة` };
+        }
+      }
+    }
+    if (row.last_request_at) {
+      const lastReq = new Date(row.last_request_at);
+      if (now - lastReq < OTP_MIN_INTERVAL_MS) {
+        const waitSec = Math.ceil((OTP_MIN_INTERVAL_MS - (now - lastReq)) / 1000);
+        return { allowed: false, reason: `انتظر ${waitSec} ثانية بين كل طلب` };
+      }
+    }
+  }
+  return { allowed: true };
+}
+
+async function createOTP(p, phone, purpose) {
+  const otp = generateOTP();
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+  const now = new Date();
+  await p.query(
+    'INSERT INTO otp_codes (phone_number, otp, purpose, expires_at, request_count, window_start, last_request_at) VALUES (?, ?, ?, ?, 1, ?, ?)',
+    [phone, otp, purpose, expiresAt, now, now]
+  );
+  return otp;
 }
 
 let pool = null;
@@ -300,6 +430,58 @@ module.exports = async function handler(req, res) {
         if (phone) { q = 'SELECT * FROM activation_codes WHERE phone = ? ORDER BY created_at DESC'; params = [phone]; }
         const [rows] = await p.query(q, params);
         return res.status(200).json({ codes: rows });
+      }
+
+      if (body._action === 'sendOtp') {
+        const { phone, purpose } = body;
+        if (!phone) return res.status(400).json({ error: 'Missing phone' });
+        const otpPurpose = purpose || 'login';
+        const rateCheck = await checkOTPRateLimit(p, phone);
+        if (!rateCheck.allowed) {
+          return res.status(429).json({ error: rateCheck.reason });
+        }
+        const otp = await createOTP(p, phone, otpPurpose);
+        const whatsappResult = await sendWhatsAppOTP(phone, otp);
+        return res.status(200).json({ ok: true, otp: whatsappResult.simulated ? otp : undefined });
+      }
+
+      if (body._action === 'verifyOtp') {
+        const { phone, otp, purpose } = body;
+        if (!phone || !otp) return res.status(400).json({ error: 'Missing phone or otp' });
+        await ensureOTPTable(p);
+        const otpPurpose = purpose || 'login';
+        const [rows] = await p.query(
+          'SELECT * FROM otp_codes WHERE phone_number = ? AND purpose = ? AND verified = 0 ORDER BY created_at DESC LIMIT 1',
+          [phone, otpPurpose]
+        );
+        if (rows.length === 0) {
+          return res.status(400).json({ error: 'لا يوجد رمز تحقق صالح' });
+        }
+        const otpRow = rows[0];
+        const now = new Date();
+        if (now > new Date(otpRow.expires_at)) {
+          return res.status(400).json({ error: 'انتهت صلاحية الرمز' });
+        }
+        if (otpRow.attempts >= OTP_MAX_ATTEMPTS) {
+          return res.status(400).json({ error: 'تم تجاوز الحد الأقصى للمحاولات' });
+        }
+        if (otpRow.otp !== otp) {
+          await p.query('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?', [otpRow.id]);
+          const remaining = OTP_MAX_ATTEMPTS - (otpRow.attempts + 1);
+          return res.status(400).json({ error: `الرمز غير صحيح. متبقي ${remaining} محاولة` });
+        }
+        await p.query('UPDATE otp_codes SET verified = 1 WHERE id = ?', [otpRow.id]);
+        const jwtToken = signJWT({ phone, purpose: otpPurpose });
+        return res.status(200).json({ ok: true, token: jwtToken });
+      }
+
+      if (body._action === 'verifySession') {
+        const token = body.token || '';
+        const payload = verifyJWT(token);
+        if (!payload) {
+          return res.status(401).json({ error: 'Invalid session' });
+        }
+        return res.status(200).json({ ok: true, phone: payload.phone });
       }
 
       if (body._table === 'app_data') {
