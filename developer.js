@@ -5639,11 +5639,6 @@ export default function App() {
 
       if (result.success) {
         setAppLocked(false);
-      } else {
-        const stillEnrolled = await LocalAuthentication.isEnrolledAsync();
-        if (!stillEnrolled) {
-          setAppLocked(false);
-        }
       }
     } catch (error) {
     } finally {
@@ -5724,6 +5719,16 @@ export default function App() {
       setScreen('main');
     }
   }, [userRole, screen]);
+
+  useEffect(() => {
+    if ((screen === 'main' || screen === 'workerMain') && !appLocked) {
+      (async () => {
+        const _hw = await LocalAuthentication.hasHardwareAsync();
+        const _en = _hw ? await LocalAuthentication.isEnrolledAsync() : false;
+        if (_en && !isAuthenticating.current) { setAppLocked(true); }
+      })();
+    }
+  }, [screen]);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
@@ -6121,6 +6126,9 @@ export default function App() {
     if (userRole === 'worker') return;
     setCurrentUser(userPhone);
     setActiveTab('home');
+    const _hw = await LocalAuthentication.hasHardwareAsync();
+    const _enrolled = _hw ? await LocalAuthentication.isEnrolledAsync() : false;
+    if (_enrolled) { setAppLocked(true); }
     setScreen('main');
     checkSubscription(userPhone);
   };
