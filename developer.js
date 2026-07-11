@@ -5549,9 +5549,8 @@ export default function App() {
             setScreen('main');
           }
           setActiveTab('home');
-          const hasHardware = await LocalAuthentication.hasHardwareAsync();
-          const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-          if (isEnrolled) {
+          const secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+          if (secLevel > 0) {
             setAppLocked(true);
           }
           if (savedUser.role === 'owner') {
@@ -5619,10 +5618,8 @@ export default function App() {
   const authenticateUser = React.useCallback(async () => {
     if (isAuthenticating.current) return;
 
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-
-    if (!hasHardware || !isEnrolled) {
+    const secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+    if (secLevel === 0) {
       setAppLocked(false);
       return;
     }
@@ -5723,9 +5720,8 @@ export default function App() {
   useEffect(() => {
     if ((screen === 'main' || screen === 'workerMain') && !appLocked) {
       (async () => {
-        const _hw = await LocalAuthentication.hasHardwareAsync();
-        const _en = _hw ? await LocalAuthentication.isEnrolledAsync() : false;
-        if (_en && !isAuthenticating.current) { setAppLocked(true); }
+        const _secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+        if (_secLevel > 0 && !isAuthenticating.current) { setAppLocked(true); }
       })();
     }
   }, [screen]);
@@ -5743,9 +5739,9 @@ export default function App() {
         (appState.current === 'background' || appState.current === 'inactive')
         && nextState === 'active'
       ) {
-        const hasHardware = await LocalAuthentication.hasHardwareAsync();
-        const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-        if (isEnrolled) {
+        const secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+        const hasAnySecurity = secLevel > 0;
+        if (hasAnySecurity) {
           setAppLocked(true);
           setTimeout(() => authenticateUser(), 150);
         } else {
@@ -6126,9 +6122,8 @@ export default function App() {
     if (userRole === 'worker') return;
     setCurrentUser(userPhone);
     setActiveTab('home');
-    const _hw = await LocalAuthentication.hasHardwareAsync();
-    const _enrolled = _hw ? await LocalAuthentication.isEnrolledAsync() : false;
-    if (_enrolled) { setAppLocked(true); }
+    const _secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+    if (_secLevel > 0) { setAppLocked(true); }
     setScreen('main');
     checkSubscription(userPhone);
   };
