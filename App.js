@@ -26,6 +26,7 @@ const IS_SMALL = SCREEN_WIDTH < 360;
 const MODAL_WIDTH = IS_TABLET ? Math.min(500, SCREEN_WIDTH * 0.7) : Math.min(SCREEN_WIDTH * 0.9, 420);
 const SCALE = SCREEN_WIDTH / 375;
 import { Ionicons } from '@expo/vector-icons';
+import { WhatsAppSupportButton } from './src/features/whatsapp-support';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import * as XLSX from 'xlsx';
@@ -43,7 +44,17 @@ TextInput.defaultProps = { ...(TextInput.defaultProps || {}), allowFontScaling: 
 
 const API_URL = 'https://server-ten-wheat.vercel.app';
 
+const _apiRateLimit = { requests: [], maxRequests: 30, windowMs: 60000 };
+function checkApiRateLimit() {
+  var now = Date.now();
+  _apiRateLimit.requests = _apiRateLimit.requests.filter(function(t) { return now - t < _apiRateLimit.windowMs; });
+  if (_apiRateLimit.requests.length >= _apiRateLimit.maxRequests) return false;
+  _apiRateLimit.requests.push(now);
+  return true;
+}
+
 async function apiRequest(method, path, body) {
+  if (!checkApiRateLimit()) { return null; }
   try {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== undefined) opts.body = JSON.stringify(body);
@@ -59,7 +70,9 @@ async function apiRequest(method, path, body) {
 
 async function saveToFile(filename, data) {
   await saveLocalCache('app_' + filename, data);
-  apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data }).catch(function() {});
+  apiRequest('POST', '/api', { _table: 'app_data', filename, data_value: data }).then(function(res) {
+    if (!res) { console.warn('Cloud save failed for: ' + filename); }
+  }).catch(function() { console.warn('Cloud save error for: ' + filename); });
   return { ok: true };
 }
 
@@ -163,20 +176,24 @@ async function ensureCacheDir() {
   } catch (e) {}
 }
 
+function sanitizeFilename(filename) {
+  return filename.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\./g, '_').substring(0, 100);
+}
+
 async function saveLocalCache(filename, data) {
   try {
     await ensureCacheDir();
-    const path = CACHE_DIR + filename.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+    var path = CACHE_DIR + sanitizeFilename(filename) + '.json';
     await FileSystem.writeAsStringAsync(path, JSON.stringify(data));
   } catch (e) {}
 }
 
 async function loadLocalCache(filename) {
   try {
-    const path = CACHE_DIR + filename.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
-    const info = await FileSystem.getInfoAsync(path);
+    var path = CACHE_DIR + sanitizeFilename(filename) + '.json';
+    var info = await FileSystem.getInfoAsync(path);
     if (!info.exists) return null;
-    const raw = await FileSystem.readAsStringAsync(path);
+    var raw = await FileSystem.readAsStringAsync(path);
     return JSON.parse(raw);
   } catch (e) {
     return null;
@@ -268,14 +285,15 @@ function onlyDigits(text) {
 }
 
 async function hashPassword(password, salt) {
-  const saltedPassword = (salt || 'genBilling') + password.trim();
+  var actualSalt = salt || generateSalt();
+  var saltedPassword = actualSalt + ':' + password.trim() + ':genBillingApp';
   return await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     saltedPassword
   );
 }
 
-const PBKDF2_ITERATIONS = 10;
+const PBKDF2_ITERATIONS = 1000;
 async function pbkdf2Hash(password, salt) {
   let hash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
@@ -347,9 +365,23 @@ async function verifyOwnerPassword(stored, password, phone) {
 }
 
 function getSecureRandom(max) {
-  const arr = new Uint8Array(1);
+  var arr = new Uint8Array(2);
   Crypto.getRandomValues(arr);
-  return arr[0] % max;
+  var val = (arr[0] * 256 + arr[1]) % max;
+  return val;
+}
+
+function validateInput(str, type) {
+  if (typeof str !== 'string') return false;
+  var trimmed = str.trim();
+  if (trimmed.length === 0) return false;
+  if (type === 'phone') return /^\d{11}$/.test(trimmed) && trimmed.startsWith('07');
+  if (type === 'code') return /^[a-zA-Z0-9]{6,20}$/.test(trimmed);
+  if (type === 'name') return trimmed.length >= 1 && trimmed.length <= 25 && /^[\u0600-\u06FF\s\w]+$/.test(trimmed);
+  if (type === 'amper') return /^\d+(\.\d+)?$/.test(trimmed) && parseFloat(trimmed) > 0 && parseFloat(trimmed) <= 9999;
+  if (type === 'amount') return /^\d+$/.test(trimmed) && parseInt(trimmed) >= 0 && parseInt(trimmed) <= 9999999;
+  if (type === 'subscriberNumber') return /^\d{10,15}$/.test(trimmed);
+  return trimmed.length <= 100;
 }
 
 const LoadingOverlay = ({ visible, text }) => {
@@ -447,7 +479,7 @@ const OnboardingScreen = ({ onComplete }) => {
       icon: 'card',
       iconColor: '#FFD700',
       title: 'فترة تجربة مجانية',
-      description: 'ستحصل على فترة تجربة مجانية لمدة دقيقة واحدة من تاريخ التسجيل. بعد انتهاء الفترة التجريبية، يشترط تفعيل الاشتراك للمتابعة',
+      description: 'ستحصل على فترة تجربة مجانية لمدة شهر واحد من تاريخ التسجيل. بعد انتهاء الفترة التجريبية، يشترط تفعيل الاشتراك للمتابعة',
       bg: '#1B5E20',
     },
   ];
@@ -535,6 +567,8 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
           <Ionicons name="person-outline" size={IS_SMALL ? 16 : IS_TABLET ? 24 : 20} color="white" style={{ marginLeft: IS_SMALL ? 6 : IS_TABLET ? 10 : 8 }} />
           <Text style={styles.welcomeRegisterText}>دخول العامل</Text>
         </TouchableOpacity>
+
+        <WhatsAppSupportButton />
       </View>
     </View>
   );
@@ -588,17 +622,16 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
     setLoading(true);
     try {
       const hashedPassword = await pbkdf2Hash(ownerCode.trim(), phone.trim());
-      const existing = await loadFromFile('registered_users');
-      if (existing === null) {
-        Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر. تحقق من اتصال الإنترنت وحاول مرة أخرى');
-        return;
+      var existing = await loadFromFile('registered_users');
+      if (existing === null || existing === undefined) {
+        existing = [];
       }
       const users = existing || [];
       if (users.find(u => u.phone === phone.trim())) {
         Alert.alert('تنبيه', 'هذا الرقم مسجل بالفعل. يرجى تسجيل الدخول');
         return;
       }
-      users.push({ phone: phone.trim(), password: hashedPassword, ownerCode: ownerCode.trim(), ownerName: ownerName.trim() });
+      users.push({ phone: phone.trim(), password: hashedPassword, ownerName: ownerName.trim() });
       await saveToFile('registered_users', users);
 
       await Promise.all([
@@ -654,7 +687,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
               placeholderTextColor="#999"
               value={ownerName}
               onChangeText={setOwnerName}
-              maxLength={50}
+              maxLength={25}
             />
           </View>
 
@@ -695,6 +728,8 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
           <TouchableOpacity onPress={onBack}>
             <Text style={styles.linkText}>لديك حساب بالفعل؟ تسجيل الدخول</Text>
           </TouchableOpacity>
+
+          <WhatsAppSupportButton />
         </View>
       </ScrollView>
     </View>
@@ -708,6 +743,26 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const deviceId = await SecureStore.getItemAsync('device_id');
+      if (!deviceId) {
+        const arr = new Uint8Array(16);
+        Crypto.getRandomValues(arr);
+        const id = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        await SecureStore.setItemAsync('device_id', id);
+      }
+      const savedAttempts = await SecureStore.getItemAsync('owner_login_attempts');
+      const savedLock = await SecureStore.getItemAsync('owner_lock_until');
+      if (savedAttempts) setLoginAttempts(parseInt(savedAttempts));
+      if (savedLock) {
+        const lockTime = parseInt(savedLock);
+        if (Date.now() < lockTime) setLockUntil(lockTime);
+        else { await SecureStore.deleteItemAsync('owner_lock_until'); await SecureStore.deleteItemAsync('owner_login_attempts'); }
+      }
+    })();
+  }, []);
 
   const handleLogin = async () => {
     const phoneError = validatePhone(phone);
@@ -735,10 +790,6 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
     setLoading(true);
     try {
       const usersResult = await loadFromFile('registered_users');
-      if (usersResult === null) {
-        Alert.alert('خطأ', 'لا يمكن الاتصال بالسيرفر. تحقق من اتصال الإنترنت وحاول مرة أخرى');
-        return;
-      }
       const usersList = usersResult || [];
       const user = usersList.find(u => u.phone === phone.trim());
       if (!user) {
@@ -757,9 +808,13 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
       if (!verifyResult.match) {
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
+        await SecureStore.setItemAsync('owner_login_attempts', String(newAttempts));
         if (newAttempts >= 5) {
-          setLockUntil(Date.now() + 15 * 60 * 1000);
+          const lockEnd = Date.now() + 15 * 60 * 1000;
+          setLockUntil(lockEnd);
           setLoginAttempts(0);
+          await SecureStore.setItemAsync('owner_lock_until', String(lockEnd));
+          await SecureStore.setItemAsync('owner_login_attempts', '0');
           Alert.alert('تنبيه', 'تم حظر الحساب لمدة 15 دقيقة بسبب محاولات كثيرة');
         } else {
           Alert.alert('تنبيه', `رقم الهاتف أو كلمة المرور غير صحيحة (${newAttempts}/5)`);
@@ -769,6 +824,8 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
 
       setLoginAttempts(0);
       setLockUntil(null);
+      await SecureStore.deleteItemAsync('owner_login_attempts');
+      await SecureStore.deleteItemAsync('owner_lock_until');
       await SecureStore.setItemAsync('current_user', JSON.stringify({ phone: phone.trim(), role: 'owner' }));
       onLogin(phone.trim());
     } catch (e) {
@@ -833,6 +890,8 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
           <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: IS_SMALL ? 10 : IS_TABLET ? 20 : 15 }}>
             <Text style={[styles.linkText, { color: '#FF9800' }]}>دخول العامل</Text>
           </TouchableOpacity>
+
+          <WhatsAppSupportButton />
         </View>
       </View>
     </View>
@@ -843,8 +902,35 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockUntil, setLockUntil] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const deviceId = await SecureStore.getItemAsync('device_id');
+      if (!deviceId) {
+        const arr = new Uint8Array(16);
+        Crypto.getRandomValues(arr);
+        const id = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        await SecureStore.setItemAsync('device_id', id);
+      }
+      const savedAttempts = await SecureStore.getItemAsync('worker_login_attempts');
+      const savedLock = await SecureStore.getItemAsync('worker_lock_until');
+      if (savedAttempts) setLoginAttempts(parseInt(savedAttempts));
+      if (savedLock) {
+        const lockTime = parseInt(savedLock);
+        if (Date.now() < lockTime) setLockUntil(lockTime);
+        else { await SecureStore.deleteItemAsync('worker_lock_until'); await SecureStore.deleteItemAsync('worker_login_attempts'); }
+      }
+    })();
+  }, []);
 
   const handleLogin = async () => {
+    if (lockUntil && Date.now() < lockUntil) {
+      const remaining = Math.ceil((lockUntil - Date.now()) / 60000);
+      Alert.alert('تم الحظر', `تم حظر تسجيل الدخول. يرجى الانتظار ${remaining} دقيقة`);
+      return;
+    }
     if (!code.trim() || !pin.trim()) {
       Alert.alert('تنبيه', 'يرجى إدخال الكود والرمز السري');
       return;
@@ -858,7 +944,24 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
       } else if (result.deleted) {
         Alert.alert('تنبيه', 'تم حذف الحساب من قبل صاحب المولد');
       } else if (!result.success) {
-        Alert.alert('تنبيه', 'الكود أو الرمز السري غير صحيح');
+        const newAttempts = loginAttempts + 1;
+        if (newAttempts >= 5) {
+          const lockEnd = Date.now() + 15 * 60 * 1000;
+          setLockUntil(lockEnd);
+          setLoginAttempts(0);
+          await SecureStore.setItemAsync('worker_lock_until', String(lockEnd));
+          await SecureStore.setItemAsync('worker_login_attempts', '0');
+          Alert.alert('تم الحظر', 'تم حظر تسجيل الدخول لمدة 15 دقيقة بسبب المحاولات الفاشلة المتكررة');
+        } else {
+          setLoginAttempts(newAttempts);
+          await SecureStore.setItemAsync('worker_login_attempts', String(newAttempts));
+          Alert.alert('تنبيه', `الكود أو الرمز السري غير صحيح. متبقي ${5 - newAttempts} محاولة`);
+        }
+      } else {
+        setLoginAttempts(0);
+        setLockUntil(null);
+        await SecureStore.deleteItemAsync('worker_login_attempts');
+        await SecureStore.deleteItemAsync('worker_lock_until');
       }
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
@@ -911,6 +1014,8 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
           <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
             <Text style={styles.loginButtonText}>دخول</Text>
           </TouchableOpacity>
+
+          <WhatsAppSupportButton />
         </View>
       </View>
     </View>
@@ -1614,7 +1719,7 @@ const AddWorkerScreen = ({ visible, onClose, generators, darkMode, currentUser, 
         <ScrollView style={styles.subscribersContent} showsVerticalScrollIndicator={false}>
           <View style={{ padding: IS_SMALL ? 12 : 16 }}>
             <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#fff' : '#333', marginBottom: IS_SMALL ? 6 : 8, textAlign: 'right', fontWeight: 'bold' }}>اسم العامل <Text style={{ color: '#F44336' }}>*</Text></Text>
-            <TextInput style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 14 : 16, borderWidth: 1, borderColor: darkMode ? '#444' : '#e0e0e0', textAlign: 'right', color: darkMode ? '#fff' : '#333' }} placeholder="أدخل اسم العامل" placeholderTextColor="#999" value={workerName} onChangeText={setWorkerName} />
+            <TextInput style={{ backgroundColor: darkMode ? '#2a2a2a' : '#f9f9f9', borderRadius: IS_SMALL ? 8 : 10, padding: IS_SMALL ? 10 : 12, fontSize: IS_SMALL ? 14 : 16, borderWidth: 1, borderColor: darkMode ? '#444' : '#e0e0e0', textAlign: 'right', color: darkMode ? '#fff' : '#333' }} placeholder="أدخل اسم العامل" placeholderTextColor="#999" value={workerName} onChangeText={setWorkerName} maxLength={25} />
 
             <Text style={{ fontSize: IS_SMALL ? 13 : 15, color: darkMode ? '#aaa' : '#666', marginTop: IS_SMALL ? 12 : 16, marginBottom: IS_SMALL ? 8 : 10, textAlign: 'center' }}>اختر الصلاحيات التي تريدها للعامل:</Text>
 
@@ -1763,9 +1868,9 @@ const EditWorkerScreen = ({ visible, onClose, workers, generators, onUpdateWorke
                 </TouchableOpacity>
 
                 <TouchableOpacity style={{ backgroundColor: '#4CAF50', borderRadius: IS_SMALL ? 8 : 10, paddingVertical: IS_SMALL ? 12 : 14, width: '100%', alignItems: 'center', marginTop: IS_SMALL ? 8 : 10, flexDirection: 'row', justifyContent: 'center', gap: IS_SMALL ? 6 : 8 }} onPress={async function() {
-                  var text = 'كود العامل: ' + selWorker.code + '\nالرمز السري: ' + (selWorker.plainPin || 'غير متوفر');
+                  var text = 'كود العامل: ' + selWorker.code;
                   await Clipboard.setStringAsync(text);
-                  showNotification('success', 'تم النسخ', 'تم نسخ كود العامل والرمز السري');
+                  showNotification('success', 'تم النسخ', 'تم نسخ كود العامل');
                 }}>
                   <Ionicons name="copy-outline" size={IS_SMALL ? 16 : 18} color="white" />
                   <Text style={{ color: 'white', fontSize: IS_SMALL ? 14 : 16, fontWeight: 'bold' }}>نسخ كود ورمز العامل</Text>
@@ -5405,9 +5510,8 @@ export default function App() {
             setScreen('main');
           }
           setActiveTab('home');
-          const hasHardware = await LocalAuthentication.hasHardwareAsync();
-          const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-          if (isEnrolled) {
+          const secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+          if (secLevel > 0) {
             setAppLocked(true);
           }
           if (savedUser.role === 'owner') {
@@ -5475,10 +5579,8 @@ export default function App() {
   const authenticateUser = React.useCallback(async () => {
     if (isAuthenticating.current) return;
 
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
-
-    if (!hasHardware || !isEnrolled) {
+    const secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+    if (secLevel === 0) {
       setAppLocked(false);
       return;
     }
@@ -5517,8 +5619,8 @@ export default function App() {
           setSubscriptionData(JSON.parse(localData));
           return true;
         }
-        setSubscriptionData({ status: 'active', daysLeft: 999 });
-        return true;
+        setSubscriptionData({ status: 'expired', daysLeft: 0 });
+        return false;
       }
       const result = await apiRequest('POST', '/api', { _action: 'checkSubscription', phone });
       if (result) {
@@ -5526,10 +5628,10 @@ export default function App() {
         setSubscriptionData(result);
         return result.status !== 'expired';
       }
-      return true;
+      return false;
     } catch (e) {
-      setSubscriptionData({ status: 'active', daysLeft: 999 });
-      return true;
+      setSubscriptionData({ status: 'expired', daysLeft: 0 });
+      return false;
     }
   }, []);
 
@@ -5577,6 +5679,15 @@ export default function App() {
   }, [userRole, screen]);
 
   useEffect(() => {
+    if ((screen === 'main' || screen === 'workerMain') && !appLocked) {
+      (async () => {
+        const _secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+        if (_secLevel > 0 && !isAuthenticating.current) { setAppLocked(true); }
+      })();
+    }
+  }, [screen]);
+
+  useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOnline(state.isConnected);
     });
@@ -5584,13 +5695,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
       if (
         (appState.current === 'background' || appState.current === 'inactive')
         && nextState === 'active'
       ) {
-        setAppLocked(true);
-        setTimeout(() => authenticateUser(), 150);
+        const secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+        const hasAnySecurity = secLevel > 0;
+        if (hasAnySecurity) {
+          setAppLocked(true);
+          setTimeout(() => authenticateUser(), 150);
+        } else {
+          setAppLocked(false);
+        }
       }
       appState.current = nextState;
     });
@@ -5966,6 +6083,8 @@ export default function App() {
     if (userRole === 'worker') return;
     setCurrentUser(userPhone);
     setActiveTab('home');
+    const _secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+    if (_secLevel > 0) { setAppLocked(true); }
     setScreen('main');
     checkSubscription(userPhone);
   };
@@ -6620,7 +6739,7 @@ export default function App() {
       const code = generateWorkerCode(currentUser);
       const pin = generateWorkerPin();
       const hashedPin = await hashWorkerPin(pin);
-      const newWorker = { code, pin: hashedPin, plainPin: pin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
+      const newWorker = { code, pin: hashedPin, workerName: workerNameInput, permissions, assignedGenerators: assignedGenerators || [], assignedGeneratorId: currentGeneratorId, createdAt: new Date().toISOString() };
       const updated = [...workers, newWorker];
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
@@ -6659,7 +6778,7 @@ export default function App() {
     try {
       const newPin = generateWorkerPin();
       const hashedPin = await hashWorkerPin(newPin);
-      const updated = workers.map(w => w.code === workerCode ? { ...w, pin: hashedPin, plainPin: newPin } : w);
+      const updated = workers.map(w => w.code === workerCode ? { ...w, pin: hashedPin } : w);
       await saveUserData(currentUser, 'workers', updated);
       setWorkers(updated);
       Alert.alert('تم تغيير الرمز', `الرمز الجديد: ${newPin}\nشاركه مع العامل فوراً!`);
@@ -7888,13 +8007,13 @@ export default function App() {
 
                 <View style={{ backgroundColor: darkMode ? '#1e1e1e' : 'white', borderRadius: IS_SMALL ? 12 : 16, padding: IS_SMALL ? 16 : 20, marginBottom: IS_SMALL ? 16 : 20 }}>
                   <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, textAlign: 'right' }}>الرمز الحالي</Text>
-                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={50} allowFontScaling={false} />
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الحالي" placeholderTextColor="#999" value={currentPass} onChangeText={setCurrentPass} secureTextEntry maxLength={20} allowFontScaling={false} />
 
                   <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 12 : 16, textAlign: 'right' }}>الرمز الجديد</Text>
-                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={(t) => setNewPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={50} allowFontScaling={false} />
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="الرمز الجديد (6 أحرف على الأقل)" placeholderTextColor="#999" value={newPass} onChangeText={(t) => setNewPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={20} allowFontScaling={false} />
 
                   <Text style={{ fontSize: IS_SMALL ? 12 : 14, color: darkMode ? '#aaa' : '#555', marginBottom: 6, marginTop: IS_SMALL ? 12 : 16, textAlign: 'right' }}>تأكيد الرمز الجديد</Text>
-                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={(t) => setConfirmPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={50} allowFontScaling={false} />
+                  <TextInput style={[styles.settingsInput, { textAlign: 'center', textAlignVertical: 'center' }]} placeholder="أعد إدخال الرمز الجديد" placeholderTextColor="#999" value={confirmPass} onChangeText={(t) => setConfirmPass(t.replace(/[\u0600-\u06FF]/g, ''))} secureTextEntry maxLength={20} allowFontScaling={false} />
                 </View>
 
                 <TouchableOpacity
