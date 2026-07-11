@@ -826,7 +826,6 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
       setLockUntil(null);
       await SecureStore.deleteItemAsync('owner_login_attempts');
       await SecureStore.deleteItemAsync('owner_lock_until');
-      await SecureStore.setItemAsync('current_user', JSON.stringify({ phone: phone.trim(), role: 'owner' }));
       onLogin(phone.trim());
     } catch (e) {
       Alert.alert('خطأ', 'حدث خطأ أثناء تسجيل الدخول');
@@ -1016,6 +1015,113 @@ const WorkerLoginScreen = ({ onBack, onLogin, savedWorkerName }) => {
           </TouchableOpacity>
 
           <WhatsAppSupportButton />
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const OTPVerificationScreen = ({ phone, purpose, onVerified, onBack }) => {
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [sentOtp, setSentOtp] = useState('');
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [countdown]);
+
+  useEffect(() => { sendOTP(); }, []);
+
+  const sendOTP = async () => {
+    setLoading(true);
+    try {
+      const result = await apiRequest('POST', '/api', { _action: 'sendOtp', phone, purpose });
+      if (result && result.ok) {
+        setOtpSent(true);
+        setCountdown(60);
+        setCanResend(false);
+        if (result.otp) setSentOtp(result.otp);
+      } else {
+        Alert.alert('خطأ', 'فشل إرسال رمز التحقق');
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء إرسال الرمز');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!otp.trim() || otp.trim().length !== 6) {
+      Alert.alert('تنبيه', 'أدخل الرمز المكون من 6 أرقام');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await apiRequest('POST', '/api', { _action: 'verifyOtp', phone, otp: otp.trim(), purpose });
+      if (result && result.ok) {
+        onVerified(result.token);
+      } else {
+        Alert.alert('خطأ', result ? result.error : 'الرمز غير صحيح');
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء التحقق');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.loginContainer}>
+      <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <LoadingOverlay visible={loading} text="جاري التحقق..." />
+      <View style={styles.loginContent}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+          <Ionicons name="arrow-forward" size={24} color="white" />
+        </TouchableOpacity>
+        <View style={styles.logoContainer}>
+          <Ionicons name="shield-checkmark" size={50} color="#FFD700" />
+          <Text style={styles.appTitle}>تحقق من رقم الهاتف</Text>
+        </View>
+        <View style={styles.loginCard}>
+          <Text style={{ textAlign: 'center', color: '#666', marginBottom: 16, fontSize: IS_SMALL ? 13 : 14 }}>
+            تم إرسال رمز تحقق إلى واتساب{'\n'}{phone}
+          </Text>
+          {sentOtp ? (
+            <View style={{ backgroundColor: '#E8F5E9', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+              <Text style={{ textAlign: 'center', color: '#2E7D32', fontSize: 13 }}>الرمز التجريبي: {sentOtp}</Text>
+            </View>
+          ) : null}
+          <View style={styles.inputContainer}>
+            <Ionicons name="key-outline" size={22} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="أدخل الرمز (6 أرقام)"
+              placeholderTextColor="#999"
+              value={otp}
+              onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+              maxLength={6}
+              textAlign="center"
+              letterSpacing={8}
+            />
+          </View>
+          <TouchableOpacity style={styles.loginButton} onPress={handleVerify}>
+            <Text style={styles.loginButtonText}>تحقق</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={canResend ? sendOTP : null} style={{ marginTop: 16 }}>
+            <Text style={[styles.linkText, { color: canResend ? '#2196F3' : '#999' }]}>
+              {canResend ? 'إعادة إرسال الرمز' : `إعادة الإرسال بعد ${countdown} ثانية`}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -5412,6 +5518,10 @@ export default function App() {
   const insets = useSafeAreaInsets();
   const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
   const [screen, setScreen] = useState('welcome');
+  const [otpPending, setOtpPending] = useState(null);
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState('');
+  const [otpOnVerified, setOtpOnVerified] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -6081,12 +6191,21 @@ export default function App() {
 
   const handleLogin = async (userPhone) => {
     if (userRole === 'worker') return;
-    setCurrentUser(userPhone);
-    setActiveTab('home');
-    const _secLevel = await LocalAuthentication.getEnrolledLevelAsync();
-    if (_secLevel > 0) { setAppLocked(true); }
-    setScreen('main');
-    checkSubscription(userPhone);
+    setOtpPhone(userPhone);
+    setOtpPurpose('login');
+    setOtpOnVerified(() => (token) => {
+      setCurrentUser(userPhone);
+      setUserRole('owner');
+      setActiveTab('home');
+      SecureStore.setItemAsync('current_user', JSON.stringify({ phone: userPhone, role: 'owner', otpToken: token }));
+      (async () => {
+        const _secLevel = await LocalAuthentication.getEnrolledLevelAsync();
+        if (_secLevel > 0) { setAppLocked(true); }
+      })();
+      setScreen('main');
+      checkSubscription(userPhone);
+    });
+    setScreen('otp');
   };
 
   const handleOnboardingComplete = async () => {
@@ -7359,6 +7478,17 @@ export default function App() {
     );
   }
 
+  if (screen === 'otp') {
+    return (
+      <OTPVerificationScreen
+        phone={otpPhone}
+        purpose={otpPurpose}
+        onVerified={otpOnVerified}
+        onBack={() => setScreen('login')}
+      />
+    );
+  }
+
   if (screen === 'welcome') {
     return (
       <WelcomeScreen
@@ -7374,7 +7504,21 @@ export default function App() {
       <RegisterScreen
         onBack={() => setScreen('login')}
         onRegister={() => setScreen('login')}
-        onRegisterSuccess={(registeredPhone, registeredName) => { setCurrentUser(registeredPhone); setUserRole('owner'); setOwnerName(registeredName || ''); SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner' })); SecureStore.setItemAsync('registration_' + registeredPhone, new Date().toISOString()); setScreen('main'); setActiveTab('home'); checkSubscription(registeredPhone); }}
+        onRegisterSuccess={(registeredPhone, registeredName) => {
+          setOtpPhone(registeredPhone);
+          setOtpPurpose('register');
+          setOtpOnVerified(() => (token) => {
+            setCurrentUser(registeredPhone);
+            setUserRole('owner');
+            setOwnerName(registeredName || '');
+            SecureStore.setItemAsync('current_user', JSON.stringify({ phone: registeredPhone, role: 'owner', otpToken: token }));
+            SecureStore.setItemAsync('registration_' + registeredPhone, new Date().toISOString());
+            setScreen('main');
+            setActiveTab('home');
+            checkSubscription(registeredPhone);
+          });
+          setScreen('otp');
+        }}
       />
     );
   }
