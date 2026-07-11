@@ -180,36 +180,11 @@ function sanitizeFilename(filename) {
   return filename.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\./g, '_').substring(0, 100);
 }
 
-var _encryptionKey = null;
-async function getEncryptionKey() {
-  if (_encryptionKey) return _encryptionKey;
-  var key = await SecureStore.getItemAsync('device_id');
-  if (!key) {
-    var arr = new Uint8Array(16);
-    Crypto.getRandomValues(arr);
-    key = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-    await SecureStore.setItemAsync('device_id', key);
-  }
-  _encryptionKey = key;
-  return key;
-}
-
-function xorEncrypt(data, key) {
-  var result = '';
-  for (var i = 0; i < data.length; i++) {
-    result += String.fromCharCode(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-  }
-  return result;
-}
-
 async function saveLocalCache(filename, data) {
   try {
     await ensureCacheDir();
-    var key = await getEncryptionKey();
-    var json = JSON.stringify(data);
-    var encrypted = xorEncrypt(json, key);
     var path = CACHE_DIR + sanitizeFilename(filename) + '.json';
-    await FileSystem.writeAsStringAsync(path, encrypted);
+    await FileSystem.writeAsStringAsync(path, JSON.stringify(data));
   } catch (e) {}
 }
 
@@ -219,21 +194,7 @@ async function loadLocalCache(filename) {
     var info = await FileSystem.getInfoAsync(path);
     if (!info.exists) return null;
     var raw = await FileSystem.readAsStringAsync(path);
-    var key = await getEncryptionKey();
-    var decrypted = xorEncrypt(raw, key);
-    try {
-      return JSON.parse(decrypted);
-    } catch (e2) {
-      try {
-        var plain = JSON.parse(raw);
-        await ensureCacheDir();
-        var reEncrypted = xorEncrypt(raw, key);
-        await FileSystem.writeAsStringAsync(path, reEncrypted);
-        return plain;
-      } catch (e3) {
-        return null;
-      }
-    }
+    return JSON.parse(raw);
   } catch (e) {
     return null;
   }
@@ -5976,15 +5937,6 @@ export default function App() {
       if (all.monthlyExpenses !== undefined) setMonthlyExpenses(all.monthlyExpenses);
     }
     syncPendingChanges(currentUser);
-    if (all.subscribers !== undefined && Array.isArray(all.subscribers) && all.subscribers.length > 0) {
-      saveUserData(currentUser, 'subscribers', all.subscribers);
-    }
-    if (all.workers !== undefined && Array.isArray(all.workers) && all.workers.length > 0) {
-      saveUserData(currentUser, 'workers', all.workers);
-    }
-    if (all.generatorName !== undefined) {
-      saveUserData(currentUser, 'generatorName', all.generatorName);
-    }
   };
 
   const saveCurrentGeneratorData = async (updatedGenerators) => {
