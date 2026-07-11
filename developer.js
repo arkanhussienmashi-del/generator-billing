@@ -5721,13 +5721,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
       if (
         (appState.current === 'background' || appState.current === 'inactive')
         && nextState === 'active'
       ) {
-        setAppLocked(true);
-        setTimeout(() => authenticateUser(), 150);
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = hasHardware ? await LocalAuthentication.isEnrolledAsync() : false;
+        if (isEnrolled) {
+          setAppLocked(true);
+          setTimeout(() => authenticateUser(), 150);
+        } else {
+          setAppLocked(false);
+        }
       }
       appState.current = nextState;
     });
