@@ -221,7 +221,19 @@ async function loadLocalCache(filename) {
     var raw = await FileSystem.readAsStringAsync(path);
     var key = await getEncryptionKey();
     var decrypted = xorEncrypt(raw, key);
-    return JSON.parse(decrypted);
+    try {
+      return JSON.parse(decrypted);
+    } catch (e2) {
+      try {
+        var plain = JSON.parse(raw);
+        await ensureCacheDir();
+        var reEncrypted = xorEncrypt(raw, key);
+        await FileSystem.writeAsStringAsync(path, reEncrypted);
+        return plain;
+      } catch (e3) {
+        return null;
+      }
+    }
   } catch (e) {
     return null;
   }
