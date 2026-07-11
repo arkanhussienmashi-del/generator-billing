@@ -5639,6 +5639,11 @@ export default function App() {
 
       if (result.success) {
         setAppLocked(false);
+      } else {
+        const stillEnrolled = await LocalAuthentication.isEnrolledAsync();
+        if (!stillEnrolled) {
+          setAppLocked(false);
+        }
       }
     } catch (error) {
     } finally {
