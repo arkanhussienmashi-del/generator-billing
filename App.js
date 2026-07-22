@@ -5572,6 +5572,7 @@ const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, a
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [showAllMonths, setShowAllMonths] = useState(false);
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
 
   const doRefresh = async () => {
     if (!qrData || refreshing) return;
@@ -5607,11 +5608,11 @@ const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, a
 
   if (!subscriber) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#0A0E1A', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
-        <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+      <View style={{ flex: 1, backgroundColor: '#F0F4F8', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+        <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
         <Ionicons name="alert-circle-outline" size={60} color="#F44336" />
         <Text style={{ color: '#F44336', fontSize: 18, fontWeight: 'bold', marginTop: 16, fontFamily: 'System' }}>مشترك غير موجود</Text>
-        <TouchableOpacity onPress={onLogout} style={{ marginTop: 20, backgroundColor: '#333', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
+        <TouchableOpacity onPress={onLogout} style={{ marginTop: 20, backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
           <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>العودة</Text>
         </TouchableOpacity>
       </View>
@@ -5619,160 +5620,196 @@ const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, a
   }
 
   const subType = subscriber.subscriptionType || 'normal';
+  const subAddedMonth = subscriber.addedMonth ? parseInt(subscriber.addedMonth) : 1;
+  const subAddedYear = subscriber.addedYear ? parseInt(subscriber.addedYear) : new Date().getFullYear();
+
+  const totalStats = monthsToShow.reduce(function(acc, m) {
+    var mk = m + '_' + selectedYear;
+    var isBefore = (parseInt(selectedYear) < subAddedYear) || (parseInt(selectedYear) === subAddedYear && parseInt(m) < subAddedMonth);
+    var isDel = isDeletedForReport(subscriber, m, selectedYear);
+    if (isBefore || isDel) return acc;
+    var mPrice = getPriceForSubscriber(amperPrices, goldenPrices, mk, subType);
+    if (!mPrice || mPrice === 0) return acc;
+    var mAmper = getAmperForMonth(subscriber, m, selectedYear);
+    var due = mAmper * mPrice;
+    acc.totalDue += due;
+    var pp = (subscriber.partialPayments && subscriber.partialPayments[mk]) || [];
+    var paid = pp.reduce(function(s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
+    if (subscriber.paidMonths && subscriber.paidMonths[mk]) { acc.totalPaid += due; } else { acc.totalPaid += paid; }
+    return acc;
+  }, { totalDue: 0, totalPaid: 0 });
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0A0E1A' }}>
-      <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
-      {refreshing && (
-        <View style={{ backgroundColor: '#1C2333', paddingVertical: 6, alignItems: 'center' }}>
-          <ActivityIndicator size="small" color="#FFD700" />
-        </View>
-      )}
-      {lastUpdate && !refreshing && (
-        <View style={{ backgroundColor: '#1C2333', paddingVertical: 4, alignItems: 'center' }}>
-          <Text style={{ color: '#666', fontSize: 11, fontFamily: 'System' }}>آخر تحديث: {lastUpdate}</Text>
-        </View>
-      )}
-      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={doRefresh} colors={['#FFD700']} tintColor="#FFD700" />}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingHorizontal: 16, paddingBottom: 12 }}>
-          <TouchableOpacity onPress={handleLogout} style={{ backgroundColor: '#B71C1C', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.8}>
-            <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold', fontFamily: 'System' }}>تسجيل الخروج</Text>
+    <View style={{ flex: 1, backgroundColor: '#F0F4F8' }}>
+      <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
+      <View style={{ backgroundColor: '#1565C0', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingBottom: 16, paddingHorizontal: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <TouchableOpacity onPress={handleLogout} style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12 }} activeOpacity={0.8}>
+            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold', fontFamily: 'System' }}>تسجيل الخروج</Text>
           </TouchableOpacity>
           <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', fontFamily: 'System' }}>بياناتي</Text>
           <View style={{ width: 90 }} />
         </View>
-
-        <View style={{ padding: 16 }}>
-          <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
-            <Text style={{ color: '#FFD700', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 8, fontFamily: 'System' }}>مرحباً {subscriber.name}</Text>
-            <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', fontFamily: 'System' }}>صاحب المولد: {ownerName || 'غير محدد'}</Text>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFD700', justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="person" size={24} color="#1565C0" />
           </View>
-
-          <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
-            <TouchableOpacity style={{ flex: 1, backgroundColor: yearPickerVisible ? '#1565C0' : '#1C2333', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: yearPickerVisible ? '#1565C0' : '#333' }} onPress={() => setYearPickerVisible(true)}>
-              <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{selectedYear}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 2, backgroundColor: '#1C2333', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: showAllMonths ? '#1565C0' : '#333' }} onPress={() => setShowAllMonths(!showAllMonths)}>
-              <Text style={{ color: showAllMonths ? '#2196F3' : 'white', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{showAllMonths ? 'كل الأشهر' : 'الشهر ' + selectedMonth}</Text>
-            </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: 'white', fontSize: 17, fontWeight: 'bold', fontFamily: 'System' }}>مرحباً {subscriber.name}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'System' }}>صاحب المولد: {ownerName || 'غير محدد'}</Text>
           </View>
+        </View>
+      </View>
 
-          {!showAllMonths && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {months.map(function(m) {
-                return (
-                  <TouchableOpacity key={m} style={{ width: '15%', backgroundColor: selectedMonth === m ? '#1565C0' : '#1C2333', borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: selectedMonth === m ? '#1565C0' : '#333' }} onPress={() => setSelectedMonth(m)}>
-                    <Text style={{ color: selectedMonth === m ? 'white' : '#9CA3AF', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{m}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+      {refreshing && (
+        <View style={{ backgroundColor: '#E3F2FD', paddingVertical: 6, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color="#1565C0" />
+        </View>
+      )}
+      {lastUpdate && !refreshing && (
+        <View style={{ backgroundColor: '#E3F2FD', paddingVertical: 4, alignItems: 'center' }}>
+          <Text style={{ color: '#666', fontSize: 11, fontFamily: 'System' }}>آخر تحديث: {lastUpdate}</Text>
+        </View>
+      )}
+
+      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={doRefresh} colors={['#1565C0']} tintColor="#1565C0" />}>
+        <View style={{ flexDirection: 'row', padding: 12, gap: 8 }}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'white', borderRadius: 10, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#1565C0' }} onPress={() => setYearPickerVisible(true)}>
+            <Text style={{ color: '#333', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{selectedYear}</Text>
+            <Ionicons name="calendar" size={18} color="#1565C0" />
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'white', borderRadius: 10, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: showAllMonths ? '#1565C0' : '#DDD' }} onPress={() => setShowAllMonths(!showAllMonths)}>
+            <Text style={{ color: showAllMonths ? '#1565C0' : '#333', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{showAllMonths ? 'كل الأشهر' : 'الشهر ' + selectedMonth}</Text>
+            <Ionicons name="calendar" size={18} color={showAllMonths ? '#1565C0' : '#999'} />
+          </TouchableOpacity>
+        </View>
+
+        {totalStats.totalDue > 0 && (
+          <View style={{ flexDirection: 'row', marginHorizontal: 12, marginBottom: 12, gap: 8 }}>
+            <View style={{ flex: 1, backgroundColor: 'white', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+              <Text style={{ color: '#999', fontSize: 11, fontFamily: 'System' }}>المبلغ الكلي</Text>
+              <Text style={{ color: '#333', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{formatNumber(totalStats.totalDue)} د.ع</Text>
             </View>
-          )}
+            <View style={{ flex: 1, backgroundColor: 'white', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#4CAF50' }}>
+              <Text style={{ color: '#4CAF50', fontSize: 11, fontFamily: 'System' }}>المدفوع</Text>
+              <Text style={{ color: '#4CAF50', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{formatNumber(totalStats.totalPaid)} د.ع</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: 'white', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#F44336' }}>
+              <Text style={{ color: '#F44336', fontSize: 11, fontFamily: 'System' }}>المتبقي</Text>
+              <Text style={{ color: '#F44336', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{formatNumber(totalStats.totalDue - totalStats.totalPaid)} د.ع</Text>
+            </View>
+          </View>
+        )}
 
-          {monthsToShow.map(function(m) {
+        <View style={{ marginHorizontal: 12, marginBottom: 8, backgroundColor: '#1565C0', borderRadius: 10, overflow: 'hidden' }}>
+          <View style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8 }}>
+            <Text style={{ flex: 1.2, color: 'white', fontSize: 12, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>الشهر</Text>
+            <Text style={{ flex: 1, color: 'white', fontSize: 12, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>الأميبر</Text>
+            <Text style={{ flex: 1.3, color: 'white', fontSize: 12, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>المبلغ</Text>
+            <Text style={{ flex: 1.2, color: 'white', fontSize: 12, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>الحالة</Text>
+            <Text style={{ flex: 1.5, color: 'white', fontSize: 12, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>التاريخ</Text>
+          </View>
+
+          {monthsToShow.map(function(m, idx) {
             var mk = m + '_' + selectedYear;
+            var isBefore = (parseInt(selectedYear) < subAddedYear) || (parseInt(selectedYear) === subAddedYear && parseInt(m) < subAddedMonth);
+            var isDel = isDeletedForReport(subscriber, m, selectedYear);
+            var rowBg = idx % 2 === 0 ? '#F5F5F5' : '#FFFFFF';
+
+            if (isBefore) {
+              return (
+                <View key={m} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8, backgroundColor: rowBg, borderTopWidth: 1, borderTopColor: '#E0E0E0' }}>
+                  <Text style={{ flex: 1.2, color: '#BBB', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                  <Text style={{ flex: 1, color: '#BBB', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                  <Text style={{ flex: 1.3, color: '#BBB', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                  <View style={{ flex: 1.2, alignItems: 'center' }}>
+                    <View style={{ backgroundColor: '#E0E0E0', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ color: '#999', fontSize: 10, fontFamily: 'System' }}>لم يُضَف بعد</Text>
+                    </View>
+                  </View>
+                  <Text style={{ flex: 1.5, color: '#BBB', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                </View>
+              );
+            }
+
+            if (isDel) {
+              return (
+                <View key={m} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8, backgroundColor: 'rgba(183, 28, 28, 0.08)', borderTopWidth: 1, borderTopColor: '#E0E0E0', borderLeftWidth: 3, borderLeftColor: '#B71C1C' }}>
+                  <Text style={{ flex: 1.2, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                  <Text style={{ flex: 1, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                  <Text style={{ flex: 1.3, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                  <View style={{ flex: 1.2, alignItems: 'center' }}>
+                    <View style={{ backgroundColor: '#FFEBEE', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ color: '#D32F2F', fontSize: 10, fontWeight: 'bold', fontFamily: 'System' }}>محذوف</Text>
+                    </View>
+                  </View>
+                  <Text style={{ flex: 1.5, color: '#D32F2F', fontSize: 11, textAlign: 'center', fontFamily: 'System' }}>{subscriber.deletedAt || '-'}</Text>
+                </View>
+              );
+            }
+
             var mPrice = getPriceForSubscriber(amperPrices, goldenPrices, mk, subType);
             var mAmper = getAmperForMonth(subscriber, m, selectedYear);
             var mTotalDue = mAmper * mPrice;
             var mPartialPayments = (subscriber.partialPayments && subscriber.partialPayments[mk]) || [];
             var mTotalPaid = mPartialPayments.reduce(function(s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
             var mIsPaid = subscriber.paidMonths && subscriber.paidMonths[mk];
-            var mRemaining = mTotalDue - mTotalPaid;
-
-            var isDeleted = isDeletedForReport(subscriber, m, selectedYear);
-            if (isDeleted) {
-              return (
-                <View key={m} style={{ backgroundColor: 'rgba(183, 28, 28, 0.15)', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#B71C1C' }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ color: '#EF5350', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
-                    <Text style={{ color: '#EF5350', fontSize: 13, fontFamily: 'System' }}>محذوف</Text>
-                  </View>
-                </View>
-              );
-            }
-
-            var subAddedMonth = subscriber.addedMonth ? parseInt(subscriber.addedMonth) : 1;
-            var subAddedYear = subscriber.addedYear ? parseInt(subscriber.addedYear) : new Date().getFullYear();
-            var isBeforeAdded = (parseInt(selectedYear) < subAddedYear) || (parseInt(selectedYear) === subAddedYear && parseInt(m) < subAddedMonth);
-            if (isBeforeAdded) {
-              return (
-                <View key={m} style={{ backgroundColor: '#151B2B', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#222' }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ color: '#555', fontSize: 14, fontFamily: 'System' }}>{m}/{selectedYear}</Text>
-                    <Text style={{ color: '#555', fontSize: 12, fontFamily: 'System' }}>لم يُضَف بعد</Text>
-                  </View>
-                </View>
-              );
-            }
-
             var priceNotSet = !mPrice || mPrice === 0;
-            var statusColor = mIsPaid ? '#4CAF50' : (mTotalPaid > 0 ? '#FF9800' : '#F44336');
-            var statusText = mIsPaid ? 'مدفوع' : (mTotalPaid > 0 ? 'دفع جزئي' : 'غير مدفوع');
-            var bgColor = mIsPaid ? 'rgba(76, 175, 80, 0.1)' : (mTotalPaid > 0 ? 'rgba(255, 152, 0, 0.1)' : 'rgba(244, 67, 54, 0.1)');
-            var borderColor2 = mIsPaid ? '#4CAF50' : (mTotalPaid > 0 ? '#FF9800' : '#F44336');
+            var hasPartial = mPartialPayments.length > 0 && !mIsPaid;
+            var history = (subscriber.paymentHistory || []).filter(function(h) { return h.monthKey === mk; });
+            var lastEntry = history.length > 0 ? history[history.length - 1] : null;
+
+            var statusLabel, statusBg, statusColor2;
+            if (mIsPaid) { statusLabel = 'مدفوع'; statusBg = '#E8F5E9'; statusColor2 = '#4CAF50'; }
+            else if (hasPartial) { statusLabel = 'جزئي ' + formatNumber(mTotalPaid); statusBg = '#FFF3E0'; statusColor2 = '#FF9800'; }
+            else { statusLabel = 'غير مدفوع'; statusBg = '#FFEBEE'; statusColor2 = '#F44336'; }
+
+            var rowBg2 = idx % 2 === 0 ? '#F5F5F5' : '#FFFFFF';
+            var rowBorderLeft = mIsPaid ? '#4CAF50' : (hasPartial ? '#FF9800' : '#F44336');
 
             return (
-              <View key={m} style={{ backgroundColor: bgColor, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: borderColor2 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
-                  <Text style={{ color: statusColor, fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{statusText}</Text>
-                </View>
-                {priceNotSet ? (
-                  <Text style={{ color: '#777', fontSize: 12, fontFamily: 'System' }}>لم يتم تحديد السعر</Text>
-                ) : (
-                  <View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>الأميبر</Text>
-                      <Text style={{ color: 'white', fontSize: 12, fontFamily: 'System' }}>{mAmper}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>المبلغ</Text>
-                      <Text style={{ color: 'white', fontSize: 12, fontFamily: 'System' }}>{formatNumber(mTotalDue)} د.ع</Text>
-                    </View>
-                    {mTotalPaid > 0 && (
-                      <View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                          <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>المدفوع</Text>
-                          <Text style={{ color: '#4CAF50', fontSize: 12, fontFamily: 'System' }}>{formatNumber(mTotalPaid)} د.ع</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>المتبقي</Text>
-                          <Text style={{ color: '#F44336', fontSize: 12, fontFamily: 'System' }}>{formatNumber(mRemaining)} د.ع</Text>
-                        </View>
-                      </View>
-                    )}
+              <View key={m} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8, backgroundColor: rowBg2, borderTopWidth: 1, borderTopColor: '#E0E0E0', borderLeftWidth: 3, borderLeftColor: rowBorderLeft }}>
+                <Text style={{ flex: 1.2, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                <Text style={{ flex: 1, color: '#1565C0', fontSize: 12, fontWeight: 'bold', textAlign: 'center', fontFamily: 'System' }}>{priceNotSet ? '-' : mAmper}</Text>
+                <Text style={{ flex: 1.3, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>{priceNotSet ? 'لم يحدد السعر' : 'د.ع ' + formatNumber(mTotalDue)}</Text>
+                <View style={{ flex: 1.2, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: priceNotSet ? '#E0E0E0' : statusBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ color: priceNotSet ? '#999' : statusColor2, fontSize: 10, fontWeight: 'bold', fontFamily: 'System' }}>{priceNotSet ? '-' : statusLabel}</Text>
                   </View>
-                )}
+                </View>
+                <View style={{ flex: 1.5 }}>
+                  <Text style={{ color: '#333', fontSize: 11, textAlign: 'center', fontFamily: 'System' }}>{lastEntry ? lastEntry.timestamp || '-' : '-'}</Text>
+                </View>
               </View>
             );
           })}
-
-          <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
-            <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>بياناتي</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>رقم الجوزة</Text>
-              <Text style={{ color: 'white', fontSize: 13, fontFamily: 'System' }}>{subscriber.meterNumber || '—'}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>رقم الفيز</Text>
-              <Text style={{ color: 'white', fontSize: 13, fontFamily: 'System' }}>{subscriber.visaNumber || '—'}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>رقم المشترك</Text>
-              <Text style={{ color: 'white', fontSize: 13, fontFamily: 'System' }}>{subscriber.subscriberNumber || '—'}</Text>
-            </View>
-          </View>
-
-          {ownerPhone && (
-            <TouchableOpacity
-              onPress={function() { Linking.openURL('https://wa.me/' + ownerPhone.replace(/^0/, '964') + '?text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Linking.openURL('whatsapp://send?phone=' + ownerPhone.replace(/^0/, '964') + '&text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }); }}
-              style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 30 }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>مراسلة صاحب المولد</Text>
-            </TouchableOpacity>
-          )}
         </View>
+
+        <View style={{ backgroundColor: 'white', borderRadius: 12, marginHorizontal: 12, marginBottom: 12, padding: 16, borderWidth: 1, borderColor: '#E0E0E0' }}>
+          <Text style={{ color: '#333', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>بياناتي</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ color: '#999', fontSize: 13, fontFamily: 'System' }}>رقم الجوزة</Text>
+            <Text style={{ color: '#333', fontSize: 13, fontWeight: 'bold', fontFamily: 'System' }}>{subscriber.meterNumber || '—'}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ color: '#999', fontSize: 13, fontFamily: 'System' }}>رقم الفيز</Text>
+            <Text style={{ color: '#333', fontSize: 13, fontWeight: 'bold', fontFamily: 'System' }}>{subscriber.visaNumber || '—'}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#999', fontSize: 13, fontFamily: 'System' }}>رقم المشترك</Text>
+            <Text style={{ color: '#333', fontSize: 13, fontWeight: 'bold', fontFamily: 'System' }}>{subscriber.subscriberNumber || '—'}</Text>
+          </View>
+        </View>
+
+        {ownerPhone && (
+          <TouchableOpacity
+            onPress={function() { Linking.openURL('https://wa.me/' + ownerPhone.replace(/^0/, '964') + '?text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Linking.openURL('whatsapp://send?phone=' + ownerPhone.replace(/^0/, '964') + '&text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }); }}
+            style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginHorizontal: 12, marginBottom: 30 }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>مراسلة صاحب المولد</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
