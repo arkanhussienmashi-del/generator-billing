@@ -15,6 +15,7 @@ import {
   Linking,
   AppState,
   BackHandler,
+  RefreshControl,
   Animated,
   PanResponder,
 } from 'react-native';
@@ -38,6 +39,10 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import * as Crypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
+import QRCode from 'react-native-qrcode-svg';
+import { captureRef } from 'react-native-view-shot';
+import { CameraView, Camera, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 
 Text.defaultProps = { ...(Text.defaultProps || {}), allowFontScaling: false };
 TextInput.defaultProps = { ...(TextInput.defaultProps || {}), allowFontScaling: false };
@@ -544,7 +549,7 @@ const OnboardingScreen = ({ onComplete }) => {
   );
 };
 
-const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
+const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin, onSubscriberLogin }) => {
   return (
     <View style={styles.welcomeContainer}>
       <StatusBar backgroundColor="#1565C0" barStyle="light-content" />
@@ -566,6 +571,11 @@ const WelcomeScreen = ({ onLogin, onRegister, onWorkerLogin }) => {
         <TouchableOpacity style={[styles.welcomeRegisterBtn, { backgroundColor: '#FF9800', marginTop: IS_SMALL ? 12 : IS_TABLET ? 20 : 15 }]} onPress={onWorkerLogin}>
           <Ionicons name="person-outline" size={IS_SMALL ? 16 : IS_TABLET ? 24 : 20} color="white" style={{ marginLeft: IS_SMALL ? 6 : IS_TABLET ? 10 : 8 }} />
           <Text style={styles.welcomeRegisterText}>دخول العامل</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.welcomeRegisterBtn, { backgroundColor: '#4CAF50', marginTop: IS_SMALL ? 12 : IS_TABLET ? 20 : 15 }]} onPress={onSubscriberLogin}>
+          <Ionicons name="qr-code-outline" size={IS_SMALL ? 16 : IS_TABLET ? 24 : 20} color="white" style={{ marginLeft: IS_SMALL ? 6 : IS_TABLET ? 10 : 8 }} />
+          <Text style={styles.welcomeRegisterText}>دخول المشترك</Text>
         </TouchableOpacity>
 
         <WhatsAppSupportButton />
@@ -736,7 +746,7 @@ const RegisterScreen = ({ onBack, onRegister, onRegisterSuccess }) => {
   );
 };
 
-const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
+const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin, onSubscriberLogin }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -889,6 +899,10 @@ const LoginScreen = ({ onBack, onRegister, onLogin, onWorkerLogin }) => {
 
           <TouchableOpacity onPress={onWorkerLogin} style={{ marginTop: IS_SMALL ? 10 : IS_TABLET ? 20 : 15 }}>
             <Text style={[styles.linkText, { color: '#FF9800' }]}>دخول العامل</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onSubscriberLogin} style={{ marginTop: IS_SMALL ? 8 : IS_TABLET ? 15 : 10 }}>
+            <Text style={[styles.linkText, { color: '#4CAF50' }]}>دخول المشترك (باركود)</Text>
           </TouchableOpacity>
 
           <WhatsAppSupportButton />
@@ -2387,7 +2401,7 @@ const WorkerTrackingScreen = ({ visible, onClose, workers, activityLog, amperPri
   );
 };
 
-const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedYear, defaultSubscriptionType }) => {
+const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedYear, defaultSubscriptionType, generatorId }) => {
   const { showNotification } = useNotification();
   const [name, setName] = useState('');
   const [amper, setAmper] = useState('');
@@ -2414,8 +2428,10 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
 
     const now = new Date();
     const amperVal = parseInt(amper) || 0;
+    const newId = Date.now().toString();
+    const qrData = (generatorId || '') + '|' + newId;
     const newSubscriber = {
-      id: Date.now().toString(),
+      id: newId,
       name: name.trim(),
       amper: amperVal,
       subscriberNumber: subscriberNumber.trim(),
@@ -2430,6 +2446,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
       date: now.toISOString(),
       addedMonth: parseInt(selectedMonth),
       addedYear: parseInt(selectedYear),
+      qrData: qrData,
     };
 
     onSave(newSubscriber);
@@ -2506,7 +2523,7 @@ const AddSubscriberModal = ({ visible, onClose, onSave, selectedMonth, selectedY
   );
 };
 
-const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMonth, selectedYear, isPaid }) => {
+const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMonth, selectedYear, isPaid, generatorId }) => {
   const { showNotification } = useNotification();
   const [name, setName] = useState('');
   const [amper, setAmper] = useState('');
@@ -2514,6 +2531,7 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
   const [meterNumber, setMeterNumber] = useState('');
   const [visaNumber, setVisaNumber] = useState('');
   const [subscriptionType, setSubscriptionType] = useState('normal');
+  const [showQR, setShowQR] = useState(false);
 
   useEffect(() => {
     if (subscriber) {
@@ -2548,6 +2566,9 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
       visaNumber: visaNumber.trim(),
       subscriptionType: subscriptionType,
     };
+    if (!updatedSubscriber.qrData && generatorId) {
+      updatedSubscriber.qrData = (generatorId || '') + '|' + (subscriber.id || '');
+    }
     const currentMonthAmper = getAmperForMonth(subscriber, parseInt(selectedMonth), parseInt(selectedYear));
     if (!isPaid && amperVal !== currentMonthAmper) {
       updatedSubscriber.amperHistory = [
@@ -2620,10 +2641,30 @@ const EditSubscriberModal = ({ visible, onClose, subscriber, onSave, selectedMon
                 <Ionicons name="checkmark-circle" size={22} color="white" />
                 <Text style={styles.saveSubscriberText}>حفظ التعديلات</Text>
               </TouchableOpacity>
+              {subscriber && subscriber.qrData && (
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, marginTop: 12 }} onPress={() => setShowQR(true)}>
+                  <Ionicons name="qr-code-outline" size={22} color="white" />
+                  <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold', marginLeft: 8, fontFamily: 'System' }}>عرض الباركود</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </ScrollView>
         </View>
       </View>
+      {showQR && subscriber && subscriber.qrData && (
+        <Modal visible={showQR} transparent={true} animationType="fade" onRequestClose={() => setShowQR(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+            <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 30, alignItems: 'center', width: '85%' }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 20, color: '#333', fontFamily: 'System' }}>باركود المشترك</Text>
+              <QRCode value={subscriber.qrData} size={200} color="#000" backgroundColor="white" />
+              <Text style={{ fontSize: 14, color: '#666', marginTop: 16, textAlign: 'center', fontFamily: 'System' }}>{subscriber.name}</Text>
+              <TouchableOpacity onPress={() => setShowQR(false)} style={{ marginTop: 20, backgroundColor: '#1565C0', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 40 }} activeOpacity={0.8}>
+                <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>إغلاق</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 };
@@ -2834,7 +2875,7 @@ const ChangeAmperModal = ({ visible, onClose, subscriber, selectedMonth, selecte
     </Modal>
   );
 };
-const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth, onOpenPartialPayment, onMultiMonthPayment, onOpenMultiMonthPayment }) => {
+const SubscribersScreen = ({ visible, onClose, subscribers, onDeleteSubscriber, onSaveSubscriber, onTogglePaid, onPartialPayment, onRestoreSubscriber, amperPrices, goldenPrices, onSaveGoldenPrice, currentUser, ownerName, onChangeAmper, onSaveAmperPrice, userRole, workerPermissions, fullScreen, darkMode, lastMonth, lastYear, onSaveLastMonth, onOpenPartialPayment, onMultiMonthPayment, onOpenMultiMonthPayment, currentGeneratorId }) => {
   const { showNotification } = useNotification();
   const [selectedMonth, setSelectedMonth] = useState(lastMonth || String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState(lastYear || String(new Date().getFullYear()));
@@ -3478,6 +3519,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
         defaultSubscriptionType={subscriptionTypeFilter}
+        generatorId={currentGeneratorId}
       />
 
       <MonthPickerModal visible={monthPickerVisible} onClose={() => setMonthPickerVisible(false)} onSelect={setSelectedMonth} selectedMonth={selectedMonth} />
@@ -3502,6 +3544,7 @@ placeholder="اكتب اسم المشترك أو رقم الهاتف أو رقم
         selectedYear={selectedYear}
         onSave={(updated) => onSaveSubscriber(updated)}
         isPaid={editSubscriber ? isPaid(editSubscriber) : false}
+        generatorId={currentGeneratorId}
       />
 
       {deletePickerVisible && (
@@ -5408,10 +5451,292 @@ const ExpiredScreen = ({ onActivate, ownerName, onLogout, currentUser, onCodeAct
   );
 };
 
+const BarcodeScannerScreen = ({ onBack, onScanned }) => {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!permission) {
+      requestPermission();
+    }
+  }, []);
+
+  const handleBarCodeScanned = async ({ type, data }) => {
+    if (scanned || loading) return;
+    setScanned(true);
+    setLoading(true);
+    try {
+      await onScanned(data);
+    } catch (e) {
+      setLoading(false);
+      setScanned(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setLoading(true);
+        const uri = result.assets[0].uri;
+        try {
+          const barcodes = await Camera.scanFromURLAsync(uri, ['qr']);
+          if (barcodes && barcodes.length > 0) {
+            onScanned(barcodes[0].data);
+          } else {
+            Alert.alert('خطأ', 'لم يتم العثور على باركود في الصورة');
+            setLoading(false);
+          }
+        } catch (e2) {
+          Alert.alert('خطأ', 'لم يتم التعرف على باركود');
+          setLoading(false);
+        }
+      }
+    } catch (e) {
+      Alert.alert('خطأ', 'حدث خطأ أثناء اختيار الصورة');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0A0E1A' }}>
+      <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingHorizontal: 16, paddingBottom: 12 }}>
+        <TouchableOpacity onPress={onBack} style={{ padding: 8 }}>
+          <Ionicons name="arrow-forward" size={26} color="white" />
+        </TouchableOpacity>
+        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', fontFamily: 'System' }}>مسح الباركود</Text>
+        <View style={{ width: 42 }} />
+      </View>
+
+      {!permission ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#FFD700" />
+          <Text style={{ color: '#9CA3AF', fontSize: 14, marginTop: 12, fontFamily: 'System' }}>جاري التحقق من الأذونات...</Text>
+        </View>
+      ) : !permission.granted ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+          <Ionicons name="camera-outline" size={60} color="#FFD700" />
+          <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginTop: 16, marginBottom: 8, fontFamily: 'System' }}>إذن الكاميرا مطلوب</Text>
+          <Text style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', marginBottom: 24, fontFamily: 'System' }}>يجب السماح بالوصول للكاميرا لمسح الباركود</Text>
+          <TouchableOpacity onPress={requestPermission} style={{ backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, width: '80%', alignItems: 'center' }} activeOpacity={0.8}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>منح الإذن</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, margin: 16, borderRadius: 16, overflow: 'hidden', borderWidth: 2, borderColor: '#FFD700' }}>
+            <CameraView
+              style={{ flex: 1 }}
+              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            />
+            {loading && (
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#FFD700" />
+                <Text style={{ color: 'white', fontSize: 14, marginTop: 12, fontFamily: 'System' }}>جاري البحث عن المشترك...</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 40 : 24, gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => { setScanned(false); setLoading(false); }}
+              style={{ backgroundColor: '#1565C0', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>إعادة المسح</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePickImage}
+              style={{ backgroundColor: '#333', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>اختيار صورة من الاستوديو</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amperPrices, goldenPrices, monthKey, qrData, onRefresh }) => {
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState('');
+
+  const doRefresh = async () => {
+    if (!qrData || refreshing) return;
+    setRefreshing(true);
+    try {
+      const result = await apiRequest('POST', '/api', { _action: 'lookupSubscriber', qrData: qrData });
+      if (result && result.ok && onRefresh) {
+        onRefresh(result);
+        var now = new Date();
+        var h = now.getHours();
+        var ampm = h >= 12 ? 'مساءً' : 'صباحاً';
+        setLastUpdate(now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\s*[صم]$/, '') + ' ' + ampm);
+      }
+    } catch (e) {}
+    setRefreshing(false);
+  };
+
+  useEffect(function() {
+    if (!qrData) return;
+    var interval = setInterval(doRefresh, 30000);
+    return function() { clearInterval(interval); };
+  }, [qrData]);
+
+  const pmMonth = monthKey ? monthKey.split('_')[0] : String(new Date().getMonth() + 1);
+  const pmYear = monthKey ? monthKey.split('_')[1] : String(new Date().getFullYear());
+  const price = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, subscriber ? subscriber.subscriptionType : 'normal');
+  const amper = subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0;
+  const totalDue = amper * price;
+  const existingPayments = (subscriber && subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
+  const totalPaid = existingPayments.reduce(function(sum, p) { return sum + (parseFloat(p.amount) || 0); }, 0);
+  const remaining = totalDue - totalPaid;
+  const isPaid = subscriber && subscriber.paidMonths && subscriber.paidMonths[monthKey];
+
+  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const currentMonthName = monthNames[parseInt(pmMonth) - 1] || pmMonth;
+
+  if (!subscriber) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0A0E1A', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+        <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+        <Ionicons name="alert-circle-outline" size={60} color="#F44336" />
+        <Text style={{ color: '#F44336', fontSize: 18, fontWeight: 'bold', marginTop: 16, fontFamily: 'System' }}>مشترك غير موجود</Text>
+        <TouchableOpacity onPress={onBack} style={{ marginTop: 20, backgroundColor: '#333', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
+          <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>العودة</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0A0E1A' }}>
+      <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
+      {refreshing && (
+        <View style={{ backgroundColor: '#1C2333', paddingVertical: 6, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color="#FFD700" />
+        </View>
+      )}
+      {lastUpdate && !refreshing && (
+        <View style={{ backgroundColor: '#1C2333', paddingVertical: 4, alignItems: 'center' }}>
+          <Text style={{ color: '#666', fontSize: 11, fontFamily: 'System' }}>آخر تحديث: {lastUpdate}</Text>
+        </View>
+      )}
+      <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={doRefresh} colors={['#FFD700']} tintColor="#FFD700" />}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingHorizontal: 16, paddingBottom: 12 }}>
+          <TouchableOpacity onPress={onBack} style={{ padding: 8 }}>
+            <Ionicons name="arrow-forward" size={26} color="white" />
+          </TouchableOpacity>
+          <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', fontFamily: 'System' }}>بياناتي</Text>
+          <View style={{ width: 42 }} />
+        </View>
+
+        <View style={{ padding: 16 }}>
+          <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
+            <Text style={{ color: '#FFD700', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 8, fontFamily: 'System' }}>مرحباً {subscriber.name}</Text>
+            <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', fontFamily: 'System' }}>صاحب المولد: {ownerName || 'غير محدد'}</Text>
+          </View>
+
+          <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
+            <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>الشهر الحالي</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>الشهر</Text>
+              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{currentMonthName} {pmYear}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>الأمبيرات</Text>
+              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{amper}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>نوع الاشتراك</Text>
+              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{subscriber.subscriptionType === 'golden' ? 'ذهبي' : 'عادي'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>المبلغ</Text>
+              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{formatNumber(totalDue)} د.ع</Text>
+            </View>
+            <View style={{ height: 1, backgroundColor: '#333', marginVertical: 8 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>الحالة</Text>
+              <Text style={{ color: isPaid ? '#4CAF50' : remaining > 0 && totalPaid > 0 ? '#FF9800' : '#F44336', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>
+                {isPaid ? 'مدفوع' : totalPaid > 0 ? 'دفع جزئي' : 'غير مدفوع'}
+              </Text>
+            </View>
+            {totalPaid > 0 && (
+              <View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>المدفوع</Text>
+                  <Text style={{ color: '#4CAF50', fontSize: 14, fontFamily: 'System' }}>{formatNumber(totalPaid)} د.ع</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>المتبقي</Text>
+                  <Text style={{ color: '#F44336', fontSize: 14, fontFamily: 'System' }}>{formatNumber(remaining)} د.ع</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {subscriber.paymentHistory && subscriber.paymentHistory.length > 0 && (
+            <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>سجل الدفعات</Text>
+              {subscriber.paymentHistory.slice().reverse().slice(0, 6).map(function(p, idx) {
+                return (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: idx < 5 ? 1 : 0, borderBottomColor: '#333' }}>
+                    <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>{p.monthKey || '—'}</Text>
+                    <Text style={{ color: '#4CAF50', fontSize: 13, fontFamily: 'System' }}>{formatNumber(p.amount || 0)} د.ع</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
+            <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>بياناتي</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>رقم الجوزة</Text>
+              <Text style={{ color: 'white', fontSize: 13, fontFamily: 'System' }}>{subscriber.meterNumber || '—'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>رقم الفيز</Text>
+              <Text style={{ color: 'white', fontSize: 13, fontFamily: 'System' }}>{subscriber.visaNumber || '—'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>رقم المشترك</Text>
+              <Text style={{ color: 'white', fontSize: 13, fontFamily: 'System' }}>{subscriber.subscriberNumber || '—'}</Text>
+            </View>
+          </View>
+
+          {ownerPhone && (
+            <TouchableOpacity
+              onPress={function() { Linking.openURL('whatsapp://send?phone=' + ownerPhone.replace(/^0/, '964') + '&text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }}
+              style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 30 }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'System' }}>مراسلة صاحب المولد</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
 export default function App() {
   const insets = useSafeAreaInsets();
   const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
   const [screen, setScreen] = useState('welcome');
+  const [subscriberPortalData, setSubscriberPortalData] = useState(null);
+  const [qrShareData, setQrShareData] = useState(null);
+  const [qrShareName, setQrShareName] = useState('');
+  const [qrPaymentInfo, setQrPaymentInfo] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -5777,6 +6102,42 @@ export default function App() {
   const workerSyncRef = React.useRef({ generators: generators, currentGeneratorId: currentGeneratorId });
   const seenRejectedIdsRef = React.useRef(new Set());
   const firstPollDoneRef = React.useRef(false);
+  const qrShareViewRef = React.useRef(null);
+
+  const shareQRImage = (qrData, subscriberName, paymentInfo) => {
+    setQrShareData(qrData);
+    setQrShareName(subscriberName || '');
+    setQrPaymentInfo(paymentInfo || '');
+  };
+
+  React.useEffect(() => {
+    if (!qrShareData || !qrShareViewRef.current) return;
+    var timer = setTimeout(function() {
+      try {
+        if (qrShareViewRef.current) {
+          captureRef(qrShareViewRef, { format: 'png', quality: 1 }).then(function(uri) {
+            Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'مشاركة إشعار الدفع' }).catch(function() {});
+            setQrShareData(null);
+            setQrShareName('');
+            setQrPaymentInfo('');
+          }).catch(function() {
+            setQrShareData(null);
+            setQrShareName('');
+            setQrPaymentInfo('');
+          });
+        } else {
+          setQrShareData(null);
+          setQrShareName('');
+          setQrPaymentInfo('');
+        }
+      } catch (e) {
+        setQrShareData(null);
+        setQrShareName('');
+        setQrPaymentInfo('');
+      }
+    }, 500);
+    return function() { clearTimeout(timer); };
+  }, [qrShareData]);
   useEffect(() => {
     workerSyncRef.current = { generators, currentGeneratorId };
   }, [generators, currentGeneratorId]);
@@ -5916,6 +6277,7 @@ export default function App() {
     if (loadedGenerators.length > 0) {
       setGenerators(loadedGenerators);
       setCurrentGeneratorId(loadedCurrentId);
+      syncSubscriberLookupToServer(loadedGenerators, currentUser, all.ownerName || '').catch(function() {});
       const active = loadedGenerators.find(g => g.id === loadedCurrentId) || loadedGenerators[0];
       if (active) {
         setGeneratorName(active.name);
@@ -5944,6 +6306,17 @@ export default function App() {
     if (currentUser) await saveUserData(currentUser, 'generators', updatedGenerators);
   };
 
+  const syncSubscriberLookupToServer = async (generatorsArr, phone, name) => {
+    for (var retry = 0; retry < 3; retry++) {
+      try {
+        var result = await apiRequest('POST', '/api', { _action: 'syncSubscriberLookup', phone: phone || currentUser, generators: generatorsArr, ownerName: name || ownerName });
+        if (result && result.ok) return true;
+      } catch (e) {}
+      await new Promise(function(r) { setTimeout(r, 1000 * (retry + 1)); });
+    }
+    return false;
+  };
+
   const syncSubscribersToGenerator = async (newSubs) => {
     const updated = generators.map(g => {
       if (g.id === currentGeneratorId) {
@@ -5952,7 +6325,10 @@ export default function App() {
       return g;
     });
     setGenerators(updated);
-    if (currentUser) await saveUserData(currentUser, 'generators', updated);
+    if (currentUser) {
+      await saveUserData(currentUser, 'generators', updated);
+      syncSubscriberLookupToServer(updated, currentUser, ownerName).catch(function() {});
+    }
   };
 
   const handleCreateGenerator = async (name) => {
@@ -7052,12 +7428,14 @@ export default function App() {
         const payerName = userRole === 'worker' ? workerName : ownerName;
         const subTypeLabel = sub.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي';
         const msg = `إشعار دفع - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${monthName}/${yearName}\nنوع الاشتراك: ${subTypeLabel}\nعدد الأمبير: ${amperVal}\nسعر الامبير لهذا الشهر: ${formatNumber(monthPrice)} د.ع\nالمبلغ الإجمالي: د.ع ${formatNumber(amount)}\nالحالة: مدفوع\n\nتم الدفع بواسطة: ${payerName}\nالتاريخ: ${timestamp}`;
-        Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع للمشترك على الواتساب؟', [
+        Alert.alert('إرسال إشعار الدفع', 'هل تريد إرسال إشعار الدفع للمشترك؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
-            const phone = sub.subscriberNumber.replace(/^0/, '964');
-            const url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
-            Linking.openURL(url).catch(() => Alert.alert('خطأ', 'لا يمكن فتح الواتساب'));
+            if (sub.qrData) {
+              shareQRImage(sub.qrData, sub.name, msg);
+            } else {
+              Alert.alert('تنبيه', 'لا يوجد باركود لهذا المشترك');
+            }
           }},
         ]);
       }
@@ -7132,12 +7510,14 @@ export default function App() {
         const payerName2 = userRole === 'worker' ? workerName : ownerName;
         const subTypeLabel2 = sub.subscriptionType === 'golden' ? 'اشتراك ذهبي' : 'اشتراك عادي';
         const msg2 = `إشعار دفع جزئي - ${generatorName}\n\nالعميل: ${sub.name}\nالشهر: ${pmParts2[0]}/${pmParts2[1]}\nنوع الاشتراك: ${subTypeLabel2}\nعدد الأمبير: ${amperVal2}\nسعر الامبير لهذا الشهر: ${formatNumber(pricePerAmper2)} د.ع\nالمبلغ المدفوع: د.ع ${formatNumber(amount)}\nالإجمالي: د.ع ${formatNumber(totalDue2)}\nالواصل: د.ع ${formatNumber(totalPaid2)}\nالمتبقي: د.ع ${formatNumber(totalDue2 - totalPaid2)}\n\nتم بواسطة: ${payerName2}\nالتاريخ: ${timestamp}`;
-        Alert.alert('إرسال فاتورة واتساب', 'هل تريد إرسال إشعار الدفع الجزئي للمشترك على الواتساب؟', [
+        Alert.alert('إرسال إشعار الدفع', 'هل تريد إرسال إشعار الدفع للمشترك؟', [
           { text: 'لا', style: 'cancel' },
           { text: 'نعم', onPress: () => {
-            const phone2 = sub.subscriberNumber.replace(/^0/, '964');
-            const url2 = 'https://wa.me/' + phone2 + '?text=' + encodeURIComponent(msg2);
-            Linking.openURL(url2).catch(() => Alert.alert('خطأ', 'لا يمكن فتح الواتساب'));
+            if (sub.qrData) {
+              shareQRImage(sub.qrData, sub.name, msg2);
+            } else {
+              Alert.alert('تنبيه', 'لا يوجد باركود لهذا المشترك');
+            }
           }},
         ]);
       }
@@ -7287,7 +7667,7 @@ export default function App() {
   useEffect(() => {
     const onBackPress = () => {
       if (showOnboarding) return false;
-      if (screen === 'welcome' || screen === 'login' || screen === 'register' || screen === 'workerLogin') return false;
+      if (screen === 'welcome' || screen === 'login' || screen === 'register' || screen === 'workerLogin' || screen === 'subscriberScan' || screen === 'subscriberPortal') return false;
 
       if (workerSwitchGeneratorVisible) { setWorkerSwitchGeneratorVisible(false); return true; }
       if (changePassVisible) { setChangePassVisible(false); setCurrentPass(''); setNewPass(''); setConfirmPass(''); return true; }
@@ -7365,6 +7745,7 @@ export default function App() {
         onLogin={() => setScreen('login')}
         onRegister={() => setScreen('register')}
         onWorkerLogin={() => setScreen('workerLogin')}
+        onSubscriberLogin={() => setScreen('subscriberScan')}
       />
     );
   }
@@ -7386,6 +7767,7 @@ export default function App() {
         onRegister={() => setScreen('register')}
         onLogin={handleLogin}
         onWorkerLogin={() => setScreen('workerLogin')}
+        onSubscriberLogin={() => setScreen('subscriberScan')}
       />
     );
   }
@@ -7447,6 +7829,59 @@ export default function App() {
             checkSubscription(result.ownerPhone);
           }
           return result;
+        }}
+      />
+    );
+  }
+
+  if (screen === 'subscriberScan') {
+    return (
+      <BarcodeScannerScreen
+        onBack={() => setScreen('welcome')}
+        onScanned={async (qrData) => {
+          try {
+            const parts = qrData.split('|');
+            if (parts.length < 2) {
+              Alert.alert('خطأ', 'باركود غير صالح');
+              setScreen('subscriberScan');
+              return;
+            }
+            const result = await apiRequest('POST', '/api', { _action: 'lookupSubscriber', qrData: qrData });
+            if (result && result.ok) {
+              setAmperPrices(result.amperPrices || {});
+              setGoldenPrices(result.goldenPrices || {});
+              setSubscriberPortalData({ subscriber: result.subscriber, ownerName: result.ownerName, ownerPhone: result.ownerPhone, qrData: qrData });
+              setScreen('subscriberPortal');
+            } else {
+              Alert.alert('خطأ', result && result.error ? result.error : 'مشترك غير موجود');
+              setScreen('subscriberScan');
+            }
+          } catch (e) {
+            Alert.alert('خطأ', 'يجب الاتصال بالإنترنت للبحث عن المشترك');
+            setScreen('subscriberScan');
+          }
+        }}
+      />
+    );
+  }
+
+  if (screen === 'subscriberPortal') {
+    var portalData = subscriberPortalData || {};
+    var portalMonthKey = (new Date().getMonth() + 1) + '_' + new Date().getFullYear();
+    return (
+      <SubscriberPortalScreen
+        onBack={() => { setScreen('welcome'); setSubscriberPortalData(null); }}
+        subscriber={portalData.subscriber}
+        ownerName={portalData.ownerName}
+        ownerPhone={portalData.ownerPhone}
+        amperPrices={amperPrices}
+        goldenPrices={goldenPrices}
+        monthKey={portalMonthKey}
+        qrData={portalData.qrData}
+        onRefresh={function(result) {
+          setSubscriberPortalData({ subscriber: result.subscriber, ownerName: result.ownerName, ownerPhone: result.ownerPhone, qrData: portalData.qrData });
+          setAmperPrices(result.amperPrices || {});
+          setGoldenPrices(result.goldenPrices || {});
         }}
       />
     );
@@ -7609,6 +8044,7 @@ export default function App() {
           darkMode={darkMode}
           lastMonth={lastSubscribersMonth}
           lastYear={lastSubscribersYear}
+          currentGeneratorId={currentGeneratorId}
           onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
           onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
@@ -7724,6 +8160,7 @@ export default function App() {
           darkMode={darkMode}
           lastMonth={lastSubscribersMonth}
           lastYear={lastSubscribersYear}
+          currentGeneratorId={currentGeneratorId}
           onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
           onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
@@ -7873,6 +8310,7 @@ export default function App() {
           darkMode={darkMode}
           lastMonth={lastSubscribersMonth}
           lastYear={lastSubscribersYear}
+          currentGeneratorId={currentGeneratorId}
           onSaveLastMonth={(m, y) => { setLastSubscribersMonth(m); setLastSubscribersYear(y); if (currentUser) { saveUserData(currentUser, 'lastSubscribersMonth', m); saveUserData(currentUser, 'lastSubscribersYear', y); } }}
           onOpenPartialPayment={(sub, mk) => { setSubscribersVisible(false); setAppPartialPaymentSubscriber(sub); setAppPartialPaymentMonthKey(mk); setAppPartialPaymentVisible(true); }}
           onMultiMonthPayment={(sub) => { setMultiMonthPaymentSubscriber(sub); setMultiMonthPaymentVisible(true); }}
@@ -8091,6 +8529,16 @@ export default function App() {
           <Text style={[styles.tabLabel, { color: activeTab === 'more' ? '#2196F3' : '#999' }]}>الاعدادات</Text>
         </TouchableOpacity>
       </View>
+      )}
+      {qrShareData && (
+        <View ref={qrShareViewRef} collapsable={false} style={{ position: 'absolute', left: -9999, top: -9999, width: 350, backgroundColor: 'white', padding: 20, alignItems: 'center' }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1565C0', marginBottom: 8, fontFamily: 'System', textAlign: 'center' }}>مولدي - إشعار دفع</Text>
+          <View style={{ width: '100%', height: 1, backgroundColor: '#E0E0E0', marginBottom: 12 }} />
+          <Text style={{ fontSize: 14, color: '#333', marginBottom: 4, fontFamily: 'System', textAlign: 'center', width: '100%' }}>{qrPaymentInfo}</Text>
+          <View style={{ width: '100%', height: 1, backgroundColor: '#E0E0E0', marginVertical: 12 }} />
+          <QRCode value={qrShareData} size={200} color="#000" backgroundColor="white" />
+          <Text style={{ fontSize: 12, color: '#999', marginTop: 12, fontFamily: 'System', textAlign: 'center' }}>امسح الباركود لعرض بياناتك</Text>
+        </View>
       )}
     </View>
     </NotificationProvider>
@@ -8400,6 +8848,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
+    color: '#333',
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
