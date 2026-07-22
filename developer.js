@@ -5565,9 +5565,13 @@ const BarcodeScannerScreen = ({ onBack, onScanned }) => {
   );
 };
 
-const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amperPrices, goldenPrices, monthKey, qrData, onRefresh }) => {
+const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, amperPrices, goldenPrices, monthKey, qrData, onRefresh }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
+  const [showAllMonths, setShowAllMonths] = useState(false);
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
 
   const doRefresh = async () => {
     if (!qrData || refreshing) return;
@@ -5591,18 +5595,15 @@ const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amp
     return function() { clearInterval(interval); };
   }, [qrData]);
 
-  const pmMonth = monthKey ? monthKey.split('_')[0] : String(new Date().getMonth() + 1);
-  const pmYear = monthKey ? monthKey.split('_')[1] : String(new Date().getFullYear());
-  const price = getPriceForSubscriber(amperPrices, goldenPrices, monthKey, subscriber ? subscriber.subscriptionType : 'normal');
-  const amper = subscriber ? getAmperForMonth(subscriber, pmMonth, pmYear) : 0;
-  const totalDue = amper * price;
-  const existingPayments = (subscriber && subscriber.partialPayments && subscriber.partialPayments[monthKey]) || [];
-  const totalPaid = existingPayments.reduce(function(sum, p) { return sum + (parseFloat(p.amount) || 0); }, 0);
-  const remaining = totalDue - totalPaid;
-  const isPaid = subscriber && subscriber.paidMonths && subscriber.paidMonths[monthKey];
+  const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  const monthsToShow = showAllMonths ? months : [selectedMonth];
 
-  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-  const currentMonthName = monthNames[parseInt(pmMonth) - 1] || pmMonth;
+  const handleLogout = () => {
+    Alert.alert('تسجيل الخروج', 'هل حقا تريد تسجيل الخروج؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'تسجيل الخروج', style: 'destructive', onPress: onLogout }
+    ]);
+  };
 
   if (!subscriber) {
     return (
@@ -5610,12 +5611,14 @@ const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amp
         <StatusBar backgroundColor="#0A0E1A" barStyle="light-content" />
         <Ionicons name="alert-circle-outline" size={60} color="#F44336" />
         <Text style={{ color: '#F44336', fontSize: 18, fontWeight: 'bold', marginTop: 16, fontFamily: 'System' }}>مشترك غير موجود</Text>
-        <TouchableOpacity onPress={onBack} style={{ marginTop: 20, backgroundColor: '#333', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
+        <TouchableOpacity onPress={onLogout} style={{ marginTop: 20, backgroundColor: '#333', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
           <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>العودة</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  const subType = subscriber.subscriptionType || 'normal';
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0A0E1A' }}>
@@ -5632,11 +5635,11 @@ const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amp
       )}
       <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={doRefresh} colors={['#FFD700']} tintColor="#FFD700" />}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingHorizontal: 16, paddingBottom: 12 }}>
-          <TouchableOpacity onPress={onBack} style={{ padding: 8 }}>
-            <Ionicons name="arrow-forward" size={26} color="white" />
+          <TouchableOpacity onPress={handleLogout} style={{ backgroundColor: '#B71C1C', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.8}>
+            <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold', fontFamily: 'System' }}>تسجيل الخروج</Text>
           </TouchableOpacity>
           <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', fontFamily: 'System' }}>بياناتي</Text>
-          <View style={{ width: 42 }} />
+          <View style={{ width: 90 }} />
         </View>
 
         <View style={{ padding: 16 }}>
@@ -5645,58 +5648,104 @@ const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amp
             <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', fontFamily: 'System' }}>صاحب المولد: {ownerName || 'غير محدد'}</Text>
           </View>
 
-          <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
-            <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>الشهر الحالي</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>الشهر</Text>
-              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{currentMonthName} {pmYear}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>الأمبيرات</Text>
-              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{amper}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>نوع الاشتراك</Text>
-              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{subscriber.subscriptionType === 'golden' ? 'ذهبي' : 'عادي'}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>المبلغ</Text>
-              <Text style={{ color: 'white', fontSize: 14, fontFamily: 'System' }}>{formatNumber(totalDue)} د.ع</Text>
-            </View>
-            <View style={{ height: 1, backgroundColor: '#333', marginVertical: 8 }} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>الحالة</Text>
-              <Text style={{ color: isPaid ? '#4CAF50' : remaining > 0 && totalPaid > 0 ? '#FF9800' : '#F44336', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>
-                {isPaid ? 'مدفوع' : totalPaid > 0 ? 'دفع جزئي' : 'غير مدفوع'}
-              </Text>
-            </View>
-            {totalPaid > 0 && (
-              <View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>المدفوع</Text>
-                  <Text style={{ color: '#4CAF50', fontSize: 14, fontFamily: 'System' }}>{formatNumber(totalPaid)} د.ع</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'System' }}>المتبقي</Text>
-                  <Text style={{ color: '#F44336', fontSize: 14, fontFamily: 'System' }}>{formatNumber(remaining)} د.ع</Text>
-                </View>
-              </View>
-            )}
+          <View style={{ flexDirection: 'row', marginBottom: 12, gap: 8 }}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: yearPickerVisible ? '#1565C0' : '#1C2333', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: yearPickerVisible ? '#1565C0' : '#333' }} onPress={() => setYearPickerVisible(true)}>
+              <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{selectedYear}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 2, backgroundColor: '#1C2333', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: showAllMonths ? '#1565C0' : '#333' }} onPress={() => setShowAllMonths(!showAllMonths)}>
+              <Text style={{ color: showAllMonths ? '#2196F3' : 'white', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{showAllMonths ? 'كل الأشهر' : 'الشهر ' + selectedMonth}</Text>
+            </TouchableOpacity>
           </View>
 
-          {subscriber.paymentHistory && subscriber.paymentHistory.length > 0 && (
-            <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
-              <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>سجل الدفعات</Text>
-              {subscriber.paymentHistory.slice().reverse().slice(0, 6).map(function(p, idx) {
+          {!showAllMonths && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {months.map(function(m) {
                 return (
-                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: idx < 5 ? 1 : 0, borderBottomColor: '#333' }}>
-                    <Text style={{ color: '#9CA3AF', fontSize: 13, fontFamily: 'System' }}>{p.monthKey || '—'}</Text>
-                    <Text style={{ color: '#4CAF50', fontSize: 13, fontFamily: 'System' }}>{formatNumber(p.amount || 0)} د.ع</Text>
-                  </View>
+                  <TouchableOpacity key={m} style={{ width: '15%', backgroundColor: selectedMonth === m ? '#1565C0' : '#1C2333', borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: selectedMonth === m ? '#1565C0' : '#333' }} onPress={() => setSelectedMonth(m)}>
+                    <Text style={{ color: selectedMonth === m ? 'white' : '#9CA3AF', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{m}</Text>
+                  </TouchableOpacity>
                 );
               })}
             </View>
           )}
+
+          {monthsToShow.map(function(m) {
+            var mk = m + '_' + selectedYear;
+            var mPrice = getPriceForSubscriber(amperPrices, goldenPrices, mk, subType);
+            var mAmper = getAmperForMonth(subscriber, m, selectedYear);
+            var mTotalDue = mAmper * mPrice;
+            var mPartialPayments = (subscriber.partialPayments && subscriber.partialPayments[mk]) || [];
+            var mTotalPaid = mPartialPayments.reduce(function(s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
+            var mIsPaid = subscriber.paidMonths && subscriber.paidMonths[mk];
+            var mRemaining = mTotalDue - mTotalPaid;
+
+            var isDeleted = isDeletedForReport(subscriber, m, selectedYear);
+            if (isDeleted) {
+              return (
+                <View key={m} style={{ backgroundColor: 'rgba(183, 28, 28, 0.15)', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#B71C1C' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: '#EF5350', fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                    <Text style={{ color: '#EF5350', fontSize: 13, fontFamily: 'System' }}>محذوف</Text>
+                  </View>
+                </View>
+              );
+            }
+
+            var subAddedMonth = subscriber.addedMonth ? parseInt(subscriber.addedMonth) : 1;
+            var subAddedYear = subscriber.addedYear ? parseInt(subscriber.addedYear) : new Date().getFullYear();
+            var isBeforeAdded = (parseInt(selectedYear) < subAddedYear) || (parseInt(selectedYear) === subAddedYear && parseInt(m) < subAddedMonth);
+            if (isBeforeAdded) {
+              return (
+                <View key={m} style={{ backgroundColor: '#151B2B', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#222' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: '#555', fontSize: 14, fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                    <Text style={{ color: '#555', fontSize: 12, fontFamily: 'System' }}>لم يُضَف بعد</Text>
+                  </View>
+                </View>
+              );
+            }
+
+            var priceNotSet = !mPrice || mPrice === 0;
+            var statusColor = mIsPaid ? '#4CAF50' : (mTotalPaid > 0 ? '#FF9800' : '#F44336');
+            var statusText = mIsPaid ? 'مدفوع' : (mTotalPaid > 0 ? 'دفع جزئي' : 'غير مدفوع');
+            var bgColor = mIsPaid ? 'rgba(76, 175, 80, 0.1)' : (mTotalPaid > 0 ? 'rgba(255, 152, 0, 0.1)' : 'rgba(244, 67, 54, 0.1)');
+            var borderColor2 = mIsPaid ? '#4CAF50' : (mTotalPaid > 0 ? '#FF9800' : '#F44336');
+
+            return (
+              <View key={m} style={{ backgroundColor: bgColor, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: borderColor2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                  <Text style={{ color: statusColor, fontSize: 14, fontWeight: 'bold', fontFamily: 'System' }}>{statusText}</Text>
+                </View>
+                {priceNotSet ? (
+                  <Text style={{ color: '#777', fontSize: 12, fontFamily: 'System' }}>لم يتم تحديد السعر</Text>
+                ) : (
+                  <View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>الأميبر</Text>
+                      <Text style={{ color: 'white', fontSize: 12, fontFamily: 'System' }}>{mAmper}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>المبلغ</Text>
+                      <Text style={{ color: 'white', fontSize: 12, fontFamily: 'System' }}>{formatNumber(mTotalDue)} د.ع</Text>
+                    </View>
+                    {mTotalPaid > 0 && (
+                      <View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>المدفوع</Text>
+                          <Text style={{ color: '#4CAF50', fontSize: 12, fontFamily: 'System' }}>{formatNumber(mTotalPaid)} د.ع</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'System' }}>المتبقي</Text>
+                          <Text style={{ color: '#F44336', fontSize: 12, fontFamily: 'System' }}>{formatNumber(mRemaining)} د.ع</Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })}
 
           <View style={{ backgroundColor: '#1C2333', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#333' }}>
             <Text style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: 'System' }}>بياناتي</Text>
@@ -5716,7 +5765,7 @@ const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amp
 
           {ownerPhone && (
             <TouchableOpacity
-              onPress={function() { Linking.openURL('whatsapp://send?phone=' + ownerPhone.replace(/^0/, '964') + '&text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }}
+              onPress={function() { Linking.openURL('https://wa.me/' + ownerPhone.replace(/^0/, '964') + '?text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Linking.openURL('whatsapp://send?phone=' + ownerPhone.replace(/^0/, '964') + '&text=' + encodeURIComponent('مرحباً، أنا المشترك ' + subscriber.name + ' — أريد الاستفسار عن فاتورتي.')).catch(function() { Alert.alert('خطأ', 'لم يتم فتح الواتساب'); }); }); }}
               style={{ backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 30 }}
               activeOpacity={0.8}
             >
@@ -5725,6 +5774,8 @@ const SubscriberPortalScreen = ({ onBack, subscriber, ownerName, ownerPhone, amp
           )}
         </View>
       </ScrollView>
+
+      <YearPickerModal visible={yearPickerVisible} onClose={() => setYearPickerVisible(false)} onSelect={setSelectedYear} selectedYear={selectedYear} />
     </View>
   );
 };
@@ -7867,16 +7918,14 @@ export default function App() {
 
   if (screen === 'subscriberPortal') {
     var portalData = subscriberPortalData || {};
-    var portalMonthKey = (new Date().getMonth() + 1) + '_' + new Date().getFullYear();
     return (
       <SubscriberPortalScreen
-        onBack={() => { setScreen('welcome'); setSubscriberPortalData(null); }}
+        onLogout={() => { setScreen('welcome'); setSubscriberPortalData(null); }}
         subscriber={portalData.subscriber}
         ownerName={portalData.ownerName}
         ownerPhone={portalData.ownerPhone}
         amperPrices={amperPrices}
         goldenPrices={goldenPrices}
-        monthKey={portalMonthKey}
         qrData={portalData.qrData}
         onRefresh={function(result) {
           setSubscriberPortalData({ subscriber: result.subscriber, ownerName: result.ownerName, ownerPhone: result.ownerPhone, qrData: portalData.qrData });
