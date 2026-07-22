@@ -3805,7 +3805,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <Text style={{ fontSize: IS_SMALL ? 14 : 16 }}>🗑</Text>
                           <View>
-                            <Text style={{ color: '#EF5350', fontSize: IS_SMALL ? 12 : 15, fontWeight: 'bold' }}>تم حذف هذا المشترك</Text>
+                            <Text style={{ color: '#EF5350', fontSize: IS_SMALL ? 12 : 15, fontWeight: 'bold' }}>تم حذف هذا المشترك{selectedSubscriber.deletedByOwner ? ' من ' + selectedSubscriber.deletedByOwner : ''}</Text>
                             <Text style={{ color: '#9CA3AF', fontSize: IS_SMALL ? 10 : 13 }}>بتاريخ {selectedSubscriber.deletedAt || '-'}</Text>
                           </View>
                         </View>
@@ -5735,21 +5735,23 @@ const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, a
                 );
               }
 
-              if (isDel) {
-                return (
-                  <View key={m} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8, backgroundColor: 'rgba(183, 28, 28, 0.08)', borderTopWidth: 1, borderTopColor: '#E0E0E0', borderLeftWidth: 3, borderLeftColor: '#B71C1C' }}>
-                    <Text style={{ flex: 1.2, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
-                    <Text style={{ flex: 1, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
-                    <Text style={{ flex: 1.3, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
-                    <View style={{ flex: 1.2, alignItems: 'center' }}>
-                      <View style={{ backgroundColor: '#FFEBEE', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                        <Text style={{ color: '#D32F2F', fontSize: 10, fontWeight: 'bold', fontFamily: 'System' }}>محذوف</Text>
-                      </View>
+            if (isDel) {
+              return (
+                <View key={m} style={{ flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8, backgroundColor: 'rgba(183, 28, 28, 0.08)', borderTopWidth: 1, borderTopColor: '#E0E0E0', borderLeftWidth: 3, borderLeftColor: '#B71C1C' }}>
+                  <Text style={{ flex: 1.2, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>{m}/{selectedYear}</Text>
+                  <Text style={{ flex: 1, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                  <Text style={{ flex: 1.3, color: '#333', fontSize: 12, textAlign: 'center', fontFamily: 'System' }}>-</Text>
+                  <View style={{ flex: 1.2, alignItems: 'center' }}>
+                    <View style={{ backgroundColor: '#FFEBEE', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                      <Text style={{ color: '#D32F2F', fontSize: 10, fontWeight: 'bold', fontFamily: 'System' }}>محذوف</Text>
                     </View>
-                    <Text style={{ flex: 1.5, color: '#D32F2F', fontSize: 11, textAlign: 'center', fontFamily: 'System' }}>{subscriber.deletedAt || '-'}</Text>
                   </View>
-                );
-              }
+                  <View style={{ flex: 1.5 }}>
+                    <Text style={{ color: '#D32F2F', fontSize: 10, textAlign: 'center', fontFamily: 'System' }}>تم الحذف{subscriber.deletedByOwner ? ' من ' + subscriber.deletedByOwner : ''}</Text>
+                  </View>
+                </View>
+              );
+            }
 
               var mPrice = getPriceForSubscriber(amperPrices, goldenPrices, mk, subType);
               var mAmper = getAmperForMonth(subscriber, m, selectedYear);

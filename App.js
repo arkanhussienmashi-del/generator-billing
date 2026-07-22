@@ -3805,7 +3805,7 @@ const ReportsScreen = ({ visible, onClose, subscribers, amperPrices, goldenPrice
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                           <Text style={{ fontSize: IS_SMALL ? 14 : 16 }}>🗑</Text>
                           <View>
-                            <Text style={{ color: '#EF5350', fontSize: IS_SMALL ? 12 : 15, fontWeight: 'bold' }}>تم حذف هذا المشترك</Text>
+                            <Text style={{ color: '#EF5350', fontSize: IS_SMALL ? 12 : 15, fontWeight: 'bold' }}>تم حذف هذا المشترك{selectedSubscriber.deletedByOwner ? ' من ' + selectedSubscriber.deletedByOwner : ''}</Text>
                             <Text style={{ color: '#9CA3AF', fontSize: IS_SMALL ? 10 : 13 }}>بتاريخ {selectedSubscriber.deletedAt || '-'}</Text>
                           </View>
                         </View>
@@ -5746,7 +5746,9 @@ const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, a
                         <Text style={{ color: '#D32F2F', fontSize: 10, fontWeight: 'bold', fontFamily: 'System' }}>محذوف</Text>
                       </View>
                     </View>
-                    <Text style={{ flex: 1.5, color: '#D32F2F', fontSize: 11, textAlign: 'center', fontFamily: 'System' }}>{subscriber.deletedAt || '-'}</Text>
+                    <View style={{ flex: 1.5 }}>
+                      <Text style={{ color: '#D32F2F', fontSize: 10, textAlign: 'center', fontFamily: 'System' }}>تم الحذف{subscriber.deletedByOwner ? ' من ' + subscriber.deletedByOwner : ''}</Text>
+                    </View>
                   </View>
                 );
               }
