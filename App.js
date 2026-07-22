@@ -5782,6 +5782,7 @@ const SubscriberPortalScreen = ({ onLogout, subscriber, ownerName, ownerPhone, a
                   </View>
                   <View style={{ flex: 1.5 }}>
                     <Text style={{ color: '#333', fontSize: 11, textAlign: 'center', fontFamily: 'System' }}>{lastEntry ? lastEntry.timestamp || '-' : '-'}</Text>
+                    {lastEntry && lastEntry.ownerName ? <Text style={{ color: '#1565C0', fontSize: 10, textAlign: 'center', fontFamily: 'System' }}>({lastEntry.ownerName})</Text> : null}
                   </View>
                 </View>
               );
