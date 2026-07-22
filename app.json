@@ -8,20 +8,36 @@
     "userInterfaceStyle": "light",
     "sdkVersion": "56.0.0",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.essam.mowldey"
     },
     "android": {
       "package": "com.essam.mowldey",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/icon.png"
-      }
+      },
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/icon.png"
     },
     "plugins": [
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "السماح بالوصول للكاميرا لمسح الباركود"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "السماح بالوصول للصور لاختيار باركود"
+        }
+      ]
     ],
     "extra": {
       "eas": {

@@ -50,6 +50,8 @@ async function getPool() {
     connectionLimit: 3,
     queueLimit: 0,
   });
+  await pool.query("CREATE TABLE IF NOT EXISTS subscriber_lookup (qr_data VARCHAR(500) PRIMARY KEY, owner_phone VARCHAR(20), owner_name VARCHAR(200))").catch(function() {});
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_qr_data ON subscriber_lookup(qr_data)").catch(function() {});
   return pool;
 }
 
@@ -310,6 +312,76 @@ module.exports = async function handler(req, res) {
       if (body._table === 'user_data') {
         await p.query('INSERT INTO user_data (phone, data_key, data_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)', [body.phone, body.data_key, JSON.stringify(body.data_value)]);
         return res.status(200).json({ ok: true });
+      }
+
+      if (body._action === 'lookupSubscriber') {
+        const qrData = body.qrData || '';
+        if (!qrData || qrData.indexOf('|') === -1) return res.status(200).json({ ok: false, error: 'باركود غير صالح' });
+        const parts = qrData.split('|');
+        const genId = parts[0];
+        const subId = parts[1];
+        let ownerPhone = '';
+        let ownerName = '';
+        const [lookupRows] = await p.query('SELECT owner_phone, owner_name FROM subscriber_lookup WHERE qr_data = ? LIMIT 1', [qrData]);
+        if (lookupRows.length > 0) {
+          ownerPhone = lookupRows[0].owner_phone;
+          ownerName = lookupRows[0].owner_name || '';
+        } else {
+          const [allUsers] = await p.query("SELECT phone, data_value FROM user_data WHERE data_key = 'generators'");
+          for (var ui = 0; ui < allUsers.length; ui++) {
+            var uVal = allUsers[ui].data_value;
+            if (typeof uVal === 'string') { try { uVal = JSON.parse(uVal); } catch(e) { continue; } }
+            if (!Array.isArray(uVal)) continue;
+            var foundGen = uVal.find(function(g) { return g.id === genId; });
+            if (foundGen) {
+              var foundSub = (foundGen.subscribers || []).find(function(s) { return s.id === subId; });
+              if (foundSub) {
+                ownerPhone = allUsers[ui].phone;
+                try {
+                  const [uNameRows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'ownerName'", [ownerPhone]);
+                  if (uNameRows.length > 0) { var nv = uNameRows[0].data_value; if (typeof nv === 'string') { ownerName = nv; } }
+                } catch(e2) {}
+                await p.query('INSERT INTO subscriber_lookup (qr_data, owner_phone, owner_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE owner_phone = VALUES(owner_phone), owner_name = VALUES(owner_name)', [qrData, ownerPhone, ownerName]).catch(function() {});
+                break;
+              }
+            }
+          }
+        }
+        if (!ownerPhone) return res.status(200).json({ ok: false, error: 'مشترك غير موجود' });
+        const [genRows] = await p.query("SELECT data_value FROM user_data WHERE phone = ? AND data_key = 'generators'", [ownerPhone]);
+        if (genRows.length === 0) return res.status(200).json({ ok: false, error: 'مشترك غير موجود' });
+        let gens = genRows[0].data_value;
+        if (typeof gens === 'string') { try { gens = JSON.parse(gens); } catch(e) { return res.status(200).json({ ok: false, error: 'خطأ في البيانات' }); } }
+        if (!Array.isArray(gens)) return res.status(200).json({ ok: false, error: 'خطأ في البيانات' });
+        const gen = gens.find(function(g) { return g.id === genId; });
+        if (!gen) return res.status(200).json({ ok: false, error: 'مشترك غير موجود' });
+        const sub = (gen.subscribers || []).find(function(s) { return s.id === subId; });
+        if (!sub) return res.status(200).json({ ok: false, error: 'مشترك غير موجود' });
+        return res.status(200).json({ ok: true, subscriber: sub, ownerName: ownerName, ownerPhone: ownerPhone, amperPrices: gen.amperPrices || {}, goldenPrices: gen.goldenPrices || {} });
+      }
+
+      if (body._action === 'syncSubscriberLookup') {
+        const phone = body.phone || '';
+        const generators = body.generators || [];
+        const ownerName = body.ownerName || '';
+        if (!phone) return res.status(200).json({ ok: false, error: 'Missing phone' });
+        await p.query('DELETE FROM subscriber_lookup WHERE owner_phone = ?', [phone]);
+        const inserts = [];
+        for (var gi = 0; gi < generators.length; gi++) {
+          var g = generators[gi];
+          var subs = g.subscribers || [];
+          for (var si = 0; si < subs.length; si++) {
+            var s = subs[si];
+            var qr = (g.id || '') + '|' + (s.id || '');
+            if (qr.indexOf('|') > 0) {
+              inserts.push([qr, phone, ownerName]);
+            }
+          }
+        }
+        if (inserts.length > 0) {
+          await p.query('INSERT INTO subscriber_lookup (qr_data, owner_phone, owner_name) VALUES ?', [inserts]);
+        }
+        return res.status(200).json({ ok: true, count: inserts.length });
       }
 
       return res.status(400).json({ error: 'Invalid body' });
